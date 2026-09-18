@@ -61,7 +61,7 @@ if exist roaster.json (copy /y roaster.json build\msix\ >nul) else (copy /y roas
 if exist events xcopy /e /i /y /q events build\msix\events >nul
 
 echo   Packing...
-"%MAKEAPPX%" pack /d build\msix /p build\UpgamingRoaster.msix /o >nul || goto :fail
+"%MAKEAPPX%" pack /d build\msix /p build\UpgamingRoaster.msix /o || goto :fail
 
 echo   Signing...
 rem The certificate subject has to match Publisher in the manifest exactly or
@@ -72,11 +72,11 @@ powershell -NoProfile -Command ^
   "if (-not $c) { $c = New-SelfSignedCertificate -Type Custom -Subject $s -KeyUsage DigitalSignature -FriendlyName 'Upgaming Roaster kiosk' -CertStoreLocation 'Cert:\CurrentUser\My' -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3','2.5.29.19={text}') }" ^
   "Export-Certificate -Cert $c -FilePath 'build\Upgaming.cer' ^| Out-Null;" ^
   "Import-Certificate -FilePath 'build\Upgaming.cer' -CertStoreLocation 'Cert:\LocalMachine\TrustedPeople' ^| Out-Null;" ^
-  "Set-Content -Path 'build\thumbprint.txt' -Value $c.Thumbprint"
+  "[IO.File]::WriteAllText('build\thumbprint.txt', $c.Thumbprint)"
 if errorlevel 1 goto :fail
 
 set /p THUMB=<build\thumbprint.txt
-"%SIGNTOOL%" sign /fd SHA256 /sha1 %THUMB% build\UpgamingRoaster.msix >nul || goto :fail
+"%SIGNTOOL%" sign /fd SHA256 /sha1 %THUMB% build\UpgamingRoaster.msix || goto :fail
 
 echo   Installing...
 powershell -NoProfile -Command "Add-AppxPackage -Path 'build\UpgamingRoaster.msix' -ForceUpdateFromAnyVersion"
