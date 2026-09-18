@@ -19,3 +19,16 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+
+---
+
+This licence covers the source code only.
+
+internal/ui/fonts/integral-*.woff2 are Integral CF, a commercial typeface by
+Fontspring. The files here are the publisher's demo build and are included so
+the kiosk renders as designed on Upgaming's own hardware. They are not covered
+by the licence above, are not redistributable, and must be replaced with
+licensed files before any public use.
+
+The Upgaming name and mark are trademarks and are likewise not covered.

@@ -22,7 +22,26 @@ if exist ".git" (
   git diff --quiet 2>nul && git pull --quiet || echo   Local changes present, skipping pull.
 )
 
-call :fonts
+if not exist "roaster.json" copy /y "roaster.example.json" "roaster.json" >nul
+
+echo   Building...
+go build -o roaster.exe .\cmd\roaster
+if errorlevel 1 goto :buildfailed
+go build -ldflags="-H windowsgui" -o kiosk.exe .\cmd\kiosk
+if errorlevel 1 goto :buildfailed
+
+echo   Opening http://localhost:3000/kiosk
+start "" /b cmd /c "timeout /t 2 /nobreak >nul & start "" http://localhost:3000/kiosk"
+echo.
+roaster.exe
+goto :end
+:needgo
+
+if exist ".git" (
+  echo   Pulling latest...
+  git diff --quiet 2>nul && git pull --quiet || echo   Local changes present, skipping pull.
+)
+
 if not exist "roaster.json" copy /y "roaster.example.json" "roaster.json" >nul
 
 echo   Building...

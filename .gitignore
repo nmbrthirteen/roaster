@@ -15,6 +15,3 @@ roaster.json
 !.env.example
 
 .DS_Store
-
-# Integral CF is a Fontspring demo font, not licensed to redistribute.
-internal/ui/fonts/integral-*.woff2

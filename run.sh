@@ -21,16 +21,6 @@ if [ -d .git ] && git diff --quiet 2>/dev/null; then
   git pull --quiet || true
 fi
 
-# Integral CF is a Fontspring demo and is not in the repo. Without it the
-# headline falls back to a system face and looks wrong.
-SRC="../lifeatupgaming-front/public/fonts/integralcf"
-if [ ! -f internal/ui/fonts/integral-heavy.woff2 ] && [ -d "$SRC" ]; then
-  for w in regular bold heavy; do
-    cp "$SRC/Fontspring-DEMO-integralcf-$w.woff2" "internal/ui/fonts/integral-$w.woff2"
-  done
-  echo "  Headline font copied from the lifeat frontend."
-fi
-
 [ -f roaster.json ] || cp roaster.example.json roaster.json
 
 echo "  Building..."

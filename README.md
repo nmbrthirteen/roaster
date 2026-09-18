@@ -90,6 +90,10 @@ rule, supersampled and thresholded to 1 bit.
 
 ## Licence
 
-MIT, see [LICENSE](LICENSE). The Upgaming name and mark are trademarks and are
-not covered by that licence. Replace `internal/ui/assets/logo.png` and the
-event files with your own before using this for anything.
+MIT for the source code, see [LICENSE](LICENSE).
+
+Two things in this repository are not covered by it. `internal/ui/fonts/integral-*.woff2`
+are Fontspring demo builds of Integral CF, a commercial typeface, included so
+the kiosk renders as designed on our own hardware. The Upgaming name and mark
+are trademarks. Replace both, along with `internal/ui/assets/logo.png` and the
+event files, before using this for anything of your own.
