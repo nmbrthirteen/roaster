@@ -29,6 +29,12 @@ import (
 const (
 	restartDelay = 3 * time.Second
 	startupWait  = 30 * time.Second
+
+	// A session at a booth lasts minutes. Anything shorter than this was either
+	// somebody closing the window on purpose or something failing to start, and
+	// neither is worth reopening forever.
+	briefSession = 15 * time.Second
+	giveUpAfter  = 2
 )
 
 func main() {
@@ -71,17 +77,32 @@ func main() {
 		fail("%v", err)
 	}
 
-	// Closing the app must not end the stand. Somebody will do it by accident.
+	// Closing the app once is usually an accident, so it reopens. Closing it
+	// again straight away is not, so it stops. Without that second rule there
+	// is no way off the stand short of Task Manager.
+	brief := 0
 	for {
+		started := time.Now()
 		run(browser, browserArgs(target, *windowed))
 		if *once || *preview {
 			return
 		}
+
+		if time.Since(started) < briefSession {
+			brief++
+			if brief >= giveUpAfter {
+				log.Printf("closed %d times in a row, stopping. Reopen with kiosk.exe", brief)
+				return
+			}
+		} else {
+			brief = 0
+		}
+
 		select {
 		case <-stop:
 			return
 		case <-time.After(2 * time.Second):
-			log.Printf("app closed, reopening")
+			log.Printf("app closed, reopening. Close it again now to stop.")
 		}
 	}
 }
@@ -121,9 +142,24 @@ func serve(target string, stop <-chan struct{}) error {
 }
 
 func supervise(server string, stop <-chan struct{}) {
+	brief := 0
 	for {
 		log.Printf("starting %s", filepath.Base(server))
+		started := time.Now()
 		run(server, nil)
+
+		// A server that dies on startup will do it again. Spinning on that
+		// fills the log and hides the real error.
+		if time.Since(started) < briefSession {
+			brief++
+			if brief > 4 {
+				log.Printf("%s keeps failing on startup, giving up. See roaster.log",
+					filepath.Base(server))
+				return
+			}
+		} else {
+			brief = 0
+		}
 
 		select {
 		case <-stop:

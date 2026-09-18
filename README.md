@@ -69,9 +69,13 @@ After that there are two things to open:
 |---|---|
 | `kiosk.bat` | The stand. Locked to one full-screen tab, keeps itself alive. |
 | `preview.bat` | The receipt designer, in a window you can close. |
+| `stop.bat` | Stops everything, for when closing the window is not enough. |
 
-Both run the same `kiosk.exe`, which starts the server, restarts it if it exits, and
-reopens the app if it is closed. `scripts\autostart.bat`, run once as administrator, makes
+Both run the same `kiosk.exe`, which starts the server, restarts it if it exits,
+and reopens the app if it is closed.
+
+Closing the app once reopens it, because at a booth that is an accident.
+Closing it again within fifteen seconds stops it, because twice is a decision. `scripts\autostart.bat`, run once as administrator, makes
 it come back after a reboot.
 
 Flags, if you need them: `-windowed` opens an app window instead of locking the
