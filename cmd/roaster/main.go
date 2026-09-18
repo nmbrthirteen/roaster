@@ -205,6 +205,14 @@ func main() {
 	mux := http.NewServeMux()
 	mux.Handle("/assets/", http.FileServer(http.FS(ui.FS)))
 	mux.Handle("/fonts/", http.FileServer(http.FS(ui.FS)))
+
+	// The manifest is what lets Edge install this as a real application with
+	// its own icon and window, rather than a browser tab.
+	mux.HandleFunc("/manifest.webmanifest", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/manifest+json")
+		raw, _ := ui.FS.ReadFile("manifest.webmanifest")
+		w.Write(raw)
+	})
 	mux.HandleFunc("/qr", handleQR)
 
 	mux.HandleFunc("/preview", func(w http.ResponseWriter, r *http.Request) {

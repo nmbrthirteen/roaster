@@ -56,20 +56,6 @@ echo.
 roaster.exe
 goto :end
 
-:fonts
-rem Integral CF is a Fontspring demo and is not in the repo. Without it the
-rem headline falls back to a system face and looks wrong.
-set "SRC=..\lifeatupgaming-front\public\fonts\integralcf"
-if exist "internal\ui\fonts\integral-heavy.woff2" exit /b 0
-if not exist "%SRC%\Fontspring-DEMO-integralcf-heavy.woff2" (
-  echo   Integral CF not found. Headlines will use a fallback face.
-  exit /b 0
-)
-copy /y "%SRC%\Fontspring-DEMO-integralcf-regular.woff2" "internal\ui\fonts\integral-regular.woff2" >nul
-copy /y "%SRC%\Fontspring-DEMO-integralcf-bold.woff2" "internal\ui\fonts\integral-bold.woff2" >nul
-copy /y "%SRC%\Fontspring-DEMO-integralcf-heavy.woff2" "internal\ui\fonts\integral-heavy.woff2" >nul
-echo   Headline font copied from the lifeat frontend.
-exit /b 0
 
 :needgo
 echo   Go is not installed. Installing it now...

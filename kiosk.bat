@@ -44,8 +44,8 @@ echo   Opening the kiosk. Close this window to stop everything.
 echo.
 
 :browserloop
-kiosk.exe
-echo   [%time%] browser closed, reopening
+kiosk.exe -locked
+echo   [%time%] app closed, reopening
 timeout /t 2 /nobreak >nul
 goto :browserloop
 
