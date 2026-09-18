@@ -8,9 +8,8 @@ import (
 	"unsafe"
 )
 
-// Windows has no lp. Raw ESC/POS goes through the spooler with the RAW
-// datatype, which tells it to hand the bytes to the printer untouched instead
-// of letting a driver reinterpret them as a page to render.
+// Windows has no lp. The RAW datatype is what tells the spooler to hand the
+// bytes over untouched.
 var (
 	winspool             = syscall.NewLazyDLL("winspool.drv")
 	procOpenPrinter      = winspool.NewProc("OpenPrinterW")

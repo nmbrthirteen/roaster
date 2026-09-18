@@ -1,7 +1,4 @@
-// Package event holds per-event branding. Everything that changes when the
-// stand moves to a different conference lives in one JSON file: the receipt
-// headline, the logo, the call to action, the kiosk palette, and which roast
-// packs are live. Nothing else in the codebase should hardcode an event.
+// Package event holds per-event branding.
 package event
 
 import (
@@ -70,7 +67,7 @@ type Set struct {
 }
 
 // Load reads every event file in dir, falling back to the events compiled into
-// the binary. A device with no network and no config still boots branded.
+// the binary.
 func Load(dir string) (*Set, error) {
 	s := &Set{byCode: map[string]Event{}}
 
@@ -124,8 +121,7 @@ func (s *Set) Codes() []string               { return s.order }
 func (s *Set) First() Event                  { return s.byCode[s.order[0]] }
 
 // Write saves an event into dir, where it overrides any built-in of the same
-// code. This is what the designer's "new event" form calls, so nobody has to
-// hand-write JSON to take the stand to a different conference.
+// code.
 func Write(dir string, ev Event) error {
 	if ev.Code == "" {
 		return fmt.Errorf("event needs a code")

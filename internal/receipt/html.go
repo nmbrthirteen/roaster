@@ -7,9 +7,8 @@ import (
 	"strings"
 )
 
-// HTML renders the same flattened lines the printer receives into markup for
-// the on-screen designer. Every attribute maps to a CSS class, so the preview
-// and the paper cannot drift apart: change the document, both follow.
+// HTML renders the same flattened lines the printer receives into markup for the
+// on-screen designer.
 func (d *Doc) HTML(assets Assets) string {
 	var b strings.Builder
 	for _, ln := range d.Lines() {
@@ -62,8 +61,7 @@ func classes(s Style) string {
 	return " " + strings.Join(c, " ")
 }
 
-// Plain renders the document as monospace text. Useful for diffing a layout
-// change in a terminal and for the fallback log when no printer is attached.
+// Plain renders the document as monospace text.
 func (d *Doc) Plain() string {
 	var b strings.Builder
 	for _, ln := range d.Lines() {

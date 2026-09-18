@@ -1,11 +1,4 @@
-// Command kiosk is the double-clickable launcher for the stand. It makes sure
-// the server is up, then opens the roast web app in Microsoft Edge, locked to
-// one full-screen tab.
-//
-// It launches real Edge rather than embedding a WebView2 control on purpose.
-// Printing runs over Web Serial, and Edge supports that where an embedded
-// webview does not reliably. Real Edge also picks up the enterprise policy that
-// grants the printer without a prompt.
+// Command kiosk is the double-clickable launcher for the stand.
 package main
 
 import (
@@ -35,8 +28,8 @@ func main() {
 		*target = readURL(*configPath)
 	}
 
-	// Whoever double clicked this expects a working stand, not an error about
-	// a server they did not know they had to start.
+	// Whoever double clicked this expects a working stand, not an error about a
+	// server they did not know they had to start.
 	if err := ensureServing(*target); err != nil {
 		fatal("%v", err)
 	}
@@ -46,10 +39,8 @@ func main() {
 		fatal("%v", err)
 	}
 
-	// Its own profile directory is what makes this a separate application
-	// rather than another window of the user's browser: separate taskbar
-	// identity, separate history, and a Web Serial grant that belongs to the
-	// stand alone.
+	// Its own profile gives the stand a separate window, taskbar identity and
+	// Web Serial grant from the user's browser.
 	profile := filepath.Join(filepath.Dir(mustExe()), "kiosk-profile")
 
 	args := []string{
@@ -58,8 +49,8 @@ func main() {
 		"--no-default-browser-check",
 		"--disable-features=msEdgeIdentityFeatures,msSmartScreenProtection",
 
-		// A Surface is a touchscreen. Without these, a swipe navigates the page
-		// away and a pinch zooms the receipt, and a kiosk has no way back.
+		// On a touchscreen a swipe would navigate away and a pinch would zoom,
+		// and a kiosk has no way back.
 		"--overscroll-history-navigation=0",
 		"--disable-pinch",
 	}
@@ -68,8 +59,7 @@ func main() {
 		args = append(args, "--kiosk", *target, "--edge-kiosk-type=fullscreen",
 			"--kiosk-idle-timeout-minutes=0")
 	} else {
-		// App mode: a standalone window with no browser UI, its own icon in the
-		// taskbar, and nothing that looks like a browser.
+		// A standalone window with no browser UI.
 		args = append(args, "--app="+*target, "--start-fullscreen")
 	}
 
@@ -106,8 +96,7 @@ func readURL(path string) string {
 }
 
 // ensureServing waits for the app to answer, starting it if it is local and
-// nothing is listening. A hosted address is left alone: there is nothing here
-// to start, and failing fast is more useful than a silent wait.
+// nothing is listening.
 func ensureServing(target string) error {
 	u, err := url.Parse(target)
 	if err != nil {

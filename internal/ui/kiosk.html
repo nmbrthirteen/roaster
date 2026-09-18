@@ -8,9 +8,7 @@
 <meta name="theme-color" content="#070707">
 <link rel="icon" href="/assets/icon-192.png">
 <style>
-  /* The lifeat stack, served from the binary so a kiosk with no network still
-     renders on brand. Integral CF for headings, Sora for body copy, Roboto as
-     the default, Anonymous Pro for buttons. */
+  /* Served from the binary so a kiosk with no network still renders on brand. */
   @font-face { font-family: Integral; src: url(/fonts/integral-bold.woff2) format("woff2"); font-weight: 700; font-display: swap; }
   @font-face { font-family: Integral; src: url(/fonts/integral-heavy.woff2) format("woff2"); font-weight: 900; font-display: swap; }
   @font-face { font-family: Roboto; src: url(/fonts/roboto-400.woff2) format("woff2"); font-weight: 400; font-display: swap; }
@@ -37,7 +35,7 @@
     --sora: Sora, system-ui, sans-serif;
     --mono: "Anonymous Pro", Consolas, Monaco, ui-monospace, monospace;
 
-    /* lifeat's entrance curve and stagger, from globals.css. */
+    /* lifeat's entrance curve. */
     --ease: cubic-bezier(.45, 0, .15, 1);
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -48,8 +46,7 @@
     padding: clamp(24px, 6vw, 72px);
   }
 
-  /* The GridLines background from lifeat: four horizontal rules at quarters,
-     six vertical at fifths, in #80808033. */
+  /* GridLines: four horizontal rules at quarters, six vertical at fifths. */
   body::before {
     content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
     background-image:
@@ -72,7 +69,7 @@
     margin: 0 auto clamp(26px, 4.6vh, 48px);
   }
 
-  /* Headings across lifeat are Integral CF, uppercase, at 120% leading. */
+  /* Integral CF, uppercase, 120% leading. */
   h1 {
     font-family: var(--display); font-weight: 900; text-transform: uppercase;
     font-size: clamp(30px, 5.6vw, 60px); line-height: 1.2; letter-spacing: 0;
@@ -92,8 +89,7 @@
   input::placeholder { color: var(--subtle); }
   input:focus { outline: none; border-color: var(--primary); }
 
-  /* The secondary variant the hero CTA uses: violet, square, mono, italic
-     until hover. */
+  /* The secondary variant the hero CTA uses. */
   button {
     font-family: var(--mono); font-weight: 600; font-style: italic; cursor: pointer;
     background: var(--secondary); color: var(--white); border: 0; border-radius: 0;
@@ -199,7 +195,7 @@
   }
   ['pointerdown', 'keydown'].forEach(e => document.addEventListener(e, resetIdleTimer));
 
-  // Only what a GitHub username can hold, so a typo cannot become a bad request.
+  // Only what a GitHub username can hold.
   $('handle').addEventListener('input', e => {
     e.target.value = e.target.value.replace(/[^A-Za-z0-9-]/g, '');
     $('go').disabled = e.target.value.length === 0;
@@ -210,8 +206,7 @@
     if ($('handle').value) start($('handle').value);
   });
 
-  // Each update paints as it lands, so the wait shows real progress rather
-  // than a spinner that tells nobody anything.
+  // Each update paints as it lands, so the wait shows real progress.
   function start(handle) {
     $('rows').innerHTML = '';
     $('step').textContent = 'Reading public commits';
@@ -293,8 +288,7 @@
     show('result');
   }
 
-  // Web Serial writes straight from this page, which is what lets the kiosk be
-  // a hosted URL with nothing installed on the device.
+  // Web Serial is what lets the kiosk be a hosted URL with nothing installed.
   const serial = {
     port: null,
     async restore() {
@@ -337,10 +331,8 @@
     }
   });
 
-  // Watchdog. The batch supervisors restart the server and the browser; this
-  // is the third level, for when the page is still up but the thing behind it
-  // has gone away. Three consecutive misses is about 45 seconds, long enough
-  // to ride out a restart without reloading in someone's face.
+  // Third level of supervision: the page is up but the server behind it went
+  // away. Three misses is about 45 seconds, enough to ride out a restart.
   let misses = 0;
   setInterval(async () => {
     try {
@@ -356,9 +348,8 @@
   window.addEventListener('error', () => setTimeout(() => location.reload(), 5000));
   window.addEventListener('unhandledrejection', e => e.preventDefault());
 
-  // ?screen=audit or ?screen=result jumps straight to a state with example
-  // content. Reviewing the wait and the result should not mean typing a name
-  // and waiting six seconds every time.
+  // ?screen=audit or ?screen=result jumps straight to a state, for reviewing
+  // the design without running an audit.
   const preview = new URLSearchParams(location.search).get('screen');
   if (preview === 'audit' || preview === 'result') {
     fetch('/api/example' + location.search).then(r => r.json()).then(r => {

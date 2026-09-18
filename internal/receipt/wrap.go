@@ -3,7 +3,7 @@ package receipt
 import "strings"
 
 // wrap breaks text to the given column count on word boundaries, splitting any
-// word that cannot fit on a line of its own. Explicit newlines are preserved.
+// word that cannot fit on a line of its own.
 func wrap(s string, cols int) []string {
 	if cols < 1 {
 		cols = 1

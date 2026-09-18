@@ -1,5 +1,4 @@
-// Command roaster runs the kiosk. For now it serves the receipt designer, which
-// renders the exact document the printer receives.
+// Command roaster runs the kiosk.
 package main
 
 import (
@@ -7,8 +6,8 @@ import (
 	"flag"
 	"fmt"
 	"html/template"
-	"log"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -28,9 +27,6 @@ import (
 	"github.com/upgaming/roaster/internal/ui"
 )
 
-// station holds the settings a device can change while running. Choosing a
-// printer in the UI has to survive a restart, so every change writes the file
-// back rather than living in memory.
 type station struct {
 	mu     sync.RWMutex
 	cfg    config.Config // what is running, flags included
@@ -39,8 +35,8 @@ type station struct {
 	prn    printer.Printer
 	events *event.Set
 
-	// Finished roasts, kept so the kiosk can ask for the printable bytes after
-	// the audit without sending the whole document back and forth.
+	// Finished roasts, kept so the kiosk can ask for the printable bytes after the
+	// audit without sending the whole document back and forth.
 	roasts map[string]roast.Roast
 }
 
@@ -72,8 +68,6 @@ func (s *station) eventSet() *event.Set {
 	return s.events
 }
 
-// reloadEvents re-reads the events directory so a file written by the designer
-// takes effect without a restart.
 func (s *station) reloadEvents() error {
 	set, err := event.Load(s.config().EventsDir)
 	if err != nil {
@@ -85,7 +79,6 @@ func (s *station) reloadEvents() error {
 	return nil
 }
 
-// setEvent chooses which event the kiosk opens on, and remembers it.
 func (s *station) setEvent(code string) error {
 	if _, ok := s.eventSet().Get(code); !ok {
 		return fmt.Errorf("no event %q", code)
@@ -122,9 +115,7 @@ func (s *station) setPrinter(spec string) error {
 	return config.Save(path, saved)
 }
 
-// startLog mirrors the log to a file beside the executable. A kiosk binary is
-// launched by double click, so anything written to a console window is gone
-// before anyone can read it.
+// startLog mirrors the log to a file beside the executable.
 func startLog() {
 	exe, err := os.Executable()
 	if err != nil {
@@ -206,8 +197,8 @@ func main() {
 	mux.Handle("/assets/", http.FileServer(http.FS(ui.FS)))
 	mux.Handle("/fonts/", http.FileServer(http.FS(ui.FS)))
 
-	// The manifest is what lets Edge install this as a real application with
-	// its own icon and window, rather than a browser tab.
+	// The manifest is what lets Edge install this as a real application with its
+	// own icon and window, rather than a browser tab.
 	mux.HandleFunc("/manifest.webmanifest", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/manifest+json")
 		raw, _ := ui.FS.ReadFile("manifest.webmanifest")
@@ -257,16 +248,15 @@ func main() {
 		w.Write(demoRoast().Doc(pick(r), st.config().Terminal).ESCPOS(assets))
 	})
 
-	// Raw bytes for the browser to write over Web Serial. This is what lets the
-	// kiosk be a hosted page with nothing installed on the device.
+	// Raw bytes for the browser to write over Web Serial.
 	mux.HandleFunc("/test.bin", func(w http.ResponseWriter, r *http.Request) {
 		_, spec := st.printer()
 		w.Header().Set("Content-Type", "application/octet-stream")
 		w.Write(testSlip(spec, pick(r)).ESCPOS(assets))
 	})
 
-	// Choosing a printer persists to the settings file, so a device is set up
-	// once by hand and never again.
+	// Choosing a printer persists to the settings file, so a device is set up once
+	// by hand and never again.
 	mux.HandleFunc("/printer", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "post only", http.StatusMethodNotAllowed)
@@ -316,7 +306,6 @@ func main() {
 		send(w, testSlip(spec, pick(r)), "test slip")
 	})
 
-	// Selecting an event in the designer is what the kiosk opens on next boot.
 	mux.HandleFunc("/event", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "post only", http.StatusMethodNotAllowed)
@@ -329,8 +318,6 @@ func main() {
 		fmt.Fprintf(w, "Kiosk now opens on %s.", r.FormValue("code"))
 	})
 
-	// Creating an event writes the file and reloads, so a new conference is a
-	// form rather than a deploy.
 	mux.HandleFunc("/events", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "post only", http.StatusMethodNotAllowed)
@@ -356,16 +343,15 @@ func main() {
 			return
 		}
 		beside(&st.cfg.EventsDir)
-	beside(&st.saved.EventsDir)
+		beside(&st.saved.EventsDir)
 
-	if err := st.reloadEvents(); err != nil {
+		if err := st.reloadEvents(); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		fmt.Fprintf(w, "Created %s.json", ev.Code)
 	})
 
-	// The kiosk itself: what a visitor sees and touches.
 	mux.HandleFunc("/kiosk", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		if err := kioskTpl.Execute(w, pick(r)); err != nil {
@@ -373,8 +359,6 @@ func main() {
 		}
 	})
 
-	// One audit, streamed. The kiosk shows each step as it lands rather than a
-	// spinner, which is what makes a six second wait tolerable.
 	mux.HandleFunc("/api/roast", func(w http.ResponseWriter, r *http.Request) {
 		handle := strings.TrimSpace(r.URL.Query().Get("handle"))
 		if handle == "" {
@@ -411,8 +395,6 @@ func main() {
 		st.keep(result)
 	})
 
-	// Printable bytes for a finished roast, for the browser to write over Web
-	// Serial or for the server to send itself.
 	mux.HandleFunc("/receipt.bin", func(w http.ResponseWriter, r *http.Request) {
 		rst, ok := st.recall(r.URL.Query().Get("code"))
 		if !ok {
@@ -436,15 +418,12 @@ func main() {
 		send(w, rst.Doc(pick(r), st.config().Terminal), "receipt")
 	})
 
-	// Example content for reviewing the audit and result screens without
-	// running an audit.
 	mux.HandleFunc("/api/example", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(demoRoast())
 	})
 
-	// Health is what a kiosk browser polls to decide the app is alive. Android
-	// kills background processes, so something has to notice and reload.
+	// Health is what a kiosk browser polls to decide the app is alive.
 	started := time.Now()
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		_, spec := st.printer()
@@ -454,16 +433,14 @@ func main() {
 	})
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/preview", http.StatusFound)
+		http.Redirect(w, r, "/kiosk", http.StatusFound)
 	})
 
 	log.Printf("roaster listening on %s, terminal #%s", cfg.Addr, st.config().Terminal)
 	log.Fatal(http.ListenAndServe(cfg.Addr, mux))
 }
 
-// testSlip exercises the three features a printer can silently fail at: the
-// reversed bar, the PC437 block glyphs, and the native QR command. It costs
-// about 90mm of paper instead of a full receipt.
+// testSlip exercises the three features a printer can silently fail at:
 func testSlip(spec string, ev event.Event) *receipt.Doc {
 	center := receipt.Style{Align: receipt.AlignCenter}
 	d := &receipt.Doc{}
@@ -493,11 +470,8 @@ func testSlip(spec string, ev event.Event) *receipt.Doc {
 	return d
 }
 
-// beside falls back to the executable's folder when a relative path is not
-// found from the working directory. Explorer can hand a double-clicked process
-// any working directory it likes, while someone running it from a terminal
-// means the path relative to where they are standing. Trying the working
-// directory first serves both.
+// beside falls back to the executable's folder when a relative path is not found
+// from the working directory.
 func beside(path *string) {
 	if *path == "" || filepath.IsAbs(*path) {
 		return
@@ -512,8 +486,6 @@ func beside(path *string) {
 	*path = filepath.Join(filepath.Dir(exe), *path)
 }
 
-// handleQR renders a QR as a bitmap. The preview uses it for fidelity, and it
-// doubles as the fallback for printers that lack the native QR command.
 func handleQR(w http.ResponseWriter, r *http.Request) {
 	data := r.URL.Query().Get("d")
 	if data == "" {
@@ -544,9 +516,6 @@ func all(s *event.Set) []event.Event {
 	return out
 }
 
-// pickProvider resolves the configured source of roasts. Everything that
-// reaches the outside world sits behind the Provider interface, so the kiosk
-// cannot tell the difference between a rehearsal and the real thing.
 func pickProvider(name string) (roast.Provider, error) {
 	switch name {
 	case "", "demo":

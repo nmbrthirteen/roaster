@@ -1,17 +1,13 @@
 // Package receipt models a printed receipt as an ordered list of blocks and
-// flattens it into fixed-width lines. Both the ESC/POS encoder and the HTML
-// preview consume the same flattened lines, so what you design in the browser
-// is byte-for-byte what the printer lays down.
+// flattens it into fixed-width lines.
 package receipt
 
 import "strings"
 
-// Width is the printable column count in Font A. Epson 80mm heads give 42
-// columns, Star and most clones give 48. Locking to 42 prints correctly on both.
+// Width is the printable column count in Font A.
 const Width = 42
 
-// Gutter is the blank columns held at each edge. Printing edge to edge reads as
-// a receipt for a sandwich; the margin is what makes it read as a document.
+// Gutter is the blank columns held at each edge.
 const Gutter = 2
 
 type Align int
@@ -22,8 +18,7 @@ const (
 	AlignRight
 )
 
-// Style carries the character attributes a single line can hold. ESC/POS
-// applies these per line, not per character, so the model matches the hardware.
+// Style carries the character attributes a single line can hold.
 type Style struct {
 	Bold   bool
 	Double bool // double width and height
@@ -37,8 +32,7 @@ type Style struct {
 // double-width multiplier.
 func (s Style) Cols() int { return s.ColsBleed(false) }
 
-// ColsBleed is Cols for content allowed to use the margin. Double-width text
-// only gets 17 columns inside the gutter, which is too few for a masthead.
+// ColsBleed is Cols for content allowed to use the margin.
 func (s Style) ColsBleed(bleed bool) int {
 	w := Width
 	if s.Double {
@@ -52,8 +46,6 @@ func (s Style) ColsBleed(bleed bool) int {
 
 type Block interface{ lines() []Line }
 
-// Line is the flattened unit both encoders render. Exactly one of Text, QR or
-// Image carries content.
 type Line struct {
 	Style Style
 	Text  string
@@ -63,9 +55,7 @@ type Line struct {
 
 	Image string // asset name
 
-	// Bleed pads to the full printable width instead of sitting inside the
-	// gutter. Reversed bars need it: a bar that keeps the gutter prints the
-	// margin black on the left and leaves it white on the right.
+	// Bleed pads to the full printable width instead of sitting inside the gutter.
 	Bleed bool
 
 	Feed int // blank lines to emit after this line
@@ -81,8 +71,8 @@ func (d *Doc) Lines() []Line {
 	for _, b := range d.Blocks {
 		for _, ln := range b.lines() {
 			if ln.Text != "" {
-				// Alignment is resolved here rather than left to the printer's
-				// ESC a command, so the gutter survives centring.
+				// Alignment is resolved here rather than left to the printer's ESC a
+				// command, so the gutter survives centring.
 				if ln.Bleed {
 					ln.Text = pad(ln.Text, ln.Style.ColsBleed(true), ln.Style.Align)
 				} else {
@@ -125,8 +115,7 @@ func (r Rule) lines() []Line {
 	return []Line{{Style: r.Style, Text: strings.Repeat(string(c), r.Style.Cols())}}
 }
 
-// KV is a label on the left and a value hard-right, padded apart. Leader fills
-// the gap, defaulting to spaces.
+// KV is a label on the left and a value hard-right, padded apart.
 type KV struct {
 	Label  string
 	Value  string
@@ -173,8 +162,7 @@ func (p Para) lines() []Line {
 	return out
 }
 
-// QR prints a native QR code. The printer generates the symbol itself, so this
-// costs a few bytes instead of a bitmap.
+// QR prints a native QR code.
 type QR struct {
 	Data  string
 	Size  int // module size, 1 to 16; 6 scans reliably from ~20cm
@@ -208,8 +196,7 @@ type Feed struct{ Lines int }
 
 func (f Feed) lines() []Line { return []Line{{Feed: f.Lines}} }
 
-// Cut feeds clear of the cutter blade and partial-cuts the paper. The blade
-// sits about 15mm above the print head, so the feed is not optional.
+// Cut feeds clear of the cutter blade and partial-cuts the paper.
 type Cut struct{}
 
 func (Cut) lines() []Line { return []Line{{Feed: 5, Cut: true}} }

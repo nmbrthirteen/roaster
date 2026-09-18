@@ -1,6 +1,5 @@
 // Package roast holds the result of one audit and turns it into a printable
-// document. Metrics are computed from real account data; only the verdict and
-// the odds copy come from the model.
+// document.
 package roast
 
 import "time"
@@ -10,8 +9,7 @@ type Metric struct {
 	Value string `json:"value"`
 	Tag   string `json:"tag,omitempty"` // e.g. "critical", "doomed"
 
-	// Percent draws a gauge under the value. Metrics that are not a proportion
-	// ("404 not found", "12:1") leave it unset and print as a plain row.
+	// Percent draws a gauge under the value.
 	Percent *int `json:"percent,omitempty"`
 }
 

@@ -7,12 +7,7 @@ import (
 	"github.com/upgaming/roaster/internal/receipt"
 )
 
-// Doc lays out the printed audit. Everything that differs between events comes
-// from ev, so a new conference is a JSON file rather than a code change.
-//
-// Two gap sizes carry the structure: one blank line separates rows inside a
-// block, two separate the blocks themselves. A receipt where every gap is the
-// same height has no grouping and reads as one undifferentiated column.
+// Doc lays out the printed audit.
 func (r Roast) Doc(ev event.Event, terminal string) *receipt.Doc {
 	var (
 		center = receipt.Style{Align: receipt.AlignCenter}
@@ -20,8 +15,7 @@ func (r Roast) Doc(ev event.Event, terminal string) *receipt.Doc {
 		gap    = receipt.Feed{Lines: 1}
 		brk    = receipt.Feed{Lines: 2}
 
-		// Double size keeps the letterforms in proportion. Double height alone
-		// stretches them vertically and reads as a squeezed font.
+		// Double size keeps the letterforms in proportion.
 		head = receipt.Style{Align: receipt.AlignCenter, Bold: true, Double: true}
 	)
 

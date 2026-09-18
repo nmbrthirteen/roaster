@@ -9,21 +9,19 @@ const (
 )
 
 // Font A is 24 dots tall. The ESC/POS default of 1/6 inch leaves ten dots of
-// leading, which is loose on a 38 column measure and costs about 60mm of paper
-// per receipt. Four dots reads tighter and still separates cleanly.
+// leading, which costs about 60mm of paper per receipt.
 const (
 	LineSpacing = 28
 	TallSpacing = 56 // a double-height row needs room for a 48 dot glyph
 )
 
 // ESCPOS encodes the document into the byte stream an 80mm thermal printer
-// speaks. Text stays as text rather than a rendered bitmap, which keeps the
-// print crisp and the job about 2KB instead of 200KB.
+// speaks.
 func (d *Doc) ESCPOS(assets Assets) []byte {
 	var b bytes.Buffer
-	b.Write([]byte{esc, '@'})      // initialise, clears any state left by a prior job
-	b.Write([]byte{esc, 't', 0})            // select PC437, which carries the gauge glyphs
-	b.Write([]byte{esc, '3', LineSpacing})  // tighten the default leading
+	b.Write([]byte{esc, '@'})              // initialise, clears any state left by a prior job
+	b.Write([]byte{esc, 't', 0})           // select PC437, which carries the gauge glyphs
+	b.Write([]byte{esc, '3', LineSpacing}) // tighten the default leading
 
 	for _, ln := range d.Lines() {
 		switch {
@@ -79,8 +77,7 @@ func writeStyle(b *bytes.Buffer, s Style) {
 	b.Write([]byte{gs, '!', size})
 }
 
-// writeQR uses the printer's built-in QR engine. Four commands: pick the model,
-// set the module size, set error correction, store the payload, print it.
+// writeQR uses the printer's built-in QR engine.
 func writeQR(b *bytes.Buffer, data string, size int) {
 	if size < 1 {
 		size = 1
@@ -88,9 +85,9 @@ func writeQR(b *bytes.Buffer, data string, size int) {
 	if size > 16 {
 		size = 16
 	}
-	b.Write([]byte{gs, '(', 'k', 4, 0, 49, 65, 50, 0})       // model 2
-	b.Write([]byte{gs, '(', 'k', 3, 0, 49, 67, byte(size)})  // module size
-	b.Write([]byte{gs, '(', 'k', 3, 0, 49, 69, 49})          // error correction M
+	b.Write([]byte{gs, '(', 'k', 4, 0, 49, 65, 50, 0})      // model 2
+	b.Write([]byte{gs, '(', 'k', 3, 0, 49, 67, byte(size)}) // module size
+	b.Write([]byte{gs, '(', 'k', 3, 0, 49, 69, 49})         // error correction M
 
 	n := len(data) + 3
 	b.Write([]byte{gs, '(', 'k', byte(n % 256), byte(n / 256), 49, 80, 48})
@@ -100,7 +97,6 @@ func writeQR(b *bytes.Buffer, data string, size int) {
 	b.WriteByte(lf)
 }
 
-// writeRaster sends a 1-bit bitmap with GS v 0.
 func writeRaster(b *bytes.Buffer, r Raster) {
 	xb := (r.Width + 7) / 8
 	b.Write([]byte{gs, 'v', '0', 0,

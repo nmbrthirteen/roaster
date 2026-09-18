@@ -6,16 +6,12 @@ import (
 	"strings"
 )
 
-// Candidate is one printer the UI can offer.
 type Candidate struct {
 	Spec  string `json:"spec"`  // what to pass to Open
 	Label string `json:"label"` // what to show in the selector
 }
 
 // Discover lists the print queues the operating system already knows about.
-// Networked printers are not discoverable this way and are entered by address,
-// which is the better option anyway: tcp:host:9100 is the same string on every
-// machine, so moving the kiosk to another device changes nothing.
 func Discover() []Candidate {
 	var names []string
 	scheme := "lp:"

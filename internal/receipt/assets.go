@@ -18,9 +18,6 @@ type Raster struct {
 
 type Assets map[string]Raster
 
-// LoadAssets decodes every PNG in dir into a printable raster. Pixels darker
-// than mid-grey print as black dots. Logos exported as white-on-transparent
-// come out inverted, so those get flipped on load.
 func LoadAssets(fsys fs.FS, dir string) (Assets, error) {
 	out := Assets{}
 	entries, err := fs.ReadDir(fsys, dir)

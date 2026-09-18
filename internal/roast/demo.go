@@ -10,12 +10,7 @@ import (
 )
 
 // Demo stands in for the real audit until the GitHub adapter and the model call
-// land. It emits the same updates on the same timings, so the kiosk and the
-// wait experience can be built and judged before either exists.
-//
-// Output is seeded from the handle, so the same name always gives the same
-// roast and two different names give different ones. A demo where every visitor
-// gets identical numbers is not worth showing anyone.
+// land.
 type Demo struct{}
 
 // Reserved handles for exercising paths that are otherwise hard to reach.
@@ -75,8 +70,6 @@ func seed(handle string) int64 {
 	return int64(h.Sum64())
 }
 
-// Sample is the fixed example the designer renders, so a layout change is
-// judged against the same content every time.
 func Sample(handle string) Roast {
 	return build(handle, rand.New(rand.NewSource(7)))
 }
@@ -151,8 +144,7 @@ func price(rng *rand.Rand, lo, hi int) string {
 
 func pick(rng *rand.Rand, from []string) string { return from[rng.Intn(len(from))] }
 
-// Written to roast the work, never the person. The same rule goes in the model
-// prompt when the real generation lands.
+// Written to roast the work, never the person.
 var verdicts = []string{
 	"Your architecture diagram looks like a bowl of spaghetti dropped on AWS. Upgaming gives you a 12% survival rate in production.",
 	"You have written the same utility function in four repositories and named it something different every time.",

@@ -1,6 +1,4 @@
 // Package config keeps the per-device settings in a file beside the binary.
-// Moving the kiosk to another machine should mean editing two lines, not
-// remembering a command line.
 package config
 
 import (
@@ -9,7 +7,9 @@ import (
 	"flag"
 	"fmt"
 	"io/fs"
+	"net/url"
 	"os"
+	"strings"
 )
 
 type Config struct {
@@ -20,9 +20,7 @@ type Config struct {
 	EventsDir string `json:"eventsDir"` // event files that override the built-in ones
 	KioskURL  string `json:"kioskUrl"`  // what the kiosk launcher opens
 
-	// Provider chooses where roasts come from: "demo" invents them locally so
-	// the stand can be rehearsed without credentials, "live" reads GitHub and
-	// calls the model. Switching is a config change, not a rebuild.
+	// Provider is "demo" for a rehearsal with no credentials, or "live".
 	Provider string `json:"provider"`
 }
 
@@ -31,13 +29,12 @@ func Defaults() Config {
 		Addr:      ":3000",
 		Terminal:  "001",
 		EventsDir: "events",
-		KioskURL:  "http://localhost:3000",
+		KioskURL:  "http://localhost:3000/kiosk",
 		Provider:  "demo",
 	}
 }
 
-// Load reads path over the defaults. A missing file is not an error: a fresh
-// device runs on the defaults until someone writes one.
+// Load reads path over the defaults.
 func Load(path string) (Config, error) {
 	c := Defaults()
 	raw, err := os.ReadFile(path)
@@ -49,6 +46,11 @@ func Load(path string) (Config, error) {
 	}
 	if err := json.Unmarshal(raw, &c); err != nil {
 		return c, fmt.Errorf("%s: %w", path, err)
+	}
+	// A settings file written before the kiosk had its own path would open the
+	// designer instead.
+	if u, err := url.Parse(c.KioskURL); err == nil && (u.Path == "" || u.Path == "/") {
+		c.KioskURL = strings.TrimSuffix(c.KioskURL, "/") + "/kiosk"
 	}
 	return c, nil
 }

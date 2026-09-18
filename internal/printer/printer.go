@@ -1,6 +1,4 @@
-// Package printer sends a finished ESC/POS job to hardware. The transport is
-// chosen by a spec string so the same binary drives a networked printer at an
-// event, a USB queue on a desk, and a file during development.
+// Package printer sends a finished ESC/POS job to hardware.
 package printer
 
 import (
@@ -17,13 +15,8 @@ type Printer interface {
 	Name() string
 }
 
-// Open builds a printer from a spec:
-//
-//	tcp:192.168.1.50:9100   a networked ESC/POS printer, the event setup
-//	usb:/dev/usb/lp0        a USB printer on Linux, via the usblp character device
-//	win:Receipt             a Windows spooler queue, raw datatype
-//	lp:Receipt              a CUPS queue on macOS or Linux
-//	file:/tmp/job.bin       write the bytes to disk, for development
+// Open builds a printer from a spec: tcp:host:9100, win:queue, lp:queue,
+// usb:/dev/usb/lp0 or file:path.
 func Open(spec string) (Printer, error) {
 	kind, target, ok := strings.Cut(spec, ":")
 	if !ok || target == "" {
@@ -45,9 +38,8 @@ func Open(spec string) (Printer, error) {
 	}
 }
 
-// tcpPrinter talks raw ESC/POS on port 9100. A fresh connection per job means a
-// printer that was unplugged between receipts recovers on the next one instead
-// of wedging the queue.
+// tcpPrinter opens a fresh connection per job, so a printer unplugged between
+// receipts recovers on the next one instead of wedging the queue.
 type tcpPrinter struct{ addr string }
 
 func (p tcpPrinter) Name() string { return "tcp " + p.addr }
@@ -68,20 +60,14 @@ func (p tcpPrinter) Print(job []byte) error {
 	return nil
 }
 
-// lpPrinter hands the bytes to the OS spooler untouched. -o raw is what stops
-// the driver reinterpreting ESC/POS as text.
-// usbPrinter writes to the character device the Linux usblp driver creates for
-// a USB printer. No spooler, no driver, no permission dialog: the kernel has
-// already claimed the device and hands over a file you can write ESC/POS to.
-// Android has no equivalent, which is the whole reason a small Linux host
-// earns its place in the stand.
+// lpPrinter passes -o raw, which stops the driver reinterpreting ESC/POS as text.
 type usbPrinter struct{ dev string }
 
 func (p usbPrinter) Name() string { return "usb " + p.dev }
 
 func (p usbPrinter) Print(job []byte) error {
-	// Opened write-only with no create and no truncate: this is a device node,
-	// not a file, and the usual file flags do the wrong thing to it.
+	// A device node, not a file: the usual create and truncate flags do the
+	// wrong thing to it.
 	f, err := os.OpenFile(p.dev, os.O_WRONLY, 0)
 	if err != nil {
 		return fmt.Errorf("open %s: %w", p.dev, err)
