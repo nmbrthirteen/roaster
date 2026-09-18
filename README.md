@@ -57,6 +57,25 @@ Press **Print test slip** before trusting a new printer. It costs 90mm of paper
 and proves the three things a printer can silently fail at: reversed video, the
 PC437 block glyphs the gauges are drawn from, and the native QR command.
 
+## Windows kiosk mode
+
+`scripts\lockdown.bat` locks the machine around the stand by replacing the
+shell, which needs no packaging and works on every edition.
+
+To pick the app in Settings, Accounts, Set up a kiosk instead, it has to be an
+MSIX. That picker lists Microsoft Edge and installed packaged apps and nothing
+else, so a plain executable can never appear in it. Run `scripts\package.bat`
+as administrator. It needs the Windows SDK for `makeappx` and `signtool`:
+
+```
+winget install Microsoft.WindowsSDK
+```
+
+It builds both binaries, lays out the package, makes a self-signed certificate,
+trusts it on that machine, signs, and installs. "Upgaming Roaster" then appears
+in the kiosk picker. Assigned Access itself needs Windows 11 Pro or Enterprise;
+check with `winver`.
+
 ## The hidden menu
 
 A device locked to this one app still has to be serviceable, so everything an

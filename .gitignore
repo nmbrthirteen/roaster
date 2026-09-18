@@ -24,3 +24,6 @@ terminal.token
 
 # Written by the hidden menu when an operator leaves
 .quit
+
+# MSIX build output
+/build/
