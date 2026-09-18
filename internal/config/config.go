@@ -20,8 +20,13 @@ type Config struct {
 	EventsDir string `json:"eventsDir"` // event files that override the built-in ones
 	KioskURL  string `json:"kioskUrl"`  // what the kiosk launcher opens
 
-	// Provider is "demo" for a rehearsal with no credentials, or "live".
+	// Provider is "demo" for a rehearsal with no credentials, or "remote" to
+	// call a service that holds them.
 	Provider string `json:"provider"`
+
+	// RemoteURL is the roast endpoint. The terminal's token lives beside the
+	// binary rather than in here, so a settings file carries nothing secret.
+	RemoteURL string `json:"remoteUrl"`
 }
 
 func Defaults() Config {

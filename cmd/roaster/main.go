@@ -2,6 +2,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -24,6 +25,7 @@ import (
 	"github.com/upgaming/roaster/internal/printer"
 	"github.com/upgaming/roaster/internal/receipt"
 	"github.com/upgaming/roaster/internal/roast"
+	"github.com/upgaming/roaster/internal/secret"
 	"github.com/upgaming/roaster/internal/ui"
 )
 
@@ -140,7 +142,13 @@ func main() {
 	flag.String("terminal", "001", "terminal number printed on every receipt")
 	flag.String("printer", "", "printer: tcp:host:9100, lp:queue or file:path")
 	flag.String("event", "", "event code the kiosk opens on")
+	setToken := flag.Bool("set-token", false, "store this terminal's token, read from standard input")
 	flag.Parse()
+
+	if *setToken {
+		storeToken()
+		return
+	}
 
 	beside(configPath)
 
@@ -153,7 +161,7 @@ func main() {
 
 	st := &station{cfg: cfg, saved: saved, path: *configPath, roasts: map[string]roast.Roast{}}
 
-	provider, err := pickProvider(cfg.Provider)
+	provider, err := pickProvider(cfg)
 	if err != nil {
 		log.Fatalf("provider: %v", err)
 	}
@@ -516,15 +524,39 @@ func all(s *event.Set) []event.Event {
 	return out
 }
 
-func pickProvider(name string) (roast.Provider, error) {
-	switch name {
+func pickProvider(cfg config.Config) (roast.Provider, error) {
+	switch cfg.Provider {
 	case "", "demo":
 		return roast.Demo{}, nil
-	case "live":
-		return nil, fmt.Errorf("the live provider is not built yet; set provider to demo")
+	case "remote":
+		if cfg.RemoteURL == "" {
+			return nil, fmt.Errorf("provider is remote but remoteUrl is empty")
+		}
+		token, err := secret.Load()
+		if err != nil {
+			return nil, err
+		}
+		if token == "" {
+			return nil, fmt.Errorf("no terminal token stored; run roaster -set-token")
+		}
+		return roast.Remote{URL: cfg.RemoteURL, Token: token}, nil
 	default:
-		return nil, fmt.Errorf("unknown provider %q, want demo or live", name)
+		return nil, fmt.Errorf("unknown provider %q, want demo or remote", cfg.Provider)
 	}
+}
+
+// storeToken keeps the token off the command line, where it would land in
+// shell history and in the process list.
+func storeToken() {
+	fmt.Print("Terminal token: ")
+	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	if err != nil && line == "" {
+		log.Fatalf("could not read the token: %v", err)
+	}
+	if err := secret.Store(line); err != nil {
+		log.Fatalf("could not store the token: %v", err)
+	}
+	fmt.Println("Stored. It is encrypted to this machine and is not in any settings file.")
 }
 
 func demoRoast() roast.Roast {

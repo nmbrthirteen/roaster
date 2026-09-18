@@ -74,11 +74,24 @@ screen, `-once` exits rather than reopening, `-url` overrides the address.
 For a hosted deployment, only `kiosk.exe` and a `roaster.json` holding
 `kioskUrl` need to be on the device.
 
-## Environment
+## Credentials
 
-Roast generation reads its credentials from the environment. See
-`.env.example`. These belong wherever the app is hosted, never on a kiosk
-machine standing in a public hall.
+No model key ever goes on a kiosk device. With `"provider": "remote"` the
+device posts a handle to `remoteUrl` and relays what comes back. The Anthropic
+and GitHub keys live on that service, read from its environment. See
+`.env.example`.
+
+The device carries one credential: a terminal token, stored in `terminal.token`
+beside the binary and encrypted with Windows DPAPI so the file is useless on
+another machine. Write it with `roaster -set-token`, which reads from standard
+input to keep it out of shell history. It is gitignored and never appears in a
+settings file.
+
+That token should be worth nothing to steal: scope it to the roast endpoint
+alone, rate limit it, expire it with the event, and issue one per terminal so a
+lost device is one revocation rather than a rotation. DPAPI does not stop
+someone who boots the kiosk account, which auto-login hands them, so revocation
+is the real protection and encryption is defence in depth.
 
 ## Regenerating the logo
 
