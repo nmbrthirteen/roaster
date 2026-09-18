@@ -14,29 +14,19 @@ type Request struct {
 // Phase names the stages the kiosk shows while it waits.
 const (
 	PhaseFetch   = "fetch"   // reading the account
-	PhasePlan    = "plan"    // what will be measured, so the screen can reserve the space
 	PhaseMetric  = "metric"  // one computed measurement, revealed as it lands
 	PhaseVerdict = "verdict" // the written roast, streamed
 	PhaseDone    = "done"    // the finished roast, ready to print
 	PhaseError   = "error"
 )
 
-// PlanItem is one row the screen reserves before measuring starts. Gauge says
-// whether that row needs space for a bar, without which the column changes
-// height the moment a plain row lands.
-type PlanItem struct {
-	Label string `json:"label"`
-	Gauge bool   `json:"gauge"`
-}
-
 type Update struct {
-	Phase   string     `json:"phase"`
-	Label   string     `json:"label,omitempty"`
-	Plan    []PlanItem `json:"plan,omitempty"`
-	Metric  *Metric    `json:"metric,omitempty"`
-	Verdict string     `json:"verdict,omitempty"`
-	Roast   *Roast     `json:"roast,omitempty"`
-	Error   string     `json:"error,omitempty"`
+	Phase   string  `json:"phase"`
+	Label   string  `json:"label,omitempty"`
+	Metric  *Metric `json:"metric,omitempty"`
+	Verdict string  `json:"verdict,omitempty"`
+	Roast   *Roast  `json:"roast,omitempty"`
+	Error   string  `json:"error,omitempty"`
 }
 
 // Provider turns a handle into a roast.

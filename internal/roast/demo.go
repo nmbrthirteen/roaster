@@ -38,14 +38,6 @@ func (Demo) Roast(ctx context.Context, req Request, emit func(Update)) (Roast, e
 
 	r := build(handle, rng)
 
-	// The plan goes out before anything is fetched, so the screen has its final
-	// shape from the first frame and nothing moves under the reader after that.
-	plan := make([]PlanItem, 0, len(r.Metrics))
-	for _, m := range r.Metrics {
-		plan = append(plan, PlanItem{Label: m.Label, Gauge: m.Percent != nil})
-	}
-	emit(Update{Phase: PhasePlan, Plan: plan})
-
 	emit(Update{Phase: PhaseFetch, Label: "Reading public commits"})
 	if err := step(900 * time.Millisecond); err != nil {
 		return Roast{}, err

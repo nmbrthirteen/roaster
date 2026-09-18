@@ -110,26 +110,29 @@
   .quiet:hover:not(:disabled) { background: transparent; color: var(--white); border-color: var(--border); }
   .link { border: 0; font-size: 14px; padding: 12px; margin-top: 4px; }
 
-  .rows { display: flex; flex-direction: column; gap: clamp(18px, 3vh, 28px); text-align: left; }
-  .row { opacity: .3; transition: opacity .5s var(--ease); }
-  .row.on { opacity: 1; }
-  .row-top {
-    display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
-    font-family: var(--mono); font-size: clamp(17px, 2.5vw, 22px);
+  /* The audit reads as a scan running against the account. A fixed height box
+     with the lines anchored to the bottom means new output never moves the box,
+     which is what made the last one feel jumpy. */
+  .term {
+    height: 44vh; overflow: hidden; text-align: left;
+    display: flex; flex-direction: column; justify-content: flex-end;
+    font-family: var(--mono); font-size: clamp(15px, 2.1vw, 21px); line-height: 1.75;
   }
-  .row-top b { font-weight: 700; font-variant-numeric: tabular-nums; }
-  .row-top span:first-child { font-family: var(--sans); }
-  .row-tag { color: var(--primary); }
-  .track { height: 11px; border-radius: 0; background: var(--elevated); margin-top: 10px; overflow: hidden; }
-  .fill { height: 100%; background: var(--primary); border-radius: 0; width: 0; transition: width 1.1s var(--ease); }
+  .term div { opacity: 0; animation: appear .35s var(--ease) forwards; white-space: pre; }
+  @keyframes appear { to { opacity: 1; } }
+
+  .term .cmd { color: var(--white); }
+  .term .cmd::before { content: "> "; color: var(--primary); }
+  .term .out { color: var(--muted); padding-left: 2ch; }
+  .term .out b { color: var(--white); font-weight: 400; }
+  .term .out i { color: var(--primary); font-style: normal; }
+  .term .bar { color: var(--primary); padding-left: 2ch; letter-spacing: -.04em; }
+  .term .bar u { color: #2a2a30; text-decoration: none; }
+  .term .say { color: var(--white); padding-left: 2ch; }
+
+  .caret { color: var(--primary); }
 
   .verdict { font-family: var(--sora); font-size: clamp(20px, 3vw, 28px); line-height: 1.42; margin: 0; }
-  .step {
-    font-family: var(--mono); font-size: clamp(15px, 2vw, 19px); color: var(--subtle);
-    margin: clamp(26px, 4vh, 40px) 0 0; transition: color .4s var(--ease);
-  }
-  /* The verdict lands into space already held for it. */
-  .verdict-slot { min-height: 5.6em; margin-top: clamp(20px, 3vh, 32px); }
 
   .score {
     font-family: var(--mono); font-weight: 700; text-transform: none; font-size: clamp(72px, 16vw, 150px);
@@ -245,10 +248,9 @@
 
 <section class="screen" id="audit">
   <svg class="mark"><use href="#logo"/></svg>
-  <div class="rows" id="rows"></div>
-  <div class="verdict-slot"><p class="verdict" id="liveVerdict"></p></div>
-  <p class="step" id="step">Reading public commits</p>
+  <div class="term" id="term"></div>
   <button class="quiet link" id="cancel">Cancel</button>
+  
 </section>
 
 <section class="screen" id="result">
@@ -293,9 +295,8 @@
     if (stream) { stream.close(); stream = null; }
     $('handle').value = '';
     $('go').disabled = true;
-    $('rows').innerHTML = '';
-    $('liveVerdict').textContent = '';
-    filled = 0;
+    $('term').innerHTML = '';
+    lines = 0;
     $('note').textContent = '';
     show('entry');
   }
@@ -328,13 +329,12 @@
 
   // Each update paints as it lands, so the wait shows real progress.
   let stream = null;
-  let filled = 0;
 
   function start(handle) {
-    $('rows').innerHTML = '';
-    $('liveVerdict').textContent = '';
-    $('step').textContent = 'Reading public commits';
+    $('term').innerHTML = '';
+    lines = 0;
     show('audit');
+    line('cmd', 'audit ' + handle);
 
     const src = new EventSource('/api/roast?handle=' + encodeURIComponent(handle)
       + location.search.replace('?', '&'));
@@ -342,72 +342,60 @@
 
     src.onmessage = e => {
       const u = JSON.parse(e.data);
-      if (u.phase === 'plan') layout(u.plan);
-      if (u.phase === 'fetch') $('step').textContent = u.label;
-      if (u.phase === 'metric') fill(u.metric);
-      if (u.phase === 'verdict') u.verdict ? typeVerdict(u.verdict) : ($('step').textContent = u.label);
+      if (u.phase === 'fetch') line('cmd', u.label.toLowerCase());
+      if (u.phase === 'metric') measured(u.metric);
+      if (u.phase === 'verdict') u.verdict ? typeVerdict(u.verdict) : line('cmd', u.label.toLowerCase());
       if (u.phase === 'done') { roast = u.roast; src.close(); finish(); }
       if (u.phase === 'error') fail(src, u.error);
       resetIdleTimer();
     };
-    src.onerror = () => fail(src, 'Could not reach the audit.');
+    src.onerror = () => fail(src, 'could not reach the audit');
   }
 
-  // Every row exists before the first measurement arrives, so the column never
-  // grows and nothing under the reader's eye moves.
-  function layout(plan) {
-    $('rows').innerHTML = plan.map((item, i) => `
-      <div class="row" data-row="${i}">
-        <div class="row-top">
-          <span></span><span><b></b> <span class="row-tag"></span></span>
-        </div>
-        ${item.gauge ? '<div class="track"><div class="fill"></div></div>' : ''}
-      </div>`).join('');
-    [...$('rows').querySelectorAll('.row')].forEach((row, i) => {
-      row.querySelector('.row-top span').textContent = plan[i].label;
-    });
+  // The box holds a fixed number of lines. Past that the oldest is dropped, so
+  // the terminal scrolls without the container ever changing size.
+  const maxLines = 18;
+  let lines = 0;
+
+  function line(cls, text) {
+    const el = document.createElement('div');
+    el.className = cls;
+    el.textContent = text;
+    $('term').append(el);
+    if (++lines > maxLines) { $('term').firstElementChild.remove(); lines--; }
+    return el;
   }
 
-  function fill(m) {
-    const row = $('rows').querySelector(`[data-row="${filled++}"]`);
-    if (!row) return;
-    row.classList.add('on');
-    const value = row.querySelector('b');
-    if (m.tag) row.querySelector('.row-tag').textContent = m.tag;
+  // The same block glyphs the receipt prints, so the screen previews the paper.
+  const cells = 24;
 
+  function measured(m) {
     if (m.percent == null) {
-      value.textContent = m.value;
+      const el = line('out', '');
+      el.innerHTML = esc(m.label.toLowerCase()) + '  <b>' + esc(m.value) + '</b>';
       return;
     }
-    value.textContent = '0%';
-    requestAnimationFrame(() => {
-      row.querySelector('.fill').style.width = m.percent + '%';
-      countTo(value, m.percent, m.value);
-    });
-  }
+    const el = line('out', '');
+    el.innerHTML = esc(m.label.toLowerCase()) + '  <b>' + esc(m.value) + '</b>'
+      + (m.tag ? '  <i>' + esc(m.tag) + '</i>' : '');
 
-  function fail(src, message) {
-    src.close();
-    $('step').textContent = message;
-    setTimeout(reset, 4000);
-  }
-
-  function countTo(el, target, finalText) {
-    const started = performance.now(), ms = 900;
-    const tick = now => {
-      const t = Math.min(1, (now - started) / ms);
-      el.textContent = Math.round(target * (1 - Math.pow(1 - t, 3))) + '%';
-      if (t < 1) requestAnimationFrame(tick); else el.textContent = finalText;
+    const bar = line('bar', '');
+    const filled = Math.round((m.percent / 100) * cells);
+    // Drawn a cell at a time so the bar grows rather than appearing.
+    let n = 0;
+    const grow = () => {
+      bar.innerHTML = '\u2588'.repeat(n) + '<u>' + '\u2591'.repeat(cells - n) + '</u>';
+      if (n++ < filled) setTimeout(grow, 18);
     };
-    requestAnimationFrame(tick);
+    grow();
   }
 
   function typeVerdict(text) {
-    $('step').textContent = 'Writing the verdict';
-    const p = $('liveVerdict');
+    line('cmd', 'writing the verdict');
+    const el = line('say', '');
     let i = 0;
     const tick = () => {
-      p.textContent = text.slice(0, ++i);
+      el.textContent = '"' + text.slice(0, ++i) + (i < text.length ? '' : '"');
       if (i < text.length) setTimeout(tick, 14);
     };
     tick();
@@ -425,17 +413,20 @@
   }
 
   // Web Serial is what lets the kiosk be a hosted URL with nothing installed.
+  // The Windows app has no such thing, and prints through the server instead,
+  // so everything it offers is behind this.
+  const hasSerial = 'serial' in navigator;
   const serial = {
     port: null,
     async restore() {
-      if (!('serial' in navigator)) return;
+      if (!hasSerial) return;
       const [granted] = await navigator.serial.getPorts();
       if (!granted) return;
       await granted.open({ baudRate: 115200 });
       this.port = granted;
     },
     async connect() {
-      if (!('serial' in navigator)) throw new Error('This browser has no Web Serial.');
+      if (!hasSerial) throw new Error('This browser has no Web Serial.');
       const port = await navigator.serial.requestPort();
       await port.open({ baudRate: 115200 });
       this.port = port;
@@ -609,12 +600,12 @@
 
       <h3>Printer</h3>
       <select id="aPrinter">
-        <option value="browser">This browser, over Web Serial</option>
+        ${hasSerial ? '<option value="browser">This browser, over Web Serial</option>' : ''}
         <option value="">None</option>
         ${(s.printers || []).map(p => `<option value="${esc(p.spec)}"${p.spec === s.printer ? ' selected' : ''}>${esc(p.label)}</option>`).join('')}
       </select>
       <div class="acts">
-        <button id="aConnect">Connect printer</button>
+        ${hasSerial ? '<button id="aConnect">Connect printer</button>' : ''}
         <button id="aTest">Test slip</button>
         <button id="aReprint" class="full"${s.canReprint ? '' : ' disabled'}>Reprint the last receipt</button>
       </div>
@@ -831,8 +822,8 @@
       roast = r;
       if (preview === 'result') return finish();
       show('audit');
-      layout(r.metrics.map(m => ({ label: m.label, gauge: m.percent != null })));
-      r.metrics.forEach(fill);
+      line('cmd', 'audit ' + r.handle);
+      r.metrics.forEach(measured);
       typeVerdict(r.verdict);
     });
   } else {
