@@ -78,8 +78,9 @@ not on the machine it fetches them itself, as a 22MB package rather than a
 multi-gigabyte SDK install.
 
 It builds both binaries, lays out the package, makes a self-signed certificate,
-trusts it on that machine, signs, and installs. "Upgaming Roaster" then appears
-in the kiosk picker, and in Start, and it launches itself at sign-in.
+trusts it on that machine, signs, and installs. "Upgaming Roaster" is then in
+Start, and it launches itself at sign-in. Whether it is also in the kiosk picker
+depends on the account and the edition, which is the section below.
 
 Assigned Access needs Windows 11 Pro or Enterprise; check with `winver`.
 
@@ -93,6 +94,35 @@ settings means editing the file on the device or deleting it first.
 
 Once it is packaged, the log to read is `%LOCALAPPDATA%\Roaster\kiosk.log`, and
 the settings to edit are beside it.
+
+### When it is not in the kiosk picker
+
+The picker lists applications installed for the account being set up, and
+`Add-AppxPackage` installs for the account that ran it. So put it on the device
+rather than on your account, and sign in as the kiosk account once:
+
+```powershell
+Add-AppxProvisionedPackage -Online -PackagePath build\UpgamingRoaster.msix -SkipLicense
+```
+
+Then check Windows knows it by name, which is what the picker reads:
+
+```powershell
+Get-StartApps | Where-Object Name -like '*Roaster*'
+```
+
+The AppID it prints is the identity kiosk mode wants. Assign it without the
+picker:
+
+```powershell
+Set-AssignedAccess -AppUserModelId '<the AppID>' -UserName '<the account>'
+```
+
+If neither takes it, the edition is the reason rather than the package. Single
+app kiosk was built around UWP apps, and this is a desktop application in a
+package, which is a different thing however installed it looks. The two routes
+left are Shell Launcher, on Enterprise, Education and IoT Enterprise, and
+`scripts\lockdown.bat`, which replaces the shell and works on every edition.
 
 ### Putting it on a device with no terminal
 
@@ -145,10 +175,11 @@ window, icon and taskbar identity, and it draws the kiosk page itself: no
 browser to close, no address bar to reach, one thing to open. It starts
 `roaster.exe` beside it and keeps that running.
 
-It does not hold the screen. The window moves, minimises, alt-tabs and closes
-like any other, because kiosk mode is Windows' job and it does that job to
-whatever application it is given. The app opens filling the screen and stops
-there.
+It fills the screen and has no title bar, because a visitor has no use for one.
+It is an ordinary window underneath: Alt+Tab reaches it, Alt+F4 closes it, and
+nothing holds it in front of anything else. Holding the screen is kiosk mode's
+job, and it does that job to whatever application it is given. `-window` opens
+it with a title bar instead, which is what the designer does.
 
 | What goes wrong | What it does |
 |---|---|
@@ -173,9 +204,10 @@ After that:
 | `preview.bat` | The receipt designer, at a size you can work in. |
 | `stop.bat` | Stops everything, for when closing the window is not enough. |
 
-Flags, if you need them: `-preview` opens the designer, `-url` overrides the
-address, `-shell` tells it Windows started it in place of the desktop, so
-leaving puts the desktop back.
+Flags, if you need them: `-preview` opens the designer, `-window` gives it a
+title bar and a size rather than the screen, `-url` overrides the address,
+`-shell` tells it Windows started it in place of the desktop, so leaving puts
+the desktop back.
 
 For a hosted deployment, only `kiosk.exe` and a `roaster.json` holding
 `kioskUrl` need to be on the device.

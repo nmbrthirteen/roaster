@@ -41,12 +41,12 @@ var (
 )
 
 const (
+	wsPopup         = 0x80000000
 	wsClipChildren  = 0x02000000
 	wsOverlappedWin = 0x00CF0000
 	wsExAppWindow   = 0x00040000
 
-	swShow          = 5
-	swShowMaximized = 3
+	swShow = 5
 
 	wmDestroy  = 0x0002
 	wmMove     = 0x0003
@@ -106,16 +106,18 @@ func utf16(s string) *uint16 {
 	return p
 }
 
-// screen returns the primary monitor in pixels, which is where a window with no
-// place of its own yet opens. GetSystemMetrics would answer in the thread's
-// DPI, and this one is per-monitor aware.
-func screen() rect {
+// screen returns the primary monitor: the whole of it, which is what the stand
+// covers, and the part left over by the taskbar, which is where a window with a
+// title bar opens. GetSystemMetrics would answer in the thread's DPI, and this
+// one is per-monitor aware.
+func screen() monitorInfo {
 	h, _, _ := monitorFromPoint.Call(0, 0, monitorPrimary)
 	info := monitorInfo{size: uint32(unsafe.Sizeof(monitorInfo{}))}
 	if r, _, _ := getMonitorInfo.Call(h, uintptr(unsafe.Pointer(&info))); r == 0 {
-		return rect{0, 0, 1920, 1080}
+		full := rect{0, 0, 1920, 1080}
+		return monitorInfo{monitor: full, work: full}
 	}
-	return info.work
+	return info
 }
 
 // onlyOne holds a named mutex for the life of the process, so opening the app

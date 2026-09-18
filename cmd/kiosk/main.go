@@ -45,9 +45,9 @@ type session struct {
 	url   string
 	title string
 
-	// preview is the receipt designer, which opens at a size someone can work
-	// in. The stand opens filling the screen.
-	preview bool
+	// window opens with a title bar, at a size someone can work in. The stand
+	// fills the screen instead.
+	window bool
 
 	// shell means Windows starts this instead of the desktop, so leaving has to
 	// put the desktop back.
@@ -60,6 +60,7 @@ func main() {
 	configPath := flag.String("config", "roaster.json", "settings file, read for kioskUrl")
 	rawURL := flag.String("url", "", "address to open, overriding the settings file")
 	preview := flag.Bool("preview", false, "open the receipt designer instead of the stand")
+	window := flag.Bool("window", false, "open with a title bar instead of filling the screen")
 	shell := flag.Bool("shell", false, "this is running as the Windows shell, so leaving starts the desktop")
 	flag.Parse()
 
@@ -67,7 +68,8 @@ func main() {
 
 	page, title := "/kiosk", "Roaster"
 	if *preview {
-		page, title = "/preview", "Roaster receipt designer"
+		// The designer is worked in rather than walked up to.
+		page, title, *window = "/preview", "Roaster receipt designer", true
 	}
 
 	target := *rawURL
@@ -97,11 +99,11 @@ func main() {
 	clearQuit()
 
 	if err := show(session{
-		url:     target,
-		title:   title,
-		preview: *preview,
-		shell:   *shell,
-		stop:    stop,
+		url:    target,
+		title:  title,
+		window: *window,
+		shell:  *shell,
+		stop:   stop,
 	}); err != nil {
 		fail("%v", err)
 	}

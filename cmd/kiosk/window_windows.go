@@ -140,16 +140,27 @@ func (h *host) register(instance uintptr) error {
 }
 
 func (h *host) open(instance uintptr) error {
+	// The stand fills the screen and has no title bar, because a visitor has no
+	// use for one. It is still an ordinary window underneath: Alt+Tab reaches
+	// it, Alt+F4 closes it, and nothing holds it in front of anything else.
 	at := screen()
-	w, height := int32(1360), int32(900)
-	x := at.left + (at.right-at.left-w)/2
-	y := at.top + (at.bottom-at.top-height)/2
+	style := uintptr(wsPopup | wsClipChildren)
+	x, y := at.monitor.left, at.monitor.top
+	w := at.monitor.right - at.monitor.left
+	height := at.monitor.bottom - at.monitor.top
+
+	if h.s.window {
+		style = wsOverlappedWin | wsClipChildren
+		w, height = 1360, 900
+		x = at.work.left + (at.work.right-at.work.left-w)/2
+		y = at.work.top + (at.work.bottom-at.work.top-height)/2
+	}
 
 	hwnd, _, err := createWindowEx.Call(
 		wsExAppWindow,
 		uintptr(unsafe.Pointer(utf16(className))),
 		uintptr(unsafe.Pointer(utf16(h.s.title))),
-		wsOverlappedWin|wsClipChildren,
+		style,
 		uintptr(x), uintptr(y), uintptr(w), uintptr(height),
 		0, 0, instance, 0,
 	)
@@ -161,14 +172,7 @@ func (h *host) open(instance uintptr) error {
 	sendMessage.Call(hwnd, wmSetIcon, iconBig, appIcons(256))
 	sendMessage.Call(hwnd, wmSetIcon, iconSmall, appIcons(32))
 
-	// The stand wants the whole screen and the designer does not, and either
-	// way it is a window with its buttons, so this is a starting state rather
-	// than something held.
-	how := uintptr(swShowMaximized)
-	if h.s.preview {
-		how = swShow
-	}
-	showWindow.Call(hwnd, how)
+	showWindow.Call(hwnd, swShow)
 	updateWindow.Call(hwnd)
 	return nil
 }
