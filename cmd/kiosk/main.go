@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/upgaming/roaster/internal/config"
+	"github.com/upgaming/roaster/internal/state"
 )
 
 const (
@@ -179,7 +180,7 @@ func supervise(server string, stop <-chan struct{}) {
 	}
 }
 
-func quitPath() string { return filepath.Join(filepath.Dir(mustExe()), quitFile) }
+func quitPath() string { return state.Path(quitFile) }
 
 func askedToQuit() bool {
 	_, err := os.Stat(quitPath())
@@ -191,6 +192,7 @@ func clearQuit() { _ = os.Remove(quitPath()) }
 func run(name string, args []string) {
 	cmd := exec.Command(name, args...)
 	cmd.Dir = filepath.Dir(name)
+	quiet(cmd)
 	if err := cmd.Run(); err != nil {
 		log.Printf("%s: %v", filepath.Base(name), err)
 	}
@@ -216,11 +218,9 @@ func health(target string) string {
 }
 
 func readURL(path string) string {
-	if !filepath.IsAbs(path) {
-		if _, err := os.Stat(path); err != nil {
-			path = filepath.Join(filepath.Dir(mustExe()), path)
-		}
-	}
+	state.Seed(path)
+	path = state.Resolve(path)
+
 	cfg, err := config.Load(path)
 	if err != nil {
 		fail("could not read %s: %v", path, err)
@@ -269,16 +269,17 @@ func mustExe() string {
 	return exe
 }
 
-// logTo writes beside the executable, because an application started by double
-// click has no console anyone will read.
+// logTo writes to the folder the app keeps its state in, because an application
+// started by double click has no console anyone will read.
 func logTo(name string) {
-	path := filepath.Join(filepath.Dir(mustExe()), name)
+	path := state.Path(name)
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
 		return
 	}
 	log.SetOutput(f)
 	log.Printf("--- kiosk starting, %s/%s ---", runtime.GOOS, runtime.GOARCH)
+	log.Printf("state: %s", state.Dir())
 }
 
 func fail(format string, args ...any) {

@@ -50,6 +50,7 @@ var (
 	setThreadExecState  = kernel32.NewProc("SetThreadExecutionState")
 	createMutex         = kernel32.NewProc("CreateMutexW")
 	copyMemory          = kernel32.NewProc("RtlMoveMemory")
+	packageFullName     = kernel32.NewProc("GetCurrentPackageFullName")
 	createSolidBrush    = gdi32.NewProc("CreateSolidBrush")
 )
 
@@ -107,6 +108,10 @@ const (
 	esDisplayRequired = 0x00000002
 
 	errorAlreadyExists = 183
+
+	// GetCurrentPackageFullName says this when the process was not started from
+	// an installed package.
+	noPackage = 15700
 )
 
 type rect struct{ left, top, right, bottom int32 }
@@ -176,6 +181,16 @@ func screen() rect {
 func held(vk uintptr) bool {
 	state, _, _ := getAsyncKeyState.Call(vk)
 	return state&0x8000 != 0
+}
+
+// packaged reports whether Windows started this from an installed package,
+// which is what an app picked in kiosk mode is. Windows manages the screen
+// there, and a stand that fights it for the foreground would be fighting the
+// thing that put it there.
+func packaged() bool {
+	var length uint32
+	r, _, _ := packageFullName.Call(uintptr(unsafe.Pointer(&length)), 0)
+	return r != noPackage
 }
 
 // awake keeps the screen on for as long as this thread lives. A stand that has

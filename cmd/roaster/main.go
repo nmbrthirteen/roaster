@@ -11,7 +11,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -26,6 +25,7 @@ import (
 	"github.com/upgaming/roaster/internal/receipt"
 	"github.com/upgaming/roaster/internal/roast"
 	"github.com/upgaming/roaster/internal/secret"
+	"github.com/upgaming/roaster/internal/state"
 	"github.com/upgaming/roaster/internal/ui"
 )
 
@@ -162,13 +162,12 @@ func (s *station) setPrinter(spec string) error {
 	return config.Save(path, saved)
 }
 
-// startLog mirrors the log to a file beside the executable.
+// startLog mirrors the log to a file in the folder the app writes to, and says
+// which folder that is. On a packaged install it is not the one the binaries
+// are in, and that is the first thing anyone looking for a settings file or a
+// log needs to know.
 func startLog() {
-	exe, err := os.Executable()
-	if err != nil {
-		return
-	}
-	path := filepath.Join(filepath.Dir(exe), "roaster.log")
+	path := state.Path("roaster.log")
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
 		log.Printf("could not open %s: %v", path, err)
@@ -176,11 +175,10 @@ func startLog() {
 	}
 	log.SetOutput(io.MultiWriter(os.Stderr, f))
 	log.Printf("--- roaster starting, %s/%s ---", runtime.GOOS, runtime.GOARCH)
+	log.Printf("state: %s", state.Dir())
 }
 
 func main() {
-	startLog()
-
 	configPath := flag.String("config", "roaster.json", "per-device settings file")
 	flag.String("addr", ":3000", "listen address")
 	flag.String("events", "events", "directory of event files, overriding the built-in ones")
@@ -188,14 +186,20 @@ func main() {
 	flag.String("printer", "", "printer: tcp:host:9100, lp:queue or file:path")
 	flag.String("event", "", "event code the kiosk opens on")
 	setToken := flag.Bool("set-token", false, "store this terminal's token, read from standard input")
+	stateDir := flag.String("state", "", "settings and token folder, for writing into a packaged install's")
 	flag.Parse()
+
+	// Before anything asks where the folder is.
+	state.Use(*stateDir)
+	startLog()
 
 	if *setToken {
 		storeToken()
 		return
 	}
 
-	beside(configPath)
+	state.Seed("roaster.json")
+	*configPath = state.Resolve(*configPath)
 
 	saved, err := config.Load(*configPath)
 	if err != nil {
@@ -225,8 +229,9 @@ func main() {
 		log.Printf("assets: %v (receipts will print without the logo)", err)
 	}
 
-	beside(&st.cfg.EventsDir)
-	beside(&st.saved.EventsDir)
+	state.SeedDir(cfg.EventsDir)
+	st.cfg.EventsDir = state.Resolve(st.cfg.EventsDir)
+	st.saved.EventsDir = state.Resolve(st.saved.EventsDir)
 
 	if err := st.reloadEvents(); err != nil {
 		log.Fatalf("events: %v", err)
@@ -423,8 +428,8 @@ func main() {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		beside(&st.cfg.EventsDir)
-		beside(&st.saved.EventsDir)
+		st.cfg.EventsDir = state.Resolve(st.cfg.EventsDir)
+		st.saved.EventsDir = state.Resolve(st.saved.EventsDir)
 
 		if err := st.reloadEvents(); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -552,22 +557,6 @@ func testSlip(spec string, ev event.Event) *receipt.Doc {
 		receipt.Cut{},
 	)
 	return d
-}
-
-// beside falls back to the executable's folder when a relative path is not found
-// from the working directory.
-func beside(path *string) {
-	if *path == "" || filepath.IsAbs(*path) {
-		return
-	}
-	if _, err := os.Stat(*path); err == nil {
-		return
-	}
-	exe, err := os.Executable()
-	if err != nil {
-		return
-	}
-	*path = filepath.Join(filepath.Dir(exe), *path)
 }
 
 func handleQR(w http.ResponseWriter, r *http.Request) {

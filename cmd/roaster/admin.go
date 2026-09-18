@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"runtime"
 	"time"
 
@@ -15,6 +14,7 @@ import (
 	"github.com/upgaming/roaster/internal/printer"
 	"github.com/upgaming/roaster/internal/receipt"
 	"github.com/upgaming/roaster/internal/roast"
+	"github.com/upgaming/roaster/internal/state"
 )
 
 // quitFile tells the launcher an operator asked to leave, so the supervisor
@@ -193,11 +193,7 @@ func exitSoon() {
 }
 
 func touchQuit() error {
-	exe, err := os.Executable()
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(filepath.Join(filepath.Dir(exe), quitFile), []byte("quit\n"), 0o644)
+	return os.WriteFile(state.Path(quitFile), []byte("quit\n"), 0o644)
 }
 
 var _ = roast.Roast{}

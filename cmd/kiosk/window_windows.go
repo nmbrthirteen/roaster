@@ -18,6 +18,8 @@ import (
 	"unsafe"
 
 	"github.com/jchv/go-webview2/pkg/edge"
+
+	"github.com/upgaming/roaster/internal/state"
 )
 
 // The application icon, in the window, on the taskbar and in Alt+Tab. It is
@@ -80,6 +82,10 @@ type host struct {
 
 	again   bool
 	leaving bool
+
+	// managed means Windows is holding the screen for us, which it does for an
+	// app assigned to kiosk mode.
+	managed bool
 }
 
 // show opens the window and holds it until an operator leaves through the
@@ -128,6 +134,11 @@ func (h *host) run() (bool, error) {
 	live = h
 	defer func() { live = nil }()
 
+	h.managed = packaged()
+	if h.managed {
+		log.Printf("started from a package; leaving the foreground to Windows")
+	}
+
 	instance, _, _ := getModuleHandle.Call(0)
 	if err := h.register(instance); err != nil {
 		return false, err
@@ -138,7 +149,7 @@ func (h *host) run() (bool, error) {
 	defer h.tidy()
 
 	h.view = edge.NewChromium()
-	h.view.DataPath = beside("kiosk-data")
+	h.view.DataPath = state.Path("kiosk-data")
 	h.view.MessageCallback = h.heard
 	h.view.SetGlobalPermission(edge.CoreWebView2PermissionStateDeny)
 	if !h.s.windowed {
@@ -287,7 +298,7 @@ func (h *host) tick() {
 		h.leave()
 		return
 	}
-	if !h.s.windowed {
+	if !h.s.windowed && !h.managed {
 		h.keepFront()
 	}
 
@@ -531,8 +542,4 @@ func appIcons(size int) uintptr {
 	}
 	icons[size] = h
 	return h
-}
-
-func beside(name string) string {
-	return filepath.Join(filepath.Dir(mustExe()), name)
 }

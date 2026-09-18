@@ -10,19 +10,14 @@ package secret
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
+
+	"github.com/upgaming/roaster/internal/state"
 )
 
 const fileName = "terminal.token"
 
-func path() (string, error) {
-	exe, err := os.Executable()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(filepath.Dir(exe), fileName), nil
-}
+func path() (string, error) { return state.Path(fileName), nil }
 
 // Load returns the terminal token, or an empty string if none is stored.
 func Load() (string, error) {

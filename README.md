@@ -30,6 +30,15 @@ document, shows the paper length and job size, and prints.
 Settings live in `roaster.json` beside the binary. Copy `roaster.example.json`
 to start. The file is gitignored because it is per device.
 
+A packaged install cannot keep them there, because Windows mounts an MSIX
+read-only. So the app writes wherever it can: the folder it runs from when that
+is writable, which is the copied folder on a stand, and `%LOCALAPPDATA%\Roaster`
+when it is not, which is every packaged install. Settings, event files, logs and
+the terminal token all follow it, and the first line of each log says which
+folder won. Whatever the package carries is copied out there on first run, so
+the `roaster.json` that goes into the package is what a fresh device starts
+with.
+
 `addr` binds to loopback. A stand sits on venue wifi, and anything reachable
 there could drive the printer. Widen it only for a deliberately hosted setup.
 
@@ -73,6 +82,9 @@ trusts it on that machine, signs, and installs. "Upgaming Roaster" then appears
 in the kiosk picker, and in Start, and it launches itself at sign-in.
 
 Assigned Access needs Windows 11 Pro or Enterprise; check with `winver`.
+
+Once it is packaged, the log to read is `%LOCALAPPDATA%\Roaster\kiosk.log`, and
+the settings to edit are beside it.
 
 ### Putting it on a device with no terminal
 
@@ -196,9 +208,14 @@ and GitHub keys live on that service, read from its environment. See
 `.env.example`.
 
 The device carries one credential: a terminal token, stored in `terminal.token`
-beside the binary and encrypted with Windows DPAPI so the file is useless on
+in the folder above and encrypted with Windows DPAPI so the file is useless on
 another machine. Write it with `roaster -set-token`, which reads from standard
-input to keep it out of shell history. It is gitignored and never appears in a
+input to keep it out of shell history. A packaged install needs the token put
+where it reads from, as the same Windows user:
+
+```
+roaster.exe -set-token -state %LOCALAPPDATA%\Roaster
+``` It is gitignored and never appears in a
 settings file.
 
 That token should be worth nothing to steal: scope it to the roast endpoint
