@@ -13,7 +13,10 @@ import (
 )
 
 type Config struct {
-	Addr      string `json:"addr"`      // listen address
+	// Addr binds to loopback by default. A stand sits on venue wifi, and
+	// anything reachable there can drive the printer. Widen it only for a
+	// deliberately hosted setup.
+	Addr      string `json:"addr"`
 	Terminal  string `json:"terminal"`  // printed on every receipt, one per stand
 	Printer   string `json:"printer"`   // tcp:host:9100, lp:queue or file:path
 	Event     string `json:"event"`     // event code the kiosk opens on
@@ -35,7 +38,7 @@ type Config struct {
 
 func Defaults() Config {
 	return Config{
-		Addr:      ":3000",
+		Addr:      "127.0.0.1:3000",
 		Terminal:  "001",
 		EventsDir: "events",
 		KioskURL:  "http://localhost:3000/kiosk",

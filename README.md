@@ -30,6 +30,9 @@ document, shows the paper length and job size, and prints.
 Settings live in `roaster.json` beside the binary. Copy `roaster.example.json`
 to start. The file is gitignored because it is per device.
 
+`addr` binds to loopback. A stand sits on venue wifi, and anything reachable
+there could drive the printer. Widen it only for a deliberately hosted setup.
+
 ## Printing
 
 Pick a printer in the designer. Five transports:

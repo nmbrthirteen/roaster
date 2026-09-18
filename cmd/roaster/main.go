@@ -350,6 +350,10 @@ func main() {
 	}
 
 	mux.HandleFunc("/print", func(w http.ResponseWriter, r *http.Request) {
+		if pin := st.config().AdminPIN; pin != "" && r.Header.Get("X-Admin-Pin") != pin {
+			http.Error(w, "Wrong code.", http.StatusForbidden)
+			return
+		}
 		if r.Method != http.MethodPost {
 			http.Error(w, "post only", http.StatusMethodNotAllowed)
 			return
@@ -358,6 +362,10 @@ func main() {
 	})
 
 	mux.HandleFunc("/print/test", func(w http.ResponseWriter, r *http.Request) {
+		if pin := st.config().AdminPIN; pin != "" && r.Header.Get("X-Admin-Pin") != pin {
+			http.Error(w, "Wrong code.", http.StatusForbidden)
+			return
+		}
 		if r.Method != http.MethodPost {
 			http.Error(w, "post only", http.StatusMethodNotAllowed)
 			return
@@ -391,7 +399,12 @@ func main() {
 			http.Error(w, "post only", http.StatusMethodNotAllowed)
 			return
 		}
-		base, _ := st.eventSet().Get(r.FormValue("from"))
+		// Clone whatever is running when no source is named, so an event made
+		// from the menu never comes out missing its branding.
+		base, ok := st.eventSet().Get(r.FormValue("from"))
+		if !ok {
+			base = pick(r)
+		}
 		ev := base
 		ev.Name = r.FormValue("name")
 		ev.Code = event.Slug(ev.Name)

@@ -43,6 +43,39 @@ type Event struct {
 	Kiosk   Kiosk    `json:"kiosk"`
 }
 
+// Normalise fills anything an event is missing. An event assembled from a form
+// or a hand-written file must still print a logo and a QR that points
+// somewhere, rather than silently losing them.
+func (e *Event) Normalise() {
+	if e.Receipt.Logo == "" {
+		e.Receipt.Logo = "logo"
+	}
+	if e.Receipt.Title == "" {
+		e.Receipt.Title = "Performance review"
+	}
+	if e.Receipt.CTA == "" {
+		e.Receipt.CTA = "Scan for your digital receipt"
+	}
+	if e.Receipt.ShareBase == "" {
+		e.Receipt.ShareBase = "https://lifeat.upgaming.com/k"
+	}
+	if e.Name == "" {
+		e.Name = e.Code
+	}
+	if len(e.Packs) == 0 {
+		e.Packs = []string{"github"}
+	}
+	if e.Kiosk.Headline == "" {
+		e.Kiosk.Headline = "Roast your GitHub"
+	}
+	if e.Kiosk.Accent == "" {
+		e.Kiosk.Accent = "#0fff50"
+	}
+	if e.Kiosk.Surface == "" {
+		e.Kiosk.Surface = "#070707"
+	}
+}
+
 // RuleChar and HeavyRuleChar fall back sensibly, so a half-filled event file
 // still prints rather than dropping its dividers.
 func (e Event) RuleChar() rune { return firstRune(e.Receipt.Rule, '-') }
@@ -108,6 +141,7 @@ func (s *Set) read(fsys fs.FS, dir string) error {
 		if ev.Code == "" {
 			ev.Code = strings.TrimSuffix(e.Name(), ".json")
 		}
+		ev.Normalise()
 		if _, seen := s.byCode[ev.Code]; !seen {
 			s.order = append(s.order, ev.Code)
 		}
@@ -126,6 +160,7 @@ func Write(dir string, ev Event) error {
 	if ev.Code == "" {
 		return fmt.Errorf("event needs a code")
 	}
+	ev.Normalise()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
