@@ -1,5 +1,5 @@
 @echo off
-rem Run the stand. Locked to one full screen tab, and it keeps itself alive.
+rem Run the stand. Its own full screen window, and it keeps itself alive.
 
 setlocal
 cd /d "%~dp0"

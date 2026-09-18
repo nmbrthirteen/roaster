@@ -45,8 +45,13 @@ Pick a printer in the designer. Five transports:
 | `win:Receipt` | A Windows spooler queue, raw datatype. |
 | `lp:Receipt` | A CUPS queue on macOS or Linux. |
 
-`browser` is the one that makes a hosted deployment work. Web Serial needs
-HTTPS, or localhost, and Chrome or Edge.
+`browser` is the one that makes a hosted deployment work: a page in Chrome or
+Edge, served over HTTPS or from localhost, driving the printer itself.
+
+The Windows app is not that. It draws the page in WebView2, which has no
+`navigator.serial`, so it prints through the server beside it: `win:` for a
+spooler queue, `tcp:` for a networked printer. The Web Serial option disappears
+from the menu when the page is running somewhere that cannot do it.
 
 Press **Print test slip** before trusting a new printer. It costs 90mm of paper
 and proves the three things a printer can silently fail at: reversed video, the
@@ -87,30 +92,75 @@ Defaults are compiled into the binary. Anything in `events/` overrides them by
 code. Use the **New event** form in the designer to write one, or copy
 `events/example-event.json` by hand.
 
-## Deploying to a Windows kiosk
+## The Windows app
+
+`kiosk.exe` is the stand. It is a Windows application with its own window, icon
+and taskbar identity, and it draws the kiosk page itself: no browser to close,
+no address bar to reach, one thing to open. It starts `roaster.exe` beside it
+and keeps the screen up.
+
+| What goes wrong | What it does |
+|---|---|
+| The server exits | Starts it again, three seconds later. |
+| The server is not up yet | Holds a waiting screen, on brand, until it answers. |
+| The page stops running | Opens it again, within twenty seconds. |
+| The view itself dies | Builds a new window, after ninety seconds. |
+| Windows tries to sleep the screen | Refused for as long as the app runs. |
+| Something else takes the screen | Back on top within the second. |
+
+Full screen, always on top, no context menu, no zoom, no developer tools. It
+swallows Alt+Tab, Alt+F4, Alt+Esc, Ctrl+Esc, Ctrl+Shift+Esc and the Windows key,
+and leaves ordinary typing alone, because a visitor types a handle and an
+operator types a code. Ctrl+Alt+Delete is not a shortcut a program can take, so
+the lockdown script empties the screen it opens instead.
+
+It needs the Microsoft Edge WebView2 Runtime, which Windows 11 ships and Edge
+keeps updated on Windows 10.
 
 Run `run.bat` once. It installs Go if needed, builds, and starts the stand.
-
-After that there are two things to open:
+After that:
 
 | | What it does |
 |---|---|
-| `kiosk.bat` | The stand. Locked to one full-screen tab, keeps itself alive. |
+| `kiosk.bat` | The stand: full screen, locked, keeps itself alive. |
 | `preview.bat` | The receipt designer, in a window you can close. |
-| `stop.bat` | Stops everything, for when closing the window is not enough. |
+| `stop.bat` | Stops everything, for when the hidden menu is not reachable. |
 
-Both run the same `kiosk.exe`, which starts the server, restarts it if it exits,
-and reopens the app if it is closed.
-
-Closing the app once reopens it, because at a booth that is an accident.
-Closing it again within fifteen seconds stops it, because twice is a decision. `scripts\autostart.bat`, run once as administrator, makes
-it come back after a reboot.
-
-Flags, if you need them: `-windowed` opens an app window instead of locking the
-screen, `-once` exits rather than reopening, `-url` overrides the address.
+Flags, if you need them: `-windowed` opens a window that closes instead of
+locking the screen, `-cursor` keeps the mouse pointer, `-url` overrides the
+address, `-shell` tells it Windows started it in place of the desktop.
 
 For a hosted deployment, only `kiosk.exe` and a `roaster.json` holding
 `kioskUrl` need to be on the device.
+
+## Locking the device to it
+
+`scripts\lockdown.bat`, run once as administrator, gives the whole account to
+the stand:
+
+1. `kiosk.exe` replaces the desktop for that account. No taskbar, no start menu,
+   nothing else to open, because nothing else is started.
+2. The account signs in by itself, so a power cut ends with the stand back up.
+3. Windows starts the shell again whenever it exits, which is the watchdog for a
+   crash at four in the morning.
+4. Task manager, the lock screen, password changes and notifications are off.
+5. The screen never sleeps, the disk never spins down, USB never suspends, and
+   Windows Update never reboots under a visitor.
+
+It asks for a nightly reboot time on the way through; Enter means never. Two
+things it cannot set, both firmware: restoring power state after a cut, and
+booting with no keyboard attached.
+
+Automatic sign-in as it stands needs a blank password on that account. Windows
+stores a real one in clear text, so either clear the password or use Sysinternals
+Autologon, which keeps it in the LSA secret store.
+
+Three ways back out: **Exit kiosk** in the hidden menu, which starts the desktop;
+`scripts\unlock.bat`, which undoes all of it; or holding Shift while signing in,
+which skips the automatic sign-in.
+
+`scripts\autostart.bat` is the lighter version: the stand starts at sign-in and
+Windows is otherwise untouched.
 
 ## Credentials
 

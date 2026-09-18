@@ -32,8 +32,11 @@ echo   Roaster will now start automatically when this account logs in.
 echo   Remove it by deleting:
 echo   %LINK%
 echo.
-echo   Two more things the kiosk needs, in Windows settings:
-echo     1. Sign-in options, turn on automatic sign-in for this account.
-echo     2. Power and battery, screen and sleep, set both to Never.
+echo   This leaves Windows otherwise as it is: the desktop is still there behind
+echo   the stand, and the machine can still sign out and sleep.
+echo.
+echo   For a device that is only ever the stand, run scripts\lockdown.bat
+echo   instead. It replaces the desktop with the app, signs in by itself and
+echo   stops the screen sleeping.
 echo.
 pause

@@ -1,10 +1,13 @@
-// Command kiosk runs the stand. It starts the server, keeps it alive, and holds
-// the app open, so it is the only thing anyone has to launch.
+// Command kiosk is the stand. It is a Windows application that owns the screen
+// and draws the kiosk page in its own window, so there is no browser to close,
+// no address bar to reach and one icon to open.
 //
-// It drives real Edge rather than embedding a WebView2 control on purpose.
-// Printing runs over Web Serial, which Edge supports and an embedded webview
-// does not reliably, and real Edge picks up the enterprise policy that grants
-// the printer without a prompt.
+// It also starts the server it shows and keeps it running, which is why this is
+// the only thing anyone has to launch.
+//
+// Hosting the page rather than driving Edge costs Web Serial: WebView2 has no
+// navigator.serial, so a printer is reached through the server's own transports
+// instead. On a device running its own server that is the shorter path anyway.
 package main
 
 import (
@@ -28,36 +31,47 @@ import (
 
 const (
 	restartDelay = 3 * time.Second
-	startupWait  = 30 * time.Second
 
-	// A session at a booth lasts minutes. Anything shorter than this was either
-	// somebody closing the window on purpose or something failing to start, and
-	// neither is worth reopening forever.
-	briefSession = 15 * time.Second
-	giveUpAfter  = 3
-
-	// Edge sometimes hands a window to an existing process and the one we
-	// launched returns at once. Reopening on that is how a loop turns into a
-	// pile of windows, so anything this fast is treated as a launch failure.
-	handedOff = 2 * time.Second
+	// A server that dies this fast died on startup, and it will do it again.
+	briefRun = 15 * time.Second
 
 	// Written by the server when an operator leaves through the hidden menu.
 	quitFile = ".quit"
 )
 
+// session is what the window is asked to show.
+type session struct {
+	url   string
+	title string
+
+	// windowed opens a normal window that closes. The stand runs without it:
+	// full screen, always on top, and no way out but the hidden menu.
+	windowed bool
+
+	// shell means Windows starts this instead of the desktop, so leaving has to
+	// put the desktop back.
+	shell bool
+
+	// cursor keeps the mouse pointer. A touchscreen has nothing to point with.
+	cursor bool
+
+	stop <-chan struct{}
+}
+
 func main() {
 	configPath := flag.String("config", "roaster.json", "settings file, read for kioskUrl")
 	rawURL := flag.String("url", "", "address to open, overriding the settings file")
-	windowed := flag.Bool("windowed", false, "open an app window instead of locking the screen")
+	windowed := flag.Bool("windowed", false, "open a window that closes instead of locking the screen")
 	preview := flag.Bool("preview", false, "open the receipt designer, in a window, unlocked")
-	once := flag.Bool("once", false, "exit when the app is closed instead of reopening it")
+	shell := flag.Bool("shell", false, "this is running as the Windows shell, so leaving starts the desktop")
+	cursor := flag.Bool("cursor", false, "keep the mouse pointer on the locked screen")
 	flag.Parse()
 
 	logTo("kiosk.log")
 
-	page := "/kiosk"
+	page, title := "/kiosk", "Roaster"
 	if *preview {
-		page = "/preview"
+		page, title = "/preview", "Roaster receipt designer"
 		*windowed = true
 	}
 
@@ -76,116 +90,77 @@ func main() {
 		close(stop)
 	}()
 
+	// The window opens before the server answers on purpose. Waiting first would
+	// leave a locked screen black for as long as the wait, and the window has a
+	// page of its own to show meanwhile.
 	if err := serve(target, stop); err != nil {
 		fail("%v", err)
 	}
 
-	browser, err := findEdge()
-	if err != nil {
-		fail("%v", err)
-	}
-
-	// Closing the app once is usually an accident, so it reopens. Closing it
-	// again straight away is not, so it stops. Without that second rule there
-	// is no way off the stand short of Task Manager.
+	// Closing the app is a decision an operator makes in the hidden menu, so a
+	// leftover marker from last time must not end this run early.
 	clearQuit()
 
-	// Backoff, so a browser that refuses to stay open waits longer each time
-	// instead of filling the screen.
-	backoff := []time.Duration{4 * time.Second, 15 * time.Second, 45 * time.Second}
-	brief := 0
-
-	for {
-		started := time.Now()
-		run(browser, browserArgs(target, *windowed))
-		lasted := time.Since(started)
-
-		if *once || *preview {
-			return
-		}
-		if askedToQuit() {
-			log.Printf("closed from the menu")
-			clearQuit()
-			return
-		}
-
-		if lasted < handedOff {
-			log.Printf("the browser exited after %s, which means it did not really "+
-				"start. Close any other Edge windows and try again.", lasted.Round(time.Millisecond))
-			return
-		}
-
-		if lasted < briefSession {
-			brief++
-			if brief >= giveUpAfter {
-				log.Printf("closed %d times in a row, stopping. Open kiosk.exe to come back.", brief)
-				return
-			}
-		} else {
-			brief = 0
-		}
-
-		wait := backoff[min(brief, len(backoff)-1)]
-		log.Printf("app closed after %s, reopening in %s. Close it again to stop.",
-			lasted.Round(time.Second), wait)
-
-		select {
-		case <-stop:
-			return
-		case <-time.After(wait):
-		}
+	if err := show(session{
+		url:      target,
+		title:    title,
+		windowed: *windowed,
+		shell:    *shell,
+		cursor:   *cursor,
+		stop:     stop,
+	}); err != nil {
+		fail("%v", err)
 	}
 }
 
 // serve makes the app answer and keeps it answering. A server someone else is
 // already running is left alone, and a remote address has nothing to start.
+//
+// Only an address that cannot be parsed stops the stand here. Everything else
+// is something that may yet come good: a server still booting, venue wifi that
+// is not up. The window opens and waits rather than quitting on a locked device
+// with nobody in front of it.
 func serve(target string, stop <-chan struct{}) error {
 	u, err := url.Parse(target)
 	if err != nil {
 		return fmt.Errorf("%q is not a valid address: %w", target, err)
 	}
-	health := u.Scheme + "://" + u.Host + "/health"
-
-	if alive(health, time.Second) {
+	if alive(health(target), time.Second) {
 		log.Printf("server already running")
 		return nil
 	}
 	if !isLoopback(u.Hostname()) {
-		return fmt.Errorf("%s is not answering and is not an address this can start", target)
+		log.Printf("%s is not answering yet; waiting for it", target)
+		return nil
 	}
 
 	server, err := serverPath()
 	if err != nil {
-		return err
+		log.Printf("%v; waiting for something else to answer on %s", err, target)
+		return nil
 	}
 	go supervise(server, stop)
-
-	deadline := time.Now().Add(startupWait)
-	for time.Now().Before(deadline) {
-		if alive(health, time.Second) {
-			log.Printf("server is up")
-			return nil
-		}
-		time.Sleep(400 * time.Millisecond)
-	}
-	return fmt.Errorf("%s never answered on %s; see roaster.log", filepath.Base(server), health)
+	return nil
 }
 
 func supervise(server string, stop <-chan struct{}) {
+	name := filepath.Base(server)
 	brief := 0
+
 	for {
-		log.Printf("starting %s", filepath.Base(server))
+		log.Printf("starting %s", name)
 		started := time.Now()
 		run(server, nil)
+		lasted := time.Since(started)
 
-		// A server that dies on startup will do it again. Spinning on that
-		// fills the log and hides the real error.
-		if time.Since(started) < briefSession {
+		// A server that dies on startup will do it again, so the retry slows
+		// down. It never stops: a stand has to come back by itself from a
+		// failure nobody is standing there to fix.
+		wait := restartDelay
+		if lasted < briefRun {
 			brief++
-			if brief > 4 {
-				log.Printf("%s keeps failing on startup, giving up. See roaster.log",
-					filepath.Base(server))
-				return
+			if brief > 3 {
+				wait = time.Minute
 			}
 		} else {
 			brief = 0
@@ -194,11 +169,12 @@ func supervise(server string, stop <-chan struct{}) {
 		if askedToQuit() {
 			return
 		}
+		log.Printf("%s exited after %s, starting it again in %s",
+			name, lasted.Round(time.Second), wait)
 		select {
 		case <-stop:
 			return
-		case <-time.After(restartDelay):
-			log.Printf("server exited, restarting")
+		case <-time.After(wait):
 		}
 	}
 }
@@ -220,31 +196,6 @@ func run(name string, args []string) {
 	}
 }
 
-func browserArgs(target string, windowed bool) []string {
-	// Its own profile gives the stand a separate window, taskbar identity and
-	// Web Serial grant from the user's browser.
-	args := []string{
-		"--user-data-dir=" + filepath.Join(filepath.Dir(mustExe()), "kiosk-profile"),
-		"--no-first-run",
-		"--no-default-browser-check",
-		"--disable-session-crashed-bubble",
-		"--hide-crash-restore-bubble",
-
-		// On a touchscreen a swipe would navigate away and a pinch would zoom,
-		// and a locked kiosk has no way back.
-		"--overscroll-history-navigation=0",
-		"--disable-pinch",
-	}
-	if windowed {
-		return append(args, "--app="+target, "--start-fullscreen")
-	}
-	return append(args,
-		"--kiosk", target,
-		"--edge-kiosk-type=fullscreen",
-		"--kiosk-idle-timeout-minutes=0",
-	)
-}
-
 // at pins the path. The stand must land on the kiosk whatever a stale settings
 // file says, and the designer is only ever reached on purpose.
 func at(target, page string) string {
@@ -254,6 +205,14 @@ func at(target, page string) string {
 	}
 	u.Path, u.RawQuery, u.Fragment = page, "", ""
 	return u.String()
+}
+
+func health(target string) string {
+	u, err := url.Parse(target)
+	if err != nil {
+		return ""
+	}
+	return u.Scheme + "://" + u.Host + "/health"
 }
 
 func readURL(path string) string {
@@ -270,6 +229,9 @@ func readURL(path string) string {
 }
 
 func alive(health string, timeout time.Duration) bool {
+	if health == "" {
+		return false
+	}
 	client := http.Client{Timeout: timeout}
 	res, err := client.Get(health)
 	if err != nil {
@@ -299,24 +261,6 @@ func serverPath() (string, error) {
 	return p, nil
 }
 
-func findEdge() (string, error) {
-	if runtime.GOOS != "windows" {
-		return "", fmt.Errorf("the launcher is for Windows; open the address in a browser instead")
-	}
-	for _, c := range []string{
-		`C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`,
-		`C:\Program Files\Microsoft\Edge\Application\msedge.exe`,
-	} {
-		if _, err := os.Stat(c); err == nil {
-			return c, nil
-		}
-	}
-	if p, err := exec.LookPath("msedge.exe"); err == nil {
-		return p, nil
-	}
-	return "", fmt.Errorf("could not find Microsoft Edge in the usual places")
-}
-
 func mustExe() string {
 	exe, err := os.Executable()
 	if err != nil {
@@ -325,7 +269,7 @@ func mustExe() string {
 	return exe
 }
 
-// logTo writes beside the executable, because a launcher started by double
+// logTo writes beside the executable, because an application started by double
 // click has no console anyone will read.
 func logTo(name string) {
 	path := filepath.Join(filepath.Dir(mustExe()), name)

@@ -16,8 +16,8 @@ roaster.json
 
 .DS_Store
 
-# Edge profile the launcher creates
-kiosk-profile/
+# Where the view keeps its cache and storage
+kiosk-data/
 
 # Terminal token, machine-bound. Never commit.
 terminal.token
