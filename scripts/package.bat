@@ -36,7 +36,10 @@ if not defined MAKEAPPX (
   call :findsdk
 )
 if not defined MAKEAPPX (
-  echo   Still no makeappx. Install the SDK by hand if the download is blocked:
+  echo   Still no makeappx. This is what came down:
+  call :whatwegot
+  echo.
+  echo   Install the SDK by hand if the download is blocked:
   echo     winget install --id Microsoft.WindowsSDK.10.0.26100
   goto :fail
 )
@@ -89,18 +92,45 @@ exit /b 0
 rem Tools fetched here win over an installed SDK, then either Program Files.
 rem The architecture folder that matches the machine is preferred, with x64 as
 rem the fallback, since it runs everywhere through emulation.
-setlocal enabledelayedexpansion
-set "M="
-set "S="
+rem
+rem Both layouts keep the executables in bin\<version>\<architecture>\, and dir
+rem cannot match a folder in the middle of a path: bin\*\x64\makeappx.exe looks
+rem right and matches nothing, ever. So this searches bin for the name and
+rem settles the architecture afterwards.
+setlocal
 set "ARCH=x64"
 if /i "%PROCESSOR_ARCHITECTURE%"=="ARM64" set "ARCH=arm64"
-for %%a in (x64 %ARCH%) do (
-  for %%r in ("%CD%\build\tools" "%ProgramFiles(x86)%\Windows Kits\10" "%ProgramFiles%\Windows Kits\10") do (
-    for /f "delims=" %%f in ('dir /b /s "%%~r\bin\*\%%a\makeappx.exe" 2^>nul') do set "M=%%f"
-    for /f "delims=" %%f in ('dir /b /s "%%~r\bin\*\%%a\signtool.exe" 2^>nul') do set "S=%%f"
+set "M="
+set "S="
+for %%r in ("%CD%\build\tools\bin" "%ProgramFiles(x86)%\Windows Kits\10\bin" "%ProgramFiles%\Windows Kits\10\bin") do (
+  if exist "%%~r\" (
+    for /f "delims=" %%f in ('dir /b /s "%%~r\makeappx.exe" 2^>nul') do call :prefer M "%%f"
+    for /f "delims=" %%f in ('dir /b /s "%%~r\signtool.exe" 2^>nul') do call :prefer S "%%f"
   )
 )
 endlocal & set "MAKEAPPX=%M%" & set "SIGNTOOL=%S%"
+exit /b 0
+
+:prefer
+rem The first match is kept, and one built for this machine replaces it.
+if not defined %~1 (
+  set "%~1=%~2"
+  exit /b 0
+)
+echo "%~2" | find /i "\%ARCH%\" >nul
+if not errorlevel 1 set "%~1=%~2"
+exit /b 0
+
+:whatwegot
+rem Read when the tools are still missing, so the reason is on screen rather
+rem than guessed at.
+if not exist "build\tools\" (
+  echo     build\tools is not there, so the download did not land.
+  exit /b 0
+)
+dir /b /s "build\tools\makeappx.exe" 2>nul
+dir /b /s "build\tools\signtool.exe" 2>nul
+echo     Nothing listed above means the package came down without them.
 exit /b 0
 
 :fetchtools

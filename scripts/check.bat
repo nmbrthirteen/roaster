@@ -44,14 +44,15 @@ pause
 exit /b 0
 
 :findsdk
-rem The SDK lands under either Program Files, and the tools sit in a
-rem per-architecture folder. Take the highest version that exists.
-setlocal enabledelayedexpansion
-set "MAKEAPPX="
-for %%r in ("%ProgramFiles(x86)%" "%ProgramFiles%") do (
-  for %%a in (x64 arm64 x86) do (
-    for /f "delims=" %%f in ('dir /b /s "%%~r\Windows Kits\10\bin\*\%%a\makeappx.exe" 2^>nul') do set "MAKEAPPX=%%f"
+rem dir cannot match a folder in the middle of a path, so this searches bin for
+rem the name rather than guessing at the version and architecture folders.
+rem Tools fetched by package.bat count, since that is what it would use.
+setlocal
+set "M="
+for %%r in ("%CD%\build\tools\bin" "%ProgramFiles(x86)%\Windows Kits\10\bin" "%ProgramFiles%\Windows Kits\10\bin") do (
+  if exist "%%~r\" (
+    for /f "delims=" %%f in ('dir /b /s "%%~r\makeappx.exe" 2^>nul') do set "M=%%f"
   )
 )
-endlocal & set "MAKEAPPX=%MAKEAPPX%"
+endlocal & set "MAKEAPPX=%M%"
 exit /b 0
