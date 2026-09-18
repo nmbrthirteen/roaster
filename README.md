@@ -64,8 +64,8 @@ shell, which needs no packaging and works on every edition.
 
 To pick the app in Settings, Accounts, Set up a kiosk instead, it has to be an
 MSIX. That picker lists Microsoft Edge and installed packaged apps and nothing
-else, so a plain executable can never appear in it. Run `scripts\package.bat`
-as administrator. It needs the Windows SDK for `makeappx` and `signtool`:
+else, so a plain executable can never appear in it. Run `scripts\package.bat` as
+administrator. It needs the Windows SDK for `makeappx` and `signtool`:
 
 ```
 winget install Microsoft.WindowsSDK
