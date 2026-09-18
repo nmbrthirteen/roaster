@@ -34,7 +34,12 @@ const (
 	// somebody closing the window on purpose or something failing to start, and
 	// neither is worth reopening forever.
 	briefSession = 15 * time.Second
-	giveUpAfter  = 2
+	giveUpAfter  = 3
+
+	// Edge sometimes hands a window to an existing process and the one we
+	// launched returns at once. Reopening on that is how a loop turns into a
+	// pile of windows, so anything this fast is treated as a launch failure.
+	handedOff = 2 * time.Second
 
 	// Written by the server when an operator leaves through the hidden menu.
 	quitFile = ".quit"
@@ -84,10 +89,17 @@ func main() {
 	// again straight away is not, so it stops. Without that second rule there
 	// is no way off the stand short of Task Manager.
 	clearQuit()
+
+	// Backoff, so a browser that refuses to stay open waits longer each time
+	// instead of filling the screen.
+	backoff := []time.Duration{4 * time.Second, 15 * time.Second, 45 * time.Second}
 	brief := 0
+
 	for {
 		started := time.Now()
 		run(browser, browserArgs(target, *windowed))
+		lasted := time.Since(started)
+
 		if *once || *preview {
 			return
 		}
@@ -97,21 +109,30 @@ func main() {
 			return
 		}
 
-		if time.Since(started) < briefSession {
+		if lasted < handedOff {
+			log.Printf("the browser exited after %s, which means it did not really "+
+				"start. Close any other Edge windows and try again.", lasted.Round(time.Millisecond))
+			return
+		}
+
+		if lasted < briefSession {
 			brief++
 			if brief >= giveUpAfter {
-				log.Printf("closed %d times in a row, stopping. Reopen with kiosk.exe", brief)
+				log.Printf("closed %d times in a row, stopping. Open kiosk.exe to come back.", brief)
 				return
 			}
 		} else {
 			brief = 0
 		}
 
+		wait := backoff[min(brief, len(backoff)-1)]
+		log.Printf("app closed after %s, reopening in %s. Close it again to stop.",
+			lasted.Round(time.Second), wait)
+
 		select {
 		case <-stop:
 			return
-		case <-time.After(2 * time.Second):
-			log.Printf("app closed, reopening. Close it again now to stop.")
+		case <-time.After(wait):
 		}
 	}
 }
