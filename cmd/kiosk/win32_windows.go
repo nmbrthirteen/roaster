@@ -9,8 +9,8 @@ import (
 	"unsafe"
 )
 
-// Just enough of the Win32 API to own a window. The WebView2 binding brings its
-// own copy, but it keeps it internal, so this is the kiosk's.
+// Just enough of the Win32 API to own an ordinary window. The WebView2 binding
+// brings its own copy, but it keeps it internal, so this is the kiosk's.
 var (
 	user32   = syscall.NewLazyDLL("user32.dll")
 	kernel32 = syscall.NewLazyDLL("kernel32.dll")
@@ -23,95 +23,44 @@ var (
 	showWindow          = user32.NewProc("ShowWindow")
 	updateWindow        = user32.NewProc("UpdateWindow")
 	setForegroundWindow = user32.NewProc("SetForegroundWindow")
-	setWindowPos        = user32.NewProc("SetWindowPos")
-	getClientRect       = user32.NewProc("GetClientRect")
 	getMessage          = user32.NewProc("GetMessageW")
 	translateMessage    = user32.NewProc("TranslateMessage")
 	dispatchMessage     = user32.NewProc("DispatchMessageW")
 	postQuitMessage     = user32.NewProc("PostQuitMessage")
-	postMessage         = user32.NewProc("PostMessageW")
 	sendMessage         = user32.NewProc("SendMessageW")
 	loadCursor          = user32.NewProc("LoadCursorW")
-	showCursor          = user32.NewProc("ShowCursor")
 	setTimer            = user32.NewProc("SetTimer")
 	killTimer           = user32.NewProc("KillTimer")
 	monitorFromPoint    = user32.NewProc("MonitorFromPoint")
 	getMonitorInfo      = user32.NewProc("GetMonitorInfoW")
-	setWindowsHookEx    = user32.NewProc("SetWindowsHookExW")
-	unhookWindowsHookEx = user32.NewProc("UnhookWindowsHookEx")
-	callNextHookEx      = user32.NewProc("CallNextHookEx")
-	getAsyncKeyState    = user32.NewProc("GetAsyncKeyState")
 	findWindow          = user32.NewProc("FindWindowW")
-	foregroundWindow    = user32.NewProc("GetForegroundWindow")
-	windowThreadProcess = user32.NewProc("GetWindowThreadProcessId")
-	currentProcessID    = kernel32.NewProc("GetCurrentProcessId")
 	createIconFromRes   = user32.NewProc("CreateIconFromResourceEx")
 	getModuleHandle     = kernel32.NewProc("GetModuleHandleW")
-	setThreadExecState  = kernel32.NewProc("SetThreadExecutionState")
 	createMutex         = kernel32.NewProc("CreateMutexW")
-	copyMemory          = kernel32.NewProc("RtlMoveMemory")
-	packageFullName     = kernel32.NewProc("GetCurrentPackageFullName")
 	createSolidBrush    = gdi32.NewProc("CreateSolidBrush")
 )
 
 const (
-	wsPopup         = 0x80000000
-	wsVisible       = 0x10000000
 	wsClipChildren  = 0x02000000
 	wsOverlappedWin = 0x00CF0000
-	wsExTopmost     = 0x00000008
 	wsExAppWindow   = 0x00040000
-	cwUseDefault    = 0x80000000
+
 	swShow          = 5
-	swHide          = 0
+	swShowMaximized = 3
 
-	wmDestroy    = 0x0002
-	wmSize       = 0x0005
-	wmSetFocus   = 0x0007
-	wmClose      = 0x0010
-	wmSetIcon    = 0x0080
-	wmSysCommand = 0x0112
-	wmTimer      = 0x0113
-	wmMove       = 0x0003
-	wmActivate   = 0x0006
-
-	scScreenSave = 0xF140
-	scMonitorOff = 0xF170
-
-	hwndTopmost   = ^uintptr(0) // (HWND)-1
-	swpNoSize     = 0x0001
-	swpNoMove     = 0x0002
-	swpNoActivate = 0x0010
-	swpShow       = 0x0040
+	wmDestroy  = 0x0002
+	wmMove     = 0x0003
+	wmSize     = 0x0005
+	wmSetFocus = 0x0007
+	wmSetIcon  = 0x0080
+	wmTimer    = 0x0113
 
 	iconSmall = 0
 	iconBig   = 1
 
 	monitorPrimary = 0x00000001
 
-	whKeyboardLL = 13
-	wmKeyDown    = 0x0100
-	wmSysKeyDown = 0x0104
-	llAltDown    = 0x20
-
-	vkTab     = 0x09
-	vkEscape  = 0x1B
-	vkLWin    = 0x5B
-	vkRWin    = 0x5C
-	vkApps    = 0x5D
-	vkF4      = 0x73
-	vkControl = 0x11
-	vkShift   = 0x10
-
-	esContinuous      = 0x80000000
-	esSystemRequired  = 0x00000001
-	esDisplayRequired = 0x00000002
-
 	errorAlreadyExists = 183
-
-	// GetCurrentPackageFullName says this when the process was not started from
-	// an installed package.
-	noPackage = 15700
 )
 
 type rect struct{ left, top, right, bottom int32 }
@@ -149,14 +98,6 @@ type monitorInfo struct {
 	flags   uint32
 }
 
-type kbdLLHook struct {
-	vkCode    uint32
-	scanCode  uint32
-	flags     uint32
-	time      uint32
-	extraInfo uintptr
-}
-
 func utf16(s string) *uint16 {
 	p, err := syscall.UTF16PtrFromString(s)
 	if err != nil {
@@ -165,50 +106,30 @@ func utf16(s string) *uint16 {
 	return p
 }
 
-// screen returns the primary monitor in pixels. GetSystemMetrics would answer
-// in the thread's DPI, and this window is per-monitor aware.
+// screen returns the primary monitor in pixels, which is where a window with no
+// place of its own yet opens. GetSystemMetrics would answer in the thread's
+// DPI, and this one is per-monitor aware.
 func screen() rect {
 	h, _, _ := monitorFromPoint.Call(0, 0, monitorPrimary)
 	info := monitorInfo{size: uint32(unsafe.Sizeof(monitorInfo{}))}
 	if r, _, _ := getMonitorInfo.Call(h, uintptr(unsafe.Pointer(&info))); r == 0 {
 		return rect{0, 0, 1920, 1080}
 	}
-	return info.monitor
+	return info.work
 }
-
-// held reports a key being down right now, which is how the hook sees modifiers
-// it was not handed.
-func held(vk uintptr) bool {
-	state, _, _ := getAsyncKeyState.Call(vk)
-	return state&0x8000 != 0
-}
-
-// packaged reports whether Windows started this from an installed package,
-// which is what an app picked in kiosk mode is. Windows manages the screen
-// there, and a stand that fights it for the foreground would be fighting the
-// thing that put it there.
-func packaged() bool {
-	var length uint32
-	r, _, _ := packageFullName.Call(uintptr(unsafe.Pointer(&length)), 0)
-	return r != noPackage
-}
-
-// awake keeps the screen on for as long as this thread lives. A stand that has
-// gone dark is a stand nobody walks up to.
-func awake() {
-	setThreadExecState.Call(esContinuous | esSystemRequired | esDisplayRequired)
-}
-
-func letSleep() { setThreadExecState.Call(esContinuous) }
 
 // onlyOne holds a named mutex for the life of the process, so opening the app
-// twice brings the first copy forward instead of stacking a second screen.
+// twice brings the first copy forward instead of stacking a second window.
 func onlyOne(name, class string) bool {
 	_, _, err := createMutex.Call(0, 1, uintptr(unsafe.Pointer(utf16(name))))
 	if errno, ok := err.(syscall.Errno); ok && errno == errorAlreadyExists {
-		if h, _, _ := findWindow.Call(uintptr(unsafe.Pointer(utf16(class))), 0); h != 0 {
-			setForegroundWindow.Call(h)
+		h, _, _ := findWindow.Call(uintptr(unsafe.Pointer(utf16(class))), 0)
+		if h == 0 {
+			// The other copy is on its way out: it still holds the mutex and
+			// its window has gone. Carry on, or a relaunch lands on nothing.
+			return true
 		}
+		setForegroundWindow.Call(h)
 		return false
 	}
 	return true

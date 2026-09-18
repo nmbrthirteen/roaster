@@ -2,25 +2,6 @@
 
 package main
 
-// boot runs before every page the view loads, including the waiting page. It
-// reports a heartbeat, so the window can tell a running page from a dead one,
-// and it reports how long the screen has been untouched, so a reload lands
-// between visitors rather than in front of one.
-const boot = `(() => {
-  let touched = Date.now();
-  for (const e of ['pointerdown', 'keydown', 'wheel', 'touchstart']) {
-    addEventListener(e, () => touched = Date.now(), true);
-  }
-  const beat = () => window.chrome.webview.postMessage(
-    'roaster ' + Math.round((Date.now() - touched) / 1000) + ' ' + location.href);
-  beat();
-  setInterval(beat, 5000);
-
-  // A stand has no right-click and nothing to drag off the screen.
-  addEventListener('contextmenu', e => e.preventDefault());
-  addEventListener('dragstart', e => e.preventDefault());
-})();`
-
 // waiting is what stands on screen until the server answers: a booting device,
 // a restart from the hidden menu, or a server that is being restarted under it.
 const waiting = `<!doctype html>

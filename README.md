@@ -132,25 +132,26 @@ code. Use the **New event** form in the designer to write one, or copy
 
 ## The Windows app
 
-`kiosk.exe` is the stand. It is a Windows application with its own window, icon
-and taskbar identity, and it draws the kiosk page itself: no browser to close,
-no address bar to reach, one thing to open. It starts `roaster.exe` beside it
-and keeps the screen up.
+`kiosk.exe` is the stand. It is an ordinary Windows application with its own
+window, icon and taskbar identity, and it draws the kiosk page itself: no
+browser to close, no address bar to reach, one thing to open. It starts
+`roaster.exe` beside it and keeps that running.
+
+It does not hold the screen. The window moves, minimises, alt-tabs and closes
+like any other, because kiosk mode is Windows' job and it does that job to
+whatever application it is given. The app opens filling the screen and stops
+there.
 
 | What goes wrong | What it does |
 |---|---|
 | The server exits | Starts it again, three seconds later. |
-| The server is not up yet | Holds a waiting screen, on brand, until it answers. |
-| The page stops running | Opens it again, within twenty seconds. |
-| The view itself dies | Builds a new window, after ninety seconds. |
-| Windows tries to sleep the screen | Refused for as long as the app runs. |
-| Something else takes the screen | Back on top within the second. |
+| The server is not answering | Holds a waiting screen, on brand, until it does. |
+| The server comes back | Opens the page again. |
+| The page loses the server | Reloads itself, which the page has always done. |
 
-Full screen, always on top, no context menu, no zoom, no developer tools. It
-swallows Alt+Tab, Alt+F4, Alt+Esc, Ctrl+Esc, Ctrl+Shift+Esc and the Windows key,
-and leaves ordinary typing alone, because a visitor types a handle and an
-operator types a code. Ctrl+Alt+Delete is not a shortcut a program can take, so
-the lockdown script empties the screen it opens instead.
+No context menu, no zoom, no developer tools, and the built-in error page is off
+so a server that is down reads in our words rather than Microsoft's. Nothing
+else is taken away.
 
 It needs the Microsoft Edge WebView2 Runtime, which Windows 11 ships and Edge
 keeps updated on Windows 10.
@@ -160,13 +161,13 @@ After that:
 
 | | What it does |
 |---|---|
-| `kiosk.bat` | The stand: full screen, locked, keeps itself alive. |
-| `preview.bat` | The receipt designer, in a window you can close. |
-| `stop.bat` | Stops everything, for when the hidden menu is not reachable. |
+| `kiosk.bat` | The stand. |
+| `preview.bat` | The receipt designer, at a size you can work in. |
+| `stop.bat` | Stops everything, for when closing the window is not enough. |
 
-Flags, if you need them: `-windowed` opens a window that closes instead of
-locking the screen, `-cursor` keeps the mouse pointer, `-url` overrides the
-address, `-shell` tells it Windows started it in place of the desktop.
+Flags, if you need them: `-preview` opens the designer, `-url` overrides the
+address, `-shell` tells it Windows started it in place of the desktop, so
+leaving puts the desktop back.
 
 For a hosted deployment, only `kiosk.exe` and a `roaster.json` holding
 `kioskUrl` need to be on the device.
@@ -176,8 +177,10 @@ For a hosted deployment, only `kiosk.exe` and a `roaster.json` holding
 `scripts\lockdown.bat`, run once as administrator, gives the whole account to
 the stand:
 
-1. `kiosk.exe` replaces the desktop for that account. No taskbar, no start menu,
-   nothing else to open, because nothing else is started.
+1. `kiosk.exe` replaces the desktop for that account. No taskbar, no start menu
+   and nothing else running, because nothing else is started. The app itself
+   stops nobody reaching Windows, so this route is weaker than kiosk mode and
+   is here for editions that have no kiosk mode.
 2. The account signs in by itself, so a power cut ends with the stand back up.
 3. Windows starts the shell again whenever it exits, which is the watchdog for a
    crash at four in the morning.

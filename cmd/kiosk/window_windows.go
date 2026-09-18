@@ -10,8 +10,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strconv"
-	"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -34,62 +32,38 @@ const (
 
 	tickID    = 1
 	tickEvery = 1000 // ms
-
-	// The page beats every five seconds. Four missed beats is a page that has
-	// stopped running, whatever the reason.
-	beatGap    = 20 * time.Second
-	retryEvery = 5 * time.Second
-
-	// No page for this long while the server is answering means the view itself
-	// is gone, and only a new window brings it back.
-	viewGone = 90 * time.Second
-
-	// A screen nobody has touched for this long is between visitors, which is
-	// when a page that has been up for days can be reloaded unnoticed.
-	idleEnough   = 5 * time.Minute
-	freshenAfter = 12 * time.Hour
 )
 
-// live is how the window procedure and the keyboard hook, both called by
-// Windows, find the session they belong to. There is one window.
-var live *host
-
-// Windows holds on to both of these, so they are made once rather than per
-// window: a process only ever gets so many callbacks.
+// An ordinary window: it can be moved, minimised, alt-tabbed and closed. Kiosk
+// mode is Windows' job, and it does it to whatever application it is given.
+// Nothing here tries to hold the screen.
 var (
-	onMessage = syscall.NewCallback(wndProc)
-	onKey     = syscall.NewCallback(hookProc)
-
+	live       *host
+	onMessage  = syscall.NewCallback(wndProc)
 	registered bool
+)
+
+// showing is what the view has been pointed at, so a state that has not changed
+// is not navigated again.
+type showing int
+
+const (
+	nothing showing = iota
+	waitingPage
+	targetPage
 )
 
 type host struct {
 	s    session
 	hwnd uintptr
 	view *edge.Chromium
-	hook uintptr
 	done chan struct{}
 
-	up   atomic.Bool  // the server answers
-	beat atomic.Int64 // when the page last reported in
-	idle atomic.Int64 // seconds since the screen was last touched
-	page atomic.Value // where the beat came from
-
-	// Touched from the window procedure only, which is one thread.
-	navAt   time.Time
-	shownAt time.Time
-	blind   time.Time
-
-	again   bool
-	leaving bool
-
-	// managed means Windows is holding the screen for us, which it does for an
-	// app assigned to kiosk mode.
-	managed bool
+	up   atomic.Bool // the server answers
+	page showing     // written from the window thread only
 }
 
-// show opens the window and holds it until an operator leaves through the
-// hidden menu. A view that dies is replaced rather than mourned.
+// show opens the window and returns when it closes.
 func show(s session) error {
 	runtime.LockOSThread()
 
@@ -98,79 +72,39 @@ func show(s session) error {
 		return nil
 	}
 
-	// A stand that has gone dark is a stand nobody walks up to, and this holds
-	// whatever the machine's power settings say.
-	awake()
-	defer letSleep()
-
-	for {
-		h := &host{s: s, done: make(chan struct{})}
-		again, err := h.run()
-		if err != nil {
-			// Windows starts the shell again the moment it exits, so failing
-			// fast here would be a loop nobody can read. Fail slowly instead.
-			if s.shell {
-				log.Printf("%v", err)
-				time.Sleep(30 * time.Second)
-			}
-			return err
-		}
-		if !again {
-			return nil
-		}
-		// As the Windows shell this hands the rebuild to Windows, which starts
-		// the shell again: a fresh process rather than a second view beside a
-		// dead one.
-		if s.shell {
-			log.Printf("the view stopped answering; leaving so Windows starts it again")
-			return nil
-		}
-		log.Printf("the view stopped answering; opening it again")
-		time.Sleep(2 * time.Second)
-	}
+	h := &host{s: s, done: make(chan struct{})}
+	return h.run()
 }
 
-func (h *host) run() (bool, error) {
+func (h *host) run() error {
 	live = h
 	defer func() { live = nil }()
 
-	h.managed = packaged()
-	if h.managed {
-		log.Printf("started from a package; leaving the foreground to Windows")
-	}
-
 	instance, _, _ := getModuleHandle.Call(0)
 	if err := h.register(instance); err != nil {
-		return false, err
+		return err
 	}
 	if err := h.open(instance); err != nil {
-		return false, err
+		return err
 	}
 	defer h.tidy()
 
 	h.view = edge.NewChromium()
 	h.view.DataPath = state.Path("kiosk-data")
-	h.view.MessageCallback = h.heard
 	h.view.SetGlobalPermission(edge.CoreWebView2PermissionStateDeny)
-	if !h.s.windowed {
-		h.view.AcceleratorKeyCallback = blockedKey
-	}
 
 	if !h.view.Embed(h.hwnd) {
-		return false, fmt.Errorf("the view did not start; install the Microsoft Edge WebView2 Runtime on this device")
+		return fmt.Errorf("the view did not start; install the Microsoft Edge WebView2 Runtime on this device")
 	}
 	h.view.Resize()
 	h.tighten()
-	h.view.Init(boot)
-	h.navigate()
 
-	if !h.s.windowed {
-		h.hook, _, _ = setWindowsHookEx.Call(whKeyboardLL, onKey, instance, 0)
-		if h.hook == 0 {
-			// Worth running without: the window still has no way out, it just
-			// no longer swallows Alt+Tab.
-			log.Printf("could not take the keyboard; system shortcuts stay live")
-		}
+	// Whichever is true right now, rather than a blank window for a second.
+	if alive(health(h.s.url), time.Second) {
+		h.up.Store(true)
+		h.navigate()
+	} else {
+		h.hold()
 	}
 
 	setTimer.Call(h.hwnd, tickID, tickEvery, 0)
@@ -178,7 +112,7 @@ func (h *host) run() (bool, error) {
 
 	h.pump()
 	close(h.done)
-	return h.again, nil
+	return nil
 }
 
 func (h *host) register(instance uintptr) error {
@@ -206,24 +140,16 @@ func (h *host) register(instance uintptr) error {
 }
 
 func (h *host) open(instance uintptr) error {
-	style := uintptr(wsPopup | wsVisible | wsClipChildren)
-	exStyle := uintptr(wsExTopmost | wsExAppWindow)
 	at := screen()
-
-	x, y := at.left, at.top
-	w, height := at.right-at.left, at.bottom-at.top
-
-	if h.s.windowed {
-		style = wsOverlappedWin | wsVisible | wsClipChildren
-		exStyle = wsExAppWindow
-		x, y, w, height = x+(w-1360)/2, y+(height-900)/2, 1360, 900
-	}
+	w, height := int32(1360), int32(900)
+	x := at.left + (at.right-at.left-w)/2
+	y := at.top + (at.bottom-at.top-height)/2
 
 	hwnd, _, err := createWindowEx.Call(
-		exStyle,
+		wsExAppWindow,
 		uintptr(unsafe.Pointer(utf16(className))),
 		uintptr(unsafe.Pointer(utf16(h.s.title))),
-		style,
+		wsOverlappedWin|wsClipChildren,
 		uintptr(x), uintptr(y), uintptr(w), uintptr(height),
 		0, 0, instance, 0,
 	)
@@ -235,19 +161,22 @@ func (h *host) open(instance uintptr) error {
 	sendMessage.Call(hwnd, wmSetIcon, iconBig, appIcons(256))
 	sendMessage.Call(hwnd, wmSetIcon, iconSmall, appIcons(32))
 
-	showWindow.Call(hwnd, swShow)
-	updateWindow.Call(hwnd)
-	setForegroundWindow.Call(hwnd)
-
-	if !h.s.windowed && !h.s.cursor {
-		showCursor.Call(0)
+	// The stand wants the whole screen and the designer does not, and either
+	// way it is a window with its buttons, so this is a starting state rather
+	// than something held.
+	how := uintptr(swShowMaximized)
+	if h.s.preview {
+		how = swShow
 	}
+	showWindow.Call(hwnd, how)
+	updateWindow.Call(hwnd)
 	return nil
 }
 
-// tighten removes everything a browser offers that a stand must not: the
-// context menu, developer tools, zoom, and the error page that would tell a
-// visitor the server is down in Microsoft's words rather than ours.
+// tighten turns off what a page in a browser gets and an application does not:
+// the context menu, developer tools, the status bar, zoom, and the error page
+// that would explain the server being down in Microsoft's words rather than
+// ours.
 func (h *host) tighten() {
 	settings, err := h.view.GetSettings()
 	if err != nil {
@@ -280,10 +209,6 @@ func (h *host) pump() {
 }
 
 func (h *host) tidy() {
-	if h.hook != 0 {
-		unhookWindowsHookEx.Call(h.hook)
-		h.hook = 0
-	}
 	if h.hwnd != 0 {
 		killTimer.Call(h.hwnd, tickID)
 		destroyWindow.Call(h.hwnd)
@@ -291,87 +216,50 @@ func (h *host) tidy() {
 	}
 }
 
-// tick is the whole supervision of the page, once a second on the thread that
-// owns the window.
+// tick watches two things and nothing else: an operator leaving through the
+// hidden menu, and the server coming or going. The page looks after itself once
+// it is up; it polls the server and reloads on its own.
 func (h *host) tick() {
 	if askedToQuit() || stopped(h.s.stop) {
 		h.leave()
 		return
 	}
-	if !h.s.windowed && !h.managed {
-		h.keepFront()
-	}
-
-	now := time.Now()
-	beating := now.Sub(time.Unix(0, h.beat.Load())) < beatGap
-	where, _ := h.page.Load().(string)
-	showing := beating && !strings.HasPrefix(where, "about:")
-
 	switch {
-	case showing:
-		h.blind = time.Time{}
-		if h.shownAt.IsZero() {
-			h.shownAt = now
-			log.Printf("the page is up")
-		}
-		// Days of uptime and a page nobody is looking at: reload it now rather
-		// than in front of someone.
-		if now.Sub(h.shownAt) > freshenAfter && h.idle.Load() > int64(idleEnough/time.Second) {
-			log.Printf("reloading after %s up", now.Sub(h.shownAt).Round(time.Hour))
-			h.navigate()
-		}
-
-	case h.up.Load():
-		if h.blind.IsZero() {
-			h.blind = now
-		}
-		if now.Sub(h.blind) > viewGone {
-			log.Printf("no page for %s with the server answering; opening a new window", viewGone)
-			h.again = true
-			h.close()
-			return
-		}
-		if now.Sub(h.navAt) > retryEvery {
-			h.navigate()
-		}
-
-	default:
-		// The server is not answering yet. Say so on brand instead of leaving
-		// the screen black.
-		if now.Sub(h.navAt) > retryEvery && !strings.HasPrefix(where, "about:") {
-			h.view.NavigateToString(waiting)
-			h.navAt = now
-		}
+	case h.up.Load() && h.page != targetPage:
+		h.navigate()
+	case !h.up.Load() && h.page != waitingPage:
+		h.hold()
 	}
 }
 
 func (h *host) navigate() {
-	h.navAt = time.Now()
-	h.shownAt = time.Time{}
+	log.Printf("opening %s", h.s.url)
+	h.page = targetPage
 	h.view.Navigate(h.s.url)
 }
 
-// heard reads the page's heartbeat: how long the screen has been untouched, and
-// which page is beating.
-func (h *host) heard(message string) {
-	rest, ok := strings.CutPrefix(message, "roaster ")
-	if !ok {
-		return
-	}
-	idle, where, _ := strings.Cut(rest, " ")
-	seconds, err := strconv.ParseInt(idle, 10, 64)
-	if err != nil {
-		return
-	}
-	h.beat.Store(time.Now().UnixNano())
-	h.idle.Store(seconds)
-	h.page.Store(where)
+// hold says the server is not answering yet, on brand, instead of leaving a
+// window empty.
+func (h *host) hold() {
+	h.page = waitingPage
+	h.view.NavigateToString(waiting)
 }
 
+// watchServer keeps up to date with whether there is anything to show. Three
+// misses rather than one, so a restart from the hidden menu does not flash the
+// waiting page over a page that is about to come back.
 func (h *host) watchServer() {
 	url := health(h.s.url)
+	misses := 0
+
 	for {
-		h.up.Store(alive(url, 2*time.Second))
+		if alive(url, 2*time.Second) {
+			misses = 0
+			h.up.Store(true)
+		} else if misses++; misses >= 3 {
+			h.up.Store(false)
+		}
+
 		select {
 		case <-h.done:
 			return
@@ -382,39 +270,17 @@ func (h *host) watchServer() {
 	}
 }
 
-// keepFront puts the stand back on top when something else takes the screen: an
-// update prompt, a driver notice, anything with a window of its own. Windows
-// belonging to this application are left alone, because one of them is the
-// password box the hidden menu opens.
-func (h *host) keepFront() {
-	front, _, _ := foregroundWindow.Call()
-	if front == 0 || front == h.hwnd {
-		return
-	}
-	var pid uint32
-	windowThreadProcess.Call(front, uintptr(unsafe.Pointer(&pid)))
-	mine, _, _ := currentProcessID.Call()
-	if uintptr(pid) == mine {
-		return
-	}
-	setWindowPos.Call(h.hwnd, hwndTopmost, 0, 0, 0, 0, swpNoMove|swpNoSize|swpShow)
-	setForegroundWindow.Call(h.hwnd)
-}
-
-// leave closes the stand for good. When Windows starts this instead of the
-// desktop, leaving has to put the desktop back or there is nothing there.
+// leave closes the app. When Windows starts this instead of the desktop,
+// leaving has to put the desktop back or there is nothing there.
 func (h *host) leave() {
-	h.leaving = true
 	if h.s.shell {
 		log.Printf("starting the desktop")
 		if err := exec.Command(filepath.Join(os.Getenv("WINDIR"), "explorer.exe")).Start(); err != nil {
 			log.Printf("could not start the desktop: %v", err)
 		}
 	}
-	h.close()
+	destroyWindow.Call(h.hwnd)
 }
-
-func (h *host) close() { destroyWindow.Call(h.hwnd) }
 
 func stopped(c <-chan struct{}) bool {
 	select {
@@ -452,25 +318,6 @@ func wndProc(hwnd, message, wParam, lParam uintptr) uintptr {
 		}
 		return 0
 
-	case wmSysCommand:
-		// The screen saver and the monitor going to sleep both arrive here, and
-		// a stand does neither.
-		if h != nil && !h.s.windowed {
-			switch wParam & 0xFFF0 {
-			case scScreenSave, scMonitorOff:
-				return 0
-			}
-		}
-
-	case wmClose:
-		// Alt+F4 and anything else asking politely gets nothing. Leaving is a
-		// decision made in the hidden menu.
-		if h != nil && !h.s.windowed && !h.leaving {
-			return 0
-		}
-		destroyWindow.Call(hwnd)
-		return 0
-
 	case wmDestroy:
 		postQuitMessage.Call(0)
 		return 0
@@ -478,54 +325,6 @@ func wndProc(hwnd, message, wParam, lParam uintptr) uintptr {
 
 	r, _, _ := defWindowProc.Call(hwnd, message, wParam, lParam)
 	return r
-}
-
-// hookProc swallows the shortcuts that would put a visitor somewhere else:
-// Alt+Tab, Alt+F4, Alt+Esc, Ctrl+Esc, Ctrl+Shift+Esc and the Windows key.
-// Ctrl+Alt+Delete is not one a program can take; the lockdown script turns off
-// what that screen offers instead.
-func hookProc(code int32, wParam, lParam uintptr) uintptr {
-	if code == 0 && live != nil && (wParam == wmKeyDown || wParam == wmSysKeyDown) {
-		// The address belongs to Windows, so the event is copied out rather
-		// than pointed at.
-		var key kbdLLHook
-		copyMemory.Call(uintptr(unsafe.Pointer(&key)), lParam, unsafe.Sizeof(key))
-		if swallow(key) {
-			return 1
-		}
-	}
-	r, _, _ := callNextHookEx.Call(0, uintptr(code), wParam, lParam)
-	return r
-}
-
-func swallow(k kbdLLHook) bool {
-	alt := k.flags&llAltDown != 0
-	switch k.vkCode {
-	case vkLWin, vkRWin, vkApps:
-		return true
-	case vkTab, vkEscape:
-		return alt || held(vkControl)
-	case vkF4:
-		return alt
-	}
-	return false
-}
-
-// blockedKey answers the view's own shortcuts. Typing has to keep working: a
-// visitor types a GitHub handle, and an operator types a code and a wireless
-// password, so only the browser combinations go.
-func blockedKey(key uint) bool {
-	if key >= 0x70 && key <= 0x7B { // F1 to F12
-		return true
-	}
-	if !held(vkControl) {
-		return false
-	}
-	switch key {
-	case 'A', 'C', 'V', 'X', 'Z':
-		return false
-	}
-	return true
 }
 
 // appIcons hands out the window's icons once each. Windows keeps them for the

@@ -45,16 +45,13 @@ type session struct {
 	url   string
 	title string
 
-	// windowed opens a normal window that closes. The stand runs without it:
-	// full screen, always on top, and no way out but the hidden menu.
-	windowed bool
+	// preview is the receipt designer, which opens at a size someone can work
+	// in. The stand opens filling the screen.
+	preview bool
 
 	// shell means Windows starts this instead of the desktop, so leaving has to
 	// put the desktop back.
 	shell bool
-
-	// cursor keeps the mouse pointer. A touchscreen has nothing to point with.
-	cursor bool
 
 	stop <-chan struct{}
 }
@@ -62,10 +59,8 @@ type session struct {
 func main() {
 	configPath := flag.String("config", "roaster.json", "settings file, read for kioskUrl")
 	rawURL := flag.String("url", "", "address to open, overriding the settings file")
-	windowed := flag.Bool("windowed", false, "open a window that closes instead of locking the screen")
-	preview := flag.Bool("preview", false, "open the receipt designer, in a window, unlocked")
+	preview := flag.Bool("preview", false, "open the receipt designer instead of the stand")
 	shell := flag.Bool("shell", false, "this is running as the Windows shell, so leaving starts the desktop")
-	cursor := flag.Bool("cursor", false, "keep the mouse pointer on the locked screen")
 	flag.Parse()
 
 	logTo("kiosk.log")
@@ -73,7 +68,6 @@ func main() {
 	page, title := "/kiosk", "Roaster"
 	if *preview {
 		page, title = "/preview", "Roaster receipt designer"
-		*windowed = true
 	}
 
 	target := *rawURL
@@ -103,12 +97,11 @@ func main() {
 	clearQuit()
 
 	if err := show(session{
-		url:      target,
-		title:    title,
-		windowed: *windowed,
-		shell:    *shell,
-		cursor:   *cursor,
-		stop:     stop,
+		url:     target,
+		title:   title,
+		preview: *preview,
+		shell:   *shell,
+		stop:    stop,
 	}); err != nil {
 		fail("%v", err)
 	}
