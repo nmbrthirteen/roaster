@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -96,10 +97,10 @@ func (s *Set) read(fsys fs.FS, dir string) error {
 		return err
 	}
 	for _, e := range entries {
-		if e.IsDir() || filepath.Ext(e.Name()) != ".json" {
+		if e.IsDir() || path.Ext(e.Name()) != ".json" {
 			continue
 		}
-		raw, err := fs.ReadFile(fsys, filepath.Join(dir, e.Name()))
+		raw, err := fs.ReadFile(fsys, path.Join(dir, e.Name()))
 		if err != nil {
 			return err
 		}

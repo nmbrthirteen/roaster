@@ -46,26 +46,15 @@
     padding: clamp(24px, 6vw, 72px);
   }
 
-  /* Ambient layer, built from the utilities in lifeat's globals.css: the
-     diamond lattice at a tenth opacity, and the two brand glows. */
+  /* The GridLines background from lifeat: four horizontal rules at quarters,
+     six vertical at fifths, in #80808033. */
   body::before {
     content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
-    background:
-      radial-gradient(58% 38% at 50% -8%, rgba(15, 255, 80, .10), transparent 70%),
-      radial-gradient(52% 44% at 92% 108%, rgba(102, 98, 255, .13), transparent 70%),
-      url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0L60 30L30 60L0 30L30 0z' fill='none' stroke='%230FFF50' stroke-width='0.5' opacity='0.1'/%3E%3C/svg%3E");
-  }
-
-  /* The scan sweep, at lifeat's 3% green. */
-  body::after {
-    content: ""; position: fixed; left: 0; right: 0; top: 0; height: 45vh;
-    pointer-events: none; z-index: 0;
-    background: linear-gradient(transparent 0%, rgba(15, 255, 80, .03) 50%, transparent 100%);
-    animation: scan 8s linear infinite;
-  }
-  @keyframes scan {
-    from { transform: translateY(-45vh); }
-    to { transform: translateY(100vh); }
+    background-image:
+      linear-gradient(to bottom, #80808033 1px, transparent 1px),
+      linear-gradient(to right, #80808033 1px, transparent 1px);
+    background-size: 100% 25%, 20% 100%;
+    background-position: 0 0, 0 0;
   }
 
   .screen { display: none; position: relative; z-index: 1; width: min(100%, 700px); text-align: center; }
@@ -76,7 +65,7 @@
   .screen[data-active] > *:nth-child(4) { animation-delay: .24s; }
   @keyframes fade-up { from { opacity: 0; transform: translateY(20px); } }
 
-  .mark { width: 56px; height: auto; margin-bottom: clamp(28px, 5vh, 52px); }
+  .mark { display: block; width: 54px; height: 62px; margin: 0 auto clamp(26px, 4.6vh, 48px); }
   .mark path { fill: var(--primary); }
 
   /* Headings across lifeat are Integral CF, uppercase, at 120% leading. */
@@ -94,7 +83,7 @@
   input {
     flex: 1; min-width: 0; font-family: var(--mono); font-size: clamp(20px, 3.4vw, 30px);
     color: var(--white); background: var(--elevated); border: 1px solid var(--border);
-    border-radius: 0; padding: clamp(16px, 2.6vh, 24px) 28px; text-align: center;
+    border-radius: 999px; padding: clamp(16px, 2.6vh, 24px) 28px; text-align: center;
   }
   input::placeholder { color: var(--subtle); }
   input:focus { outline: none; border-color: var(--primary); }
@@ -109,8 +98,8 @@
   button:hover:not(:disabled) { font-style: normal; }
   button:disabled { background: var(--elevated); color: var(--subtle); cursor: not-allowed; }
   button:active:not(:disabled) { opacity: .8; }
-  #go { font-size: clamp(22px, 3.6vw, 30px); font-style: normal; padding: 0 clamp(24px, 3.6vw, 34px); }
-  .wide { width: 100%; font-size: clamp(17px, 2.6vw, 21px); padding: clamp(16px, 2.8vh, 24px); }
+  #go { font-size: clamp(22px, 3.6vw, 30px); font-style: normal; border-radius: 999px; padding: 0 clamp(26px, 3.8vw, 36px); }
+  .wide { width: 100%; font-size: clamp(17px, 2.6vw, 21px); border-radius: 999px; padding: clamp(16px, 2.8vh, 24px); }
 
   .rows { display: flex; flex-direction: column; gap: clamp(14px, 2.4vh, 22px); text-align: left; }
   .row { animation: rise .4s var(--ease) both; }
@@ -151,8 +140,8 @@
 
 <svg width="0" height="0" style="position:absolute">
   <symbol id="logo" viewBox="0 0 28 32">
-    <path fill-rule="evenodd" clip-rule="evenodd" d="M4.018 22.897l1.505.963a.75.75 0 0 0 1.25-.707V12.438a.75.75 0 0 1 .409-.724L20.297 4l3.402 2.01-13.152 7.744a.75.75 0 0 0-.404.722v15.52L.548 24.323A1.2 1.2 0 0 1 0 23.357V8.48a.75.75 0 0 1 .408-.724L13.53 0l3.401 2.01-13.14 7.702a.75.75 0 0 0-.411.727v11.276c0 .41.208.79.55 1.01z"/>
-    <path fill-rule="evenodd" clip-rule="evenodd" d="M23.586 17.965l-3.473 2.03a1.2 1.2 0 0 0-.548.968v3.343l6.949-4.076a1.2 1.2 0 0 0 .548-.966V9.44a.75.75 0 0 0-.386-.66L23.27 6.77l-13.13 7.7v3.35l13.446-7.92v8.065z"/>
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M4.01829 22.8968L5.52309 23.8597C5.64693 23.9369 5.7885 23.9792 5.93346 23.9823C6.07841 23.9854 6.2216 23.9493 6.3485 23.8775C6.4754 23.8056 6.5815 23.7007 6.65605 23.5734C6.73059 23.446 6.77094 23.3008 6.77298 23.1523V12.4379C6.77357 12.2912 6.81156 12.1472 6.88319 12.0202C6.95483 11.8932 7.05762 11.7875 7.18139 11.7137L20.297 4L23.6986 6.00983L10.5473 13.7544C10.4245 13.8283 10.3225 13.9337 10.2514 14.0602C10.1802 14.1866 10.1424 14.3299 10.1417 14.4758V29.9958L0.548198 24.3228C0.382491 24.2248 0.244705 24.0842 0.148534 23.9148C0.0523625 23.7454 0.00115491 23.5531 0 23.3572V8.48C0.00058687 8.33331 0.0385783 8.18933 0.110212 8.06231C0.181846 7.93528 0.284637 7.82962 0.408407 7.75579L13.5295 0L16.9311 2.00982L3.79079 9.71228C3.66611 9.786 3.56251 9.89195 3.49036 10.0195C3.41821 10.1471 3.38003 10.2919 3.37964 10.4393V21.7151C3.38044 21.9512 3.43939 22.1832 3.55102 22.3898C3.66266 22.5964 3.82337 22.7708 4.01829 22.8968Z"/>
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M23.5862 17.965L20.1133 19.9945C19.9472 20.0927 19.8092 20.2338 19.713 20.4037C19.6168 20.5737 19.5658 20.7665 19.5651 20.9629V24.306L26.5136 20.2303C26.6793 20.1323 26.817 19.9916 26.9132 19.8222C27.0094 19.6528 27.0606 19.4606 27.0618 19.2646V9.44008C27.0598 9.29433 27.021 9.15158 26.949 9.02581C26.8771 8.90003 26.7745 8.79554 26.6513 8.72255C26.5281 8.64956 26.3885 8.61057 26.2461 8.6094C26.1038 8.60823 25.9636 8.64492 25.8393 8.71587L13.9434 15.7025C13.8196 15.7764 13.7168 15.882 13.6452 16.0091C13.5736 16.1361 13.5356 16.2801 13.535 16.4267V32.0001L16.2047 30.4225C16.3704 30.3246 16.5082 30.1839 16.6044 30.0145C16.7005 29.8451 16.7517 29.6529 16.7529 29.4569V18.6303C16.7532 18.4838 16.7908 18.34 16.8619 18.213C16.9331 18.086 17.0353 17.9802 17.1586 17.906L24.011 13.8387V17.2267C24.0112 17.3775 23.9719 17.5255 23.8972 17.6553C23.8224 17.7852 23.715 17.8921 23.5862 17.965Z"/>
   </symbol>
 </svg>
 
