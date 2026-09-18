@@ -12,17 +12,15 @@ echo   -------------
 echo.
 
 echo   [Windows]
-powershell -NoProfile -Command "$o=Get-CimInstance Win32_OperatingSystem; Write-Host ('    ' + $o.Caption + '  build ' + $o.BuildNumber)"
-powershell -NoProfile -Command "$e=(Get-CimInstance Win32_OperatingSystem).OperatingSystemSKU; if ($e -in 4,27,48,49,161,162) { Write-Host '    Assigned Access: available (Pro or better)' } else { Write-Host '    Assigned Access: NOT available on this edition' }"
-echo   [Architecture]
-echo     %PROCESSOR_ARCHITECTURE%
+powershell -NoProfile -Command "$o=Get-CimInstance Win32_OperatingSystem; Write-Host ('    ' + $o.Caption + '  build ' + $o.BuildNumber); if ($o.OperatingSystemSKU -in 4,27,48,49,161,162) { Write-Host '    Assigned Access: available' } else { Write-Host '    Assigned Access: NOT available on this edition' }"
+echo     arch %PROCESSOR_ARCHITECTURE%
 
 echo.
 echo   [Tools]
 where go >nul 2>&1 && (for /f "tokens=3" %%v in ('go version') do echo     go %%v) || echo     go: MISSING
-set "MAKEAPPX="
-for /f "delims=" %%f in ('dir /b /s "%ProgramFiles(x86)%\Windows Kits\10\bin\*\x64\makeappx.exe" 2^>nul') do set "MAKEAPPX=%%f"
-if defined MAKEAPPX (echo     makeappx: found) else (echo     makeappx: MISSING, run: winget install Microsoft.WindowsSDK)
+call :findsdk
+if defined MAKEAPPX (echo     makeappx: %MAKEAPPX%) else (echo     makeappx: MISSING)
+powershell -NoProfile -Command "$w = winget search --id Microsoft.WindowsSDK --source winget 2>$null; if ($w) { Write-Host '    winget sees these SDK packages:'; $w | Select-Object -Skip 2 | ForEach-Object { Write-Host ('      ' + $_) } }"
 
 echo.
 echo   [Build output]
@@ -33,17 +31,27 @@ if exist roaster.exe (echo     roaster.exe: built) else (echo     roaster.exe: M
 
 echo.
 echo   [Installed package]
-powershell -NoProfile -Command "$p=Get-AppxPackage -Name 'Upgaming.Roaster'; if ($p) { Write-Host ('    installed ' + $p.Version + ' at ' + $p.InstallLocation) } else { Write-Host '    NOT installed' }"
+powershell -NoProfile -Command "$p=Get-AppxPackage -Name 'Upgaming.Roaster'; if ($p) { Write-Host ('    installed ' + $p.Version) } else { Write-Host '    NOT installed' }"
 
 echo.
 echo   [Certificate trust]
-powershell -NoProfile -Command "$c=Get-ChildItem Cert:\LocalMachine\TrustedPeople ^| Where-Object { $_.Subject -eq 'CN=Upgaming' }; if ($c) { Write-Host '    trusted on this machine' } else { Write-Host '    NOT trusted, the package will not install' }"
-
-echo.
-echo   [Sideloading]
-powershell -NoProfile -Command "$k='HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock'; $v=(Get-ItemProperty $k -ErrorAction SilentlyContinue).AllowAllTrustedApps; if ($v -eq 1 -or $null -eq $v) { Write-Host '    allowed' } else { Write-Host '    BLOCKED, set AllowAllTrustedApps to 1' }"
+powershell -NoProfile -Command "$c=Get-ChildItem Cert:\LocalMachine\TrustedPeople -ErrorAction SilentlyContinue | Where-Object { $_.Subject -eq 'CN=Upgaming' }; if ($c) { Write-Host '    trusted on this machine' } else { Write-Host '    not trusted yet' }"
 
 echo.
 echo   Copy everything above and send it over.
 echo.
 pause
+exit /b 0
+
+:findsdk
+rem The SDK lands under either Program Files, and the tools sit in a
+rem per-architecture folder. Take the highest version that exists.
+setlocal enabledelayedexpansion
+set "MAKEAPPX="
+for %%r in ("%ProgramFiles(x86)%" "%ProgramFiles%") do (
+  for %%a in (x64 arm64 x86) do (
+    for /f "delims=" %%f in ('dir /b /s "%%~r\Windows Kits\10\bin\*\%%a\makeappx.exe" 2^>nul') do set "MAKEAPPX=%%f"
+  )
+)
+endlocal & set "MAKEAPPX=%MAKEAPPX%"
+exit /b 0
