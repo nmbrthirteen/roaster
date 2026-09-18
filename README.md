@@ -57,8 +57,13 @@ PC437 block glyphs the gauges are drawn from, and the native QR command.
 A device locked to this one app still has to be serviceable, so everything an
 operator would otherwise open Windows for is in the kiosk.
 
-Tap the mark five times within three seconds, then enter the code. Five wrong
-codes and the menu stops opening for a minute.
+Tap the mark five times within three seconds, then enter the four digit code.
+It submits on the fourth digit. Five wrong codes and the menu stops opening for
+a minute.
+
+The code is `adminPin` in `roaster.json`. It ships as **1379**, which is in a
+public repository and therefore worth nothing. Change it before an event: the
+menu can reboot the machine.
 
 It shows the terminal, event, printer, wireless state, roasts printed, uptime
 and the last error, and lets you choose a printer and connect it, send a test
@@ -68,9 +73,6 @@ reboot, or shut down.
 
 Anything that would end the event asks twice and forgets after five seconds, so
 a stray touch cannot reboot the stand.
-
-Set `adminPin` in `roaster.json` before an event. The default is in the repo,
-which makes it worth exactly nothing.
 
 ## Events
 
