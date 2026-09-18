@@ -64,12 +64,9 @@ shell, which needs no packaging and works on every edition.
 
 To pick the app in Settings, Accounts, Set up a kiosk instead, it has to be an
 MSIX. That picker lists Microsoft Edge and installed packaged apps and nothing
-else, so a plain executable can never appear in it. Run `scripts\package.bat` as
-administrator. It needs the Windows SDK for `makeappx` and `signtool`:
-
-```
-winget install Microsoft.WindowsSDK
-```
+else, so a plain executable can never appear in it. Run `scripts\package.bat` as administrator. If `makeappx` and `signtool` are
+not on the machine it fetches them itself, as a 22MB package rather than a
+multi-gigabyte SDK install.
 
 It builds both binaries, lays out the package, makes a self-signed certificate,
 trusts it on that machine, signs, and installs. "Upgaming Roaster" then appears

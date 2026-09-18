@@ -31,17 +31,16 @@ if errorlevel 1 (
 
 call :findsdk
 if not defined MAKEAPPX (
-  echo   The Windows SDK is missing. Its winget id carries a version, so a bare
-  echo   name finds nothing. Pick the newest from:
-  echo.
-  powershell -NoProfile -Command "winget search --id Microsoft.WindowsSDK --source winget"
-  echo.
-  echo   Then, for example:
+  echo   makeappx and signtool are missing. Fetching them...
+  call :fetchtools || goto :fail
+  call :findsdk
+)
+if not defined MAKEAPPX (
+  echo   Still no makeappx. Install the SDK by hand if the download is blocked:
   echo     winget install --id Microsoft.WindowsSDK.10.0.26100
-  echo.
-  echo   Visual Studio Installer works too: Individual components, Windows SDK.
   goto :fail
 )
+echo   Using %MAKEAPPX%
 
 echo   Building...
 go build -o roaster.exe .\cmd\roaster || goto :fail
@@ -87,19 +86,28 @@ pause
 exit /b 0
 
 :findsdk
-rem The SDK lands under either Program Files, and the tools sit in a
-rem per-architecture folder. Take the highest version that exists.
+rem Tools fetched here win over an installed SDK, then either Program Files.
+rem The architecture folder that matches the machine is preferred, with x64 as
+rem the fallback, since it runs everywhere through emulation.
 setlocal enabledelayedexpansion
 set "M="
 set "S="
-for %%r in ("%ProgramFiles(x86)%" "%ProgramFiles%") do (
-  for %%a in (x64 arm64 x86) do (
-    for /f "delims=" %%f in ('dir /b /s "%%~r\Windows Kits\10\bin\*\%%a\makeappx.exe" 2^>nul') do set "M=%%f"
-    for /f "delims=" %%f in ('dir /b /s "%%~r\Windows Kits\10\bin\*\%%a\signtool.exe" 2^>nul') do set "S=%%f"
+set "ARCH=x64"
+if /i "%PROCESSOR_ARCHITECTURE%"=="ARM64" set "ARCH=arm64"
+for %%a in (x64 %ARCH%) do (
+  for %%r in ("%CD%\build\tools" "%ProgramFiles(x86)%\Windows Kits\10" "%ProgramFiles%\Windows Kits\10") do (
+    for /f "delims=" %%f in ('dir /b /s "%%~r\bin\*\%%a\makeappx.exe" 2^>nul') do set "M=%%f"
+    for /f "delims=" %%f in ('dir /b /s "%%~r\bin\*\%%a\signtool.exe" 2^>nul') do set "S=%%f"
   )
 )
 endlocal & set "MAKEAPPX=%M%" & set "SIGNTOOL=%S%"
 exit /b 0
+
+:fetchtools
+rem Microsoft ships makeappx and signtool in a 22MB package. Installing the
+rem whole SDK for two executables is gigabytes for no reason.
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; New-Item 'build' -ItemType Directory -Force | Out-Null; Invoke-WebRequest 'https://www.nuget.org/api/v2/package/Microsoft.Windows.SDK.BuildTools' -OutFile 'build\sdktools.zip'; Remove-Item 'build\tools' -Recurse -Force -ErrorAction SilentlyContinue; Expand-Archive 'build\sdktools.zip' 'build\tools' -Force; Remove-Item 'build\sdktools.zip'; Write-Host '    fetched'"
+exit /b %errorlevel%
 
 :fail
 echo.
