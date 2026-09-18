@@ -63,9 +63,15 @@ code. Use the **New event** form in the designer to write one, or copy
 
 Run `run.bat` once. It installs Go if needed, builds, and starts the stand.
 
-After that **`kiosk.exe` is the only thing to open**. It starts the server,
-restarts it if it exits, opens Edge locked to one full-screen tab, and reopens
-that if it is closed. `scripts\autostart.bat`, run once as administrator, makes
+After that there are two things to open:
+
+| | What it does |
+|---|---|
+| `kiosk.bat` | The stand. Locked to one full-screen tab, keeps itself alive. |
+| `preview.bat` | The receipt designer, in a window you can close. |
+
+Both run the same `kiosk.exe`, which starts the server, restarts it if it exits, and
+reopens the app if it is closed. `scripts\autostart.bat`, run once as administrator, makes
 it come back after a reboot.
 
 Flags, if you need them: `-windowed` opens an app window instead of locking the

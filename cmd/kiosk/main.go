@@ -35,14 +35,21 @@ func main() {
 	configPath := flag.String("config", "roaster.json", "settings file, read for kioskUrl")
 	rawURL := flag.String("url", "", "address to open, overriding the settings file")
 	windowed := flag.Bool("windowed", false, "open an app window instead of locking the screen")
+	preview := flag.Bool("preview", false, "open the receipt designer, in a window, unlocked")
 	once := flag.Bool("once", false, "exit when the app is closed instead of reopening it")
 	flag.Parse()
 
 	logTo("kiosk.log")
 
+	page := "/kiosk"
+	if *preview {
+		page = "/preview"
+		*windowed = true
+	}
+
 	target := *rawURL
 	if target == "" {
-		target = forceKiosk(readURL(*configPath))
+		target = at(readURL(*configPath), page)
 	}
 	log.Printf("target %s", target)
 
@@ -67,7 +74,7 @@ func main() {
 	// Closing the app must not end the stand. Somebody will do it by accident.
 	for {
 		run(browser, browserArgs(target, *windowed))
-		if *once {
+		if *once || *preview {
 			return
 		}
 		select {
@@ -160,14 +167,14 @@ func browserArgs(target string, windowed bool) []string {
 	)
 }
 
-// forceKiosk pins the path. The designer is a tool, and the stand must never
-// open it, whatever a stale settings file says.
-func forceKiosk(target string) string {
+// at pins the path. The stand must land on the kiosk whatever a stale settings
+// file says, and the designer is only ever reached on purpose.
+func at(target, page string) string {
 	u, err := url.Parse(target)
 	if err != nil || u.Host == "" {
 		return target
 	}
-	u.Path, u.RawQuery, u.Fragment = "/kiosk", "", ""
+	u.Path, u.RawQuery, u.Fragment = page, "", ""
 	return u.String()
 }
 
