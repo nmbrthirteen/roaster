@@ -1,17 +1,14 @@
 @echo off
-rem Build and run the roaster for testing. Double click this.
-rem
-rem Installs Go if it is missing, copies the headline font across from the
-rem lifeat frontend if it is checked out next door, builds, and opens the kiosk
-rem in your default browser.
+rem One-time setup. Installs Go if it is missing, builds, and starts the stand.
+rem After this, kiosk.exe is the only thing you need to open.
 
 setlocal
 cd /d "%~dp0"
-title Roaster
+title Roaster setup
 
 echo.
-echo   Roaster
-echo   -------
+echo   Roaster setup
+echo   -------------
 echo.
 
 where go >nul 2>&1
@@ -27,35 +24,16 @@ if not exist "roaster.json" copy /y "roaster.example.json" "roaster.json" >nul
 echo   Building...
 go build -o roaster.exe .\cmd\roaster
 if errorlevel 1 goto :buildfailed
-go build -ldflags="-H windowsgui" -o kiosk.exe .\cmd\kiosk
+go build -ldflags="-s -w -H windowsgui" -o kiosk.exe .\cmd\kiosk
 if errorlevel 1 goto :buildfailed
 
-echo   Opening http://localhost:3000/kiosk
-start "" /b cmd /c "timeout /t 2 /nobreak >nul & start "" http://localhost:3000/kiosk"
 echo.
-roaster.exe
-goto :end
-:needgo
-
-if exist ".git" (
-  echo   Pulling latest...
-  git diff --quiet 2>nul && git pull --quiet || echo   Local changes present, skipping pull.
-)
-
-if not exist "roaster.json" copy /y "roaster.example.json" "roaster.json" >nul
-
-echo   Building...
-go build -o roaster.exe .\cmd\roaster
-if errorlevel 1 goto :buildfailed
-go build -ldflags="-H windowsgui" -o kiosk.exe .\cmd\kiosk
-if errorlevel 1 goto :buildfailed
-
-echo   Opening http://localhost:3000/kiosk
-start "" /b cmd /c "timeout /t 2 /nobreak >nul & start "" http://localhost:3000/kiosk"
+echo   Done. Starting the stand.
+echo   From now on just open kiosk.exe, or run scripts\autostart.bat once so it
+echo   starts by itself after a reboot.
 echo.
-roaster.exe
-goto :end
-
+start "" kiosk.exe
+exit /b 0
 
 :needgo
 echo   Go is not installed. Installing it now...
@@ -72,8 +50,3 @@ echo.
 echo   The build failed. The reason is above.
 pause
 exit /b 1
-
-:end
-echo.
-echo   Roaster stopped. The reason is above and in roaster.log.
-pause

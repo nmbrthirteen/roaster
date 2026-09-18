@@ -61,14 +61,15 @@ code. Use the **New event** form in the designer to write one, or copy
 
 ## Deploying to a Windows kiosk
 
-```sh
-GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o roaster.exe ./cmd/roaster
-GOOS=windows GOARCH=amd64 go build -ldflags="-s -w -H windowsgui" -o kiosk.exe ./cmd/kiosk
-```
+Run `run.bat` once. It installs Go if needed, builds, and starts the stand.
 
-Copy `roaster.exe`, `kiosk.exe`, `roaster.json` and `events/` to the device.
-`kiosk.exe` opens the app in Edge locked to one full-screen tab, with touch
-gestures that would navigate away disabled.
+After that **`kiosk.exe` is the only thing to open**. It starts the server,
+restarts it if it exits, opens Edge locked to one full-screen tab, and reopens
+that if it is closed. `scripts\autostart.bat`, run once as administrator, makes
+it come back after a reboot.
+
+Flags, if you need them: `-windowed` opens an app window instead of locking the
+screen, `-once` exits rather than reopening, `-url` overrides the address.
 
 For a hosted deployment, only `kiosk.exe` and a `roaster.json` holding
 `kioskUrl` need to be on the device.

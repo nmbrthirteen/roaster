@@ -5,7 +5,13 @@ rem Run this once, as administrator.
 setlocal
 cd /d "%~dp0.."
 
-set "TARGET=%cd%\kiosk.bat"
+set "TARGET=%cd%\kiosk.exe"
+if not exist "kiosk.exe" (
+  echo   kiosk.exe is not built yet. Run run.bat first.
+  pause
+  exit /b 1
+)
+
 set "LINK=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\Roaster.lnk"
 
 powershell -NoProfile -Command ^
