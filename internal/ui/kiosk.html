@@ -28,7 +28,6 @@
     --subtle: #71717a;
     --primary: #0fff50;
     --secondary: #6662ff;
-    --blue: #5c8ef0;
 
     --display: Integral, system-ui, sans-serif;
     --sans: Roboto, system-ui, sans-serif;
@@ -65,8 +64,10 @@
   .screen[data-active] > *:nth-child(4) { animation-delay: .24s; }
   @keyframes fade-up { from { opacity: 0; transform: translateY(20px); } }
 
-  .mark { display: block; width: 54px; height: 62px; margin: 0 auto clamp(26px, 4.6vh, 48px); }
-  .mark path { fill: var(--primary); }
+  .mark {
+    display: block; width: 54px; height: 62px; fill: var(--primary);
+    margin: 0 auto clamp(26px, 4.6vh, 48px);
+  }
 
   /* Headings across lifeat are Integral CF, uppercase, at 120% leading. */
   h1 {
@@ -111,23 +112,20 @@
   .row-top span:first-child { font-family: var(--sans); }
   .row-tag { color: var(--primary); }
   .track { height: 8px; border-radius: 0; background: var(--elevated); margin-top: 10px; overflow: hidden; }
-  .fill { height: 100%; background: linear-gradient(90deg, var(--primary), var(--blue)); border-radius: 0; width: 0; transition: width .9s var(--ease); }
+  .fill { height: 100%; background: var(--primary); border-radius: 0; width: 0; transition: width .9s var(--ease); }
 
   .verdict { font-family: var(--sora); font-size: clamp(17px, 2.5vw, 23px); line-height: 1.4; margin: 0; }
   .step { font-family: var(--mono); font-size: 14px; color: var(--subtle); margin: clamp(24px, 4vh, 40px) 0 0; }
 
   .score {
-    font-family: var(--display); font-weight: 900; text-transform: uppercase; font-size: clamp(60px, 14vw, 124px);
-    line-height: 1.05; letter-spacing: 0;
+    font-family: var(--mono); font-weight: 700; text-transform: none; font-size: clamp(60px, 14vw, 124px);
+    line-height: 1.05; letter-spacing: -.03em;
   }
-  /* lifeat's text-gradient: green into blue. */
-  .score .num {
-    background: linear-gradient(90deg, var(--primary) 0%, var(--blue) 100%);
-    background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  }
+  .score .num { color: var(--primary); }
   .score small {
     display: block; font-family: var(--mono); font-size: clamp(13px, 1.9vw, 17px);
-    font-weight: 400; color: var(--primary); text-transform: none; margin-top: 18px;
+    font-weight: 400; color: var(--primary); text-transform: none;
+    letter-spacing: 0; margin-top: 20px;
   }
   .note { font-family: var(--mono); font-size: 14px; color: var(--subtle); margin: 16px 0 0; min-height: 1.3em; }
 
