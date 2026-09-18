@@ -478,11 +478,16 @@ func testSlip(spec string, ev event.Event) *receipt.Doc {
 	return d
 }
 
-// beside resolves a relative path against the executable's folder. Double
-// clicking in Explorer can hand the process any working directory it likes, so
-// settings and event files are found next to the binary instead.
+// beside falls back to the executable's folder when a relative path is not
+// found from the working directory. Explorer can hand a double-clicked process
+// any working directory it likes, while someone running it from a terminal
+// means the path relative to where they are standing. Trying the working
+// directory first serves both.
 func beside(path *string) {
 	if *path == "" || filepath.IsAbs(*path) {
+		return
+	}
+	if _, err := os.Stat(*path); err == nil {
 		return
 	}
 	exe, err := os.Executable()
