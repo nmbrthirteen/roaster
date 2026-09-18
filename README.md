@@ -84,10 +84,12 @@ depends on the account and the edition, which is the section below.
 
 Assigned Access needs Windows 11 Pro or Enterprise; check with `winver`.
 
-Run it again to ship a new build. Each package is stamped with a version of its
-own, because Windows reads the version to decide whether an install is an update
-and refuses a second package that claims the same one. The running app is closed
-and replaced. What the device holds in `%LOCALAPPDATA%\Roaster` is not part of
+Run it again to ship a new build, and that is the whole of shipping one. Each
+package is stamped with a version of its own, because Windows reads the version
+to decide whether an install is an update and refuses a second package that
+claims the same one. The running app is closed and replaced, and a device that
+is already locked down has its account moved to the new build as well, which it
+picks up at the next sign-in. What the device holds in `%LOCALAPPDATA%\Roaster` is not part of
 the package and survives: its settings, its events, its token. A `roaster.json`
 inside a new package is only copied out to a device that has none, so pushing new
 settings means editing the file on the device or deleting it first.

@@ -90,12 +90,22 @@ rem package, an identity that moved.
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; try { Add-AppxPackage -Path 'build\UpgamingRoaster.msix' -ForceUpdateFromAnyVersion -ForceApplicationShutdown } catch { Write-Host ('    ' + $_.Exception.Message); Write-Host '    Removing the installed copy and trying once more...'; Get-AppxPackage -Name 'Upgaming.Roaster' | Remove-AppxPackage; Add-AppxPackage -Path 'build\UpgamingRoaster.msix' }"
 if errorlevel 1 goto :fail
 
+rem Installing updates the copy belonging to whoever ran this. A device already
+rem locked down runs the app as another account, and that account's copy comes
+rem from the provisioned one, so a new build has to replace that too or the
+rem stand keeps running the old one.
+echo   Passing it on to the locked-down account...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$a = try { Get-AssignedAccess } catch { $null }; if ($a) { Add-AppxProvisionedPackage -Online -PackagePath 'build\UpgamingRoaster.msix' -SkipLicense | Out-Null; Write-Host ('    ' + $a.UserName + ' picks this build up at the next sign-in') } else { Write-Host '    nothing is locked down yet' }"
+
 echo.
 echo   Installed as Upgaming Roaster. It starts by itself at sign-in.
 echo.
-echo   To lock the device to it, run scripts\kioskmode.bat rather than the
-echo   picker in Settings. The picker only lists applications the locked-down
-echo   account already has, and that is not the account this was installed for.
+echo   This is the whole of shipping a new build: run it again and the stand
+echo   and the locked-down account both move to it.
+echo.
+echo   Not locked down yet? scripts\kioskmode.bat does that, and use it rather
+echo   than the picker in Settings, which only lists applications the account
+echo   being locked down already has.
 echo.
 echo   To put it on another device with no terminal, copy these two files:
 echo     build\Upgaming.cer            double click, install to
