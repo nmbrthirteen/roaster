@@ -62,6 +62,9 @@
   .screen[data-active] > *:nth-child(2) { animation-delay: .08s; }
   .screen[data-active] > *:nth-child(3) { animation-delay: .16s; }
   .screen[data-active] > *:nth-child(4) { animation-delay: .24s; }
+  #audit[data-active] { animation: fade-in .5s var(--ease) both; }
+  #audit[data-active] > * { animation: none; }
+  @keyframes fade-in { from { opacity: 0; } }
   @keyframes fade-up { from { opacity: 0; transform: translateY(20px); } }
 
   .mark {
@@ -108,7 +111,8 @@
   .link { border: 0; font-size: 14px; padding: 12px; margin-top: 4px; }
 
   .rows { display: flex; flex-direction: column; gap: clamp(18px, 3vh, 28px); text-align: left; }
-  .row { animation: rise .4s var(--ease) both; }
+  .row { opacity: .3; transition: opacity .5s var(--ease); }
+  .row.on { opacity: 1; }
   .row-top {
     display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
     font-family: var(--mono); font-size: clamp(17px, 2.5vw, 22px);
@@ -117,24 +121,15 @@
   .row-top span:first-child { font-family: var(--sans); }
   .row-tag { color: var(--primary); }
   .track { height: 11px; border-radius: 0; background: var(--elevated); margin-top: 10px; overflow: hidden; }
-  .fill { height: 100%; background: var(--primary); border-radius: 0; width: 0; transition: width .9s var(--ease); }
+  .fill { height: 100%; background: var(--primary); border-radius: 0; width: 0; transition: width 1.1s var(--ease); }
 
   .verdict { font-family: var(--sora); font-size: clamp(20px, 3vw, 28px); line-height: 1.42; margin: 0; }
-  .progress {
-    height: 3px; background: var(--elevated); margin: 0 0 clamp(26px, 4vh, 40px);
-    overflow: hidden;
-  }
-  .progress i {
-    display: block; height: 100%; width: 0; background: var(--primary);
-    transition: width .5s var(--ease);
-  }
   .step {
-    display: flex; justify-content: center; align-items: baseline; gap: 12px;
-    font-family: var(--mono); font-size: clamp(15px, 2vw, 19px); color: var(--white);
-    margin: clamp(26px, 4vh, 40px) 0 0;
+    font-family: var(--mono); font-size: clamp(15px, 2vw, 19px); color: var(--subtle);
+    margin: clamp(26px, 4vh, 40px) 0 0; transition: color .4s var(--ease);
   }
-  .step b { font-weight: 400; }
-  .step span { color: var(--subtle); font-variant-numeric: tabular-nums; }
+  /* The verdict lands into space already held for it. */
+  .verdict-slot { min-height: 5.6em; margin-top: clamp(20px, 3vh, 32px); }
 
   .score {
     font-family: var(--mono); font-weight: 700; text-transform: none; font-size: clamp(72px, 16vw, 150px);
@@ -250,9 +245,9 @@
 
 <section class="screen" id="audit">
   <svg class="mark"><use href="#logo"/></svg>
-  <div class="progress"><i id="bar"></i></div>
   <div class="rows" id="rows"></div>
-  <p class="step"><b id="step">Reading public commits</b><span id="stepCount"></span></p>
+  <div class="verdict-slot"><p class="verdict" id="liveVerdict"></p></div>
+  <p class="step" id="step">Reading public commits</p>
   <button class="quiet link" id="cancel">Cancel</button>
 </section>
 
@@ -299,6 +294,8 @@
     $('handle').value = '';
     $('go').disabled = true;
     $('rows').innerHTML = '';
+    $('liveVerdict').textContent = '';
+    filled = 0;
     $('note').textContent = '';
     show('entry');
   }
@@ -331,25 +328,12 @@
 
   // Each update paints as it lands, so the wait shows real progress.
   let stream = null;
-
-  // Seven steps: the fetch, five measurements, the verdict. Counting them is
-  // what turns a wait into progress.
-  const totalSteps = 7;
-  let done = 0;
-
-  function advance(label) {
-    done = Math.min(done + 1, totalSteps);
-    $('bar').style.width = Math.round((done / totalSteps) * 100) + '%';
-    if (label) $('step').textContent = label;
-    $('stepCount').textContent = done + ' of ' + totalSteps;
-  }
+  let filled = 0;
 
   function start(handle) {
     $('rows').innerHTML = '';
-    done = 0;
-    $('bar').style.width = '0%';
+    $('liveVerdict').textContent = '';
     $('step').textContent = 'Reading public commits';
-    $('stepCount').textContent = '';
     show('audit');
 
     const src = new EventSource('/api/roast?handle=' + encodeURIComponent(handle)
@@ -358,9 +342,10 @@
 
     src.onmessage = e => {
       const u = JSON.parse(e.data);
-      if (u.phase === 'fetch') advance(u.label);
-      if (u.phase === 'metric') { addMetric(u.metric); advance('Measuring'); }
-      if (u.phase === 'verdict') u.verdict ? typeVerdict(u.verdict) : advance(u.label);
+      if (u.phase === 'plan') layout(u.plan);
+      if (u.phase === 'fetch') $('step').textContent = u.label;
+      if (u.phase === 'metric') fill(u.metric);
+      if (u.phase === 'verdict') u.verdict ? typeVerdict(u.verdict) : ($('step').textContent = u.label);
       if (u.phase === 'done') { roast = u.roast; src.close(); finish(); }
       if (u.phase === 'error') fail(src, u.error);
       resetIdleTimer();
@@ -368,32 +353,43 @@
     src.onerror = () => fail(src, 'Could not reach the audit.');
   }
 
-  function fail(src, message) {
-    src.close();
-    $('step').textContent = message;
-    setTimeout(reset, 4000);
+  // Every row exists before the first measurement arrives, so the column never
+  // grows and nothing under the reader's eye moves.
+  function layout(plan) {
+    $('rows').innerHTML = plan.map((item, i) => `
+      <div class="row" data-row="${i}">
+        <div class="row-top">
+          <span></span><span><b></b> <span class="row-tag"></span></span>
+        </div>
+        ${item.gauge ? '<div class="track"><div class="fill"></div></div>' : ''}
+      </div>`).join('');
+    [...$('rows').querySelectorAll('.row')].forEach((row, i) => {
+      row.querySelector('.row-top span').textContent = plan[i].label;
+    });
   }
 
-  function addMetric(m) {
-    const row = document.createElement('div');
-    row.className = 'row';
-    row.innerHTML = `
-      <div class="row-top">
-        <span></span>
-        <span><b></b>${m.tag ? ' <span class="row-tag"></span>' : ''}</span>
-      </div>
-      ${m.percent != null ? '<div class="track"><div class="fill"></div></div>' : ''}`;
-    row.querySelector('.row-top span').textContent = m.label;
-    if (m.tag) row.querySelector('.row-tag').textContent = m.tag;
+  function fill(m) {
+    const row = $('rows').querySelector(`[data-row="${filled++}"]`);
+    if (!row) return;
+    row.classList.add('on');
     const value = row.querySelector('b');
-    $('rows').append(row);
+    if (m.tag) row.querySelector('.row-tag').textContent = m.tag;
 
-    if (m.percent == null) { value.textContent = m.value; return; }
+    if (m.percent == null) {
+      value.textContent = m.value;
+      return;
+    }
     value.textContent = '0%';
     requestAnimationFrame(() => {
       row.querySelector('.fill').style.width = m.percent + '%';
       countTo(value, m.percent, m.value);
     });
+  }
+
+  function fail(src, message) {
+    src.close();
+    $('step').textContent = message;
+    setTimeout(reset, 4000);
   }
 
   function countTo(el, target, finalText) {
@@ -407,15 +403,12 @@
   }
 
   function typeVerdict(text) {
-    $('bar').style.width = '100%';
     $('step').textContent = 'Writing the verdict';
-    const p = document.createElement('p');
-    p.className = 'verdict';
-    $('rows').append(p);
+    const p = $('liveVerdict');
     let i = 0;
     const tick = () => {
       p.textContent = text.slice(0, ++i);
-      if (i < text.length) setTimeout(tick, 16);
+      if (i < text.length) setTimeout(tick, 14);
     };
     tick();
   }
@@ -838,7 +831,8 @@
       roast = r;
       if (preview === 'result') return finish();
       show('audit');
-      r.metrics.forEach(addMetric);
+      layout(r.metrics.map(m => ({ label: m.label, gauge: m.percent != null })));
+      r.metrics.forEach(fill);
       typeVerdict(r.verdict);
     });
   } else {
