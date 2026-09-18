@@ -96,8 +96,14 @@ func (r Roast) Doc(ev event.Event, terminal string) *receipt.Doc {
 	if ev.Receipt.Stub != "" {
 		d.Add(receipt.Text{Value: ev.Receipt.Stub, Style: receipt.Style{Align: receipt.AlignCenter, Bold: true}})
 	}
-	if r.Hiring != "" {
-		d.Add(receipt.Text{Value: r.Hiring, Style: center})
+	// The count belongs to the event, not the person. Everyone standing at the
+	// same stand is looking at the same open roles.
+	hiring := r.Hiring
+	if hiring == "" {
+		hiring = ev.Receipt.Hiring
+	}
+	if hiring != "" {
+		d.Add(receipt.Text{Value: hiring, Style: center})
 	}
 	d.Add(receipt.Cut{})
 	return d

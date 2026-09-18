@@ -24,6 +24,7 @@ type Receipt struct {
 	Heavy     string `json:"heavy"`     // divider for major breaks
 	CTA       string `json:"cta"`       // line under the QR
 	Stub      string `json:"stub"`      // headline on the tear-off recruiting stub
+	Hiring    string `json:"hiring"`    // line under it, replaced by a live count later
 	ShareBase string `json:"shareBase"` // share code is appended to this
 }
 
@@ -55,6 +56,9 @@ func (e *Event) Normalise() {
 	}
 	if e.Receipt.CTA == "" {
 		e.Receipt.CTA = "Scan for your digital receipt"
+	}
+	if e.Receipt.Hiring == "" {
+		e.Receipt.Hiring = "Open roles are waiting at lifeat.upgaming.com"
 	}
 	if e.Receipt.ShareBase == "" {
 		e.Receipt.ShareBase = "https://lifeat.upgaming.com/k"

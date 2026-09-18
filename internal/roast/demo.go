@@ -76,22 +76,25 @@ func Sample(handle string) Roast {
 
 func build(handle string, rng *rand.Rand) Roast {
 	metrics := []Metric{
-		gauge("Commits after midnight", rng, 15, 70, "owl", "nocturnal"),
-		gauge("Friday deploys", rng, 5, 45, "reckless", "brave"),
-		gauge("Repos with no description", rng, 30, 95, "", "silent"),
-		gauge("One-word commit messages", rng, 25, 90, "terse", "wordless"),
+		gauge("Commits after midnight", rng, 15, 90, [3]string{"diurnal", "owl", "nocturnal"}),
+		gauge("Friday deploys", rng, 5, 85, [3]string{"careful", "bold", "reckless"}),
+		gauge("Repos with no description", rng, 20, 95, [3]string{"documented", "sparse", "silent"}),
+		gauge("One-word commit messages", rng, 20, 95, [3]string{"wordy", "brief", "terse"}),
 		{Label: "Longest gap between commits", Value: fmt.Sprintf("%d days", 40+rng.Intn(400))},
 	}
 
-	// The score follows the gauges rather than being drawn separately, so the
-	// headline number and the detail under it never contradict each other.
-	total := 0
+	// The score is the plain average of the gauges. Weighting the worst one
+	// made receipts where three bars were short still read as serious, which
+	// contradicts the picture directly above it.
+	total, n := 0, 0
 	for _, m := range metrics {
-		if m.Percent != nil {
-			total += *m.Percent
+		if m.Percent == nil {
+			continue
 		}
+		total += *m.Percent
+		n++
 	}
-	score := total / 4
+	score := total / n
 
 	return Roast{
 		Code:     Code(),
@@ -101,45 +104,55 @@ func build(handle string, rng *rand.Rand) Roast {
 		ScoreTag: severity(score),
 		Metrics:  metrics,
 		Verdict:  pick(rng, verdicts),
+		// Odds are read off the score rather than drawn, so a bad audit really
+		// does pay worse. Numbers nobody can trace back look invented.
 		Odds: []Odd{
-			{Label: "You survive a prod crash", Price: price(rng, 3, 14)},
-			{Label: "A Friday ship goes unnoticed", Price: price(rng, 6, 22)},
-			{Label: "You blame a junior", Price: price(rng, 1, 2), Tag: "sure thing"},
+			{Label: "You survive a prod crash", Price: odds(2.0 + float64(score)/12)},
+			{Label: "A Friday ship goes unnoticed", Price: odds(3.0 + float64(score)/6)},
+			{Label: "You blame a junior", Price: odds(2.2 - float64(score)/120), Tag: "sure thing"},
 		},
-		Hiring: fmt.Sprintf("%d open roles match your stack", 3+rng.Intn(8)),
 	}
 }
 
-func gauge(label string, rng *rand.Rand, lo, hi int, tags ...string) Metric {
+// gauge always carries a tag. Tagging only the bad rows left the column ragged
+// and made the whole block look arbitrary on paper.
+func gauge(label string, rng *rand.Rand, lo, hi int, bands [3]string) Metric {
 	n := lo + rng.Intn(hi-lo+1)
-	m := Metric{Label: label, Value: fmt.Sprintf("%d%%", n), Percent: &n}
-	if n > (lo+hi)/2 {
-		for _, t := range tags {
-			if t != "" {
-				m.Tag = t
-				break
-			}
-		}
+	band := bands[0]
+	switch {
+	case n >= 66:
+		band = bands[2]
+	case n >= 33:
+		band = bands[1]
 	}
-	return m
+	return Metric{Label: label, Value: fmt.Sprintf("%d%%", n), Tag: band, Percent: &n}
 }
 
+// odds formats a decimal price, clamped to something a bookmaker would print.
+func odds(v float64) string {
+	if v < 1.05 {
+		v = 1.05
+	}
+	if v > 99 {
+		v = 99
+	}
+	return fmt.Sprintf("%.2f", v)
+}
+
+// severity bands are set against where the average of four gauges actually
+// lands, not against a tidy quartering of nought to a hundred. Bands that never
+// fire are worse than no bands.
 func severity(score int) string {
 	switch {
-	case score >= 75:
+	case score >= 62:
 		return "critical"
-	case score >= 55:
+	case score >= 50:
 		return "serious"
-	case score >= 35:
+	case score >= 38:
 		return "survivable"
 	default:
 		return "suspiciously tidy"
 	}
-}
-
-func price(rng *rand.Rand, lo, hi int) string {
-	whole := lo + rng.Intn(hi-lo+1)
-	return fmt.Sprintf("%d.%02d", whole, rng.Intn(4)*25)
 }
 
 func pick(rng *rand.Rand, from []string) string { return from[rng.Intn(len(from))] }

@@ -56,7 +56,7 @@
     background-position: 0 0, 0 0;
   }
 
-  .screen { display: none; position: relative; z-index: 1; width: min(100%, 700px); text-align: center; }
+  .screen { display: none; position: relative; z-index: 1; width: min(100%, 820px); text-align: center; }
   .screen[data-active] { display: block; }
   .screen[data-active] > * { animation: fade-up .85s var(--ease) both; }
   .screen[data-active] > *:nth-child(2) { animation-delay: .08s; }
@@ -65,26 +65,26 @@
   @keyframes fade-up { from { opacity: 0; transform: translateY(20px); } }
 
   .mark {
-    display: block; width: 54px; height: 62px; fill: var(--primary);
+    display: block; width: 66px; height: 76px; fill: var(--primary);
     margin: 0 auto clamp(26px, 4.6vh, 48px);
   }
 
   /* Integral CF, uppercase, 120% leading. */
   h1 {
     font-family: var(--display); font-weight: 900; text-transform: uppercase;
-    font-size: clamp(30px, 5.6vw, 60px); line-height: 1.2; letter-spacing: 0;
+    font-size: clamp(38px, 6.8vw, 74px); line-height: 1.16; letter-spacing: 0;
     margin: 0;
   }
   .lede {
-    font-family: var(--sora); font-size: clamp(14px, 1.8vw, 18px); line-height: 1.4;
+    font-family: var(--sora); font-size: clamp(17px, 2.2vw, 22px); line-height: 1.45;
     color: var(--white); max-width: 34ch; margin: 18px auto 0;
   }
 
   form { display: flex; gap: 12px; align-items: stretch; margin-top: clamp(32px, 6vh, 60px); }
   input {
-    flex: 1; min-width: 0; font-family: var(--mono); font-size: clamp(20px, 3.4vw, 30px);
+    flex: 1; min-width: 0; font-family: var(--mono); font-size: clamp(24px, 4vw, 36px);
     color: var(--white); background: var(--elevated); border: 1px solid var(--border);
-    border-radius: 999px; padding: clamp(16px, 2.6vh, 24px) 28px; text-align: center;
+    border-radius: 999px; padding: clamp(20px, 3.2vh, 30px) 32px; text-align: center;
   }
   input::placeholder { color: var(--subtle); }
   input:focus { outline: none; border-color: var(--primary); }
@@ -98,8 +98,8 @@
   button:hover:not(:disabled) { font-style: normal; }
   button:disabled { background: var(--elevated); color: var(--subtle); cursor: not-allowed; }
   button:active:not(:disabled) { opacity: .8; }
-  #go { font-size: clamp(22px, 3.6vw, 30px); font-style: normal; border-radius: 999px; padding: 0 clamp(26px, 3.8vw, 36px); }
-  .wide { width: 100%; font-size: clamp(17px, 2.6vw, 21px); border-radius: 999px; padding: clamp(16px, 2.8vh, 24px); }
+  #go { font-size: clamp(26px, 4.2vw, 36px); font-style: normal; border-radius: 999px; padding: 0 clamp(26px, 3.8vw, 36px); }
+  .wide { width: 100%; font-size: clamp(20px, 3vw, 26px); border-radius: 999px; padding: clamp(20px, 3.2vh, 28px); }
   .quiet {
     background: transparent; color: var(--muted); border: 1px solid var(--border);
     font-style: normal; margin-top: 10px;
@@ -107,28 +107,42 @@
   .quiet:hover:not(:disabled) { background: transparent; color: var(--white); border-color: var(--border); }
   .link { border: 0; font-size: 14px; padding: 12px; margin-top: 4px; }
 
-  .rows { display: flex; flex-direction: column; gap: clamp(14px, 2.4vh, 22px); text-align: left; }
+  .rows { display: flex; flex-direction: column; gap: clamp(18px, 3vh, 28px); text-align: left; }
   .row { animation: rise .4s var(--ease) both; }
   .row-top {
     display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
-    font-family: var(--mono); font-size: clamp(14px, 2.1vw, 18px);
+    font-family: var(--mono); font-size: clamp(17px, 2.5vw, 22px);
   }
   .row-top b { font-weight: 700; font-variant-numeric: tabular-nums; }
   .row-top span:first-child { font-family: var(--sans); }
   .row-tag { color: var(--primary); }
-  .track { height: 8px; border-radius: 0; background: var(--elevated); margin-top: 10px; overflow: hidden; }
+  .track { height: 11px; border-radius: 0; background: var(--elevated); margin-top: 10px; overflow: hidden; }
   .fill { height: 100%; background: var(--primary); border-radius: 0; width: 0; transition: width .9s var(--ease); }
 
-  .verdict { font-family: var(--sora); font-size: clamp(17px, 2.5vw, 23px); line-height: 1.4; margin: 0; }
-  .step { font-family: var(--mono); font-size: 14px; color: var(--subtle); margin: clamp(24px, 4vh, 40px) 0 0; }
+  .verdict { font-family: var(--sora); font-size: clamp(20px, 3vw, 28px); line-height: 1.42; margin: 0; }
+  .progress {
+    height: 3px; background: var(--elevated); margin: 0 0 clamp(26px, 4vh, 40px);
+    overflow: hidden;
+  }
+  .progress i {
+    display: block; height: 100%; width: 0; background: var(--primary);
+    transition: width .5s var(--ease);
+  }
+  .step {
+    display: flex; justify-content: center; align-items: baseline; gap: 12px;
+    font-family: var(--mono); font-size: clamp(15px, 2vw, 19px); color: var(--white);
+    margin: clamp(26px, 4vh, 40px) 0 0;
+  }
+  .step b { font-weight: 400; }
+  .step span { color: var(--subtle); font-variant-numeric: tabular-nums; }
 
   .score {
-    font-family: var(--mono); font-weight: 700; text-transform: none; font-size: clamp(60px, 14vw, 124px);
+    font-family: var(--mono); font-weight: 700; text-transform: none; font-size: clamp(72px, 16vw, 150px);
     line-height: 1.05; letter-spacing: -.03em;
   }
   .score .num { color: var(--primary); }
   .score small {
-    display: block; font-family: var(--mono); font-size: clamp(13px, 1.9vw, 17px);
+    display: block; font-family: var(--mono); font-size: clamp(16px, 2.2vw, 21px);
     font-weight: 400; color: var(--primary); text-transform: none;
     letter-spacing: 0; margin-top: 20px;
   }
@@ -236,8 +250,9 @@
 
 <section class="screen" id="audit">
   <svg class="mark"><use href="#logo"/></svg>
+  <div class="progress"><i id="bar"></i></div>
   <div class="rows" id="rows"></div>
-  <p class="step" id="step">Reading public commits</p>
+  <p class="step"><b id="step">Reading public commits</b><span id="stepCount"></span></p>
   <button class="quiet link" id="cancel">Cancel</button>
 </section>
 
@@ -317,9 +332,24 @@
   // Each update paints as it lands, so the wait shows real progress.
   let stream = null;
 
+  // Seven steps: the fetch, five measurements, the verdict. Counting them is
+  // what turns a wait into progress.
+  const totalSteps = 7;
+  let done = 0;
+
+  function advance(label) {
+    done = Math.min(done + 1, totalSteps);
+    $('bar').style.width = Math.round((done / totalSteps) * 100) + '%';
+    if (label) $('step').textContent = label;
+    $('stepCount').textContent = done + ' of ' + totalSteps;
+  }
+
   function start(handle) {
     $('rows').innerHTML = '';
+    done = 0;
+    $('bar').style.width = '0%';
     $('step').textContent = 'Reading public commits';
+    $('stepCount').textContent = '';
     show('audit');
 
     const src = new EventSource('/api/roast?handle=' + encodeURIComponent(handle)
@@ -328,9 +358,9 @@
 
     src.onmessage = e => {
       const u = JSON.parse(e.data);
-      if (u.phase === 'fetch') $('step').textContent = u.label;
-      if (u.phase === 'metric') addMetric(u.metric);
-      if (u.phase === 'verdict') u.verdict ? typeVerdict(u.verdict) : ($('step').textContent = u.label);
+      if (u.phase === 'fetch') advance(u.label);
+      if (u.phase === 'metric') { addMetric(u.metric); advance('Measuring'); }
+      if (u.phase === 'verdict') u.verdict ? typeVerdict(u.verdict) : advance(u.label);
       if (u.phase === 'done') { roast = u.roast; src.close(); finish(); }
       if (u.phase === 'error') fail(src, u.error);
       resetIdleTimer();
@@ -377,6 +407,7 @@
   }
 
   function typeVerdict(text) {
+    $('bar').style.width = '100%';
     $('step').textContent = 'Writing the verdict';
     const p = document.createElement('p');
     p.className = 'verdict';
