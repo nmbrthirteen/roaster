@@ -3,6 +3,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"html/template"
@@ -13,6 +14,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -36,6 +38,26 @@ type station struct {
 	path   string
 	prn    printer.Printer
 	events *event.Set
+
+	// Finished roasts, kept so the kiosk can ask for the printable bytes after
+	// the audit without sending the whole document back and forth.
+	roasts map[string]roast.Roast
+}
+
+func (s *station) keep(r roast.Roast) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.roasts == nil {
+		s.roasts = map[string]roast.Roast{}
+	}
+	s.roasts[r.Code] = r
+}
+
+func (s *station) recall(code string) (roast.Roast, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	r, ok := s.roasts[code]
+	return r, ok
 }
 
 func (s *station) config() config.Config {
@@ -138,7 +160,11 @@ func main() {
 	cfg := saved
 	config.ApplyFlags(&cfg, flag.CommandLine)
 
-	st := &station{cfg: cfg, saved: saved, path: *configPath}
+	st := &station{cfg: cfg, saved: saved, path: *configPath, roasts: map[string]roast.Roast{}}
+
+	// Everything that reaches the outside world sits behind this. Swapping the
+	// demo for the GitHub adapter and the model call changes this line only.
+	var provider roast.Provider = roast.Demo{}
 	if cfg.Printer != "" {
 		if err := st.setPrinter(cfg.Printer); err != nil {
 			// A printer that has been unplugged must not stop the kiosk booting.
@@ -161,6 +187,7 @@ func main() {
 	}
 
 	tpl := template.Must(template.ParseFS(ui.FS, "preview.html"))
+	kioskTpl := template.Must(template.ParseFS(ui.FS, "kiosk.html"))
 
 	pick := func(r *http.Request) event.Event {
 		set := st.eventSet()
@@ -175,11 +202,12 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.Handle("/assets/", http.FileServer(http.FS(ui.FS)))
+	mux.Handle("/fonts/", http.FileServer(http.FS(ui.FS)))
 	mux.HandleFunc("/qr", handleQR)
 
 	mux.HandleFunc("/preview", func(w http.ResponseWriter, r *http.Request) {
 		ev := pick(r)
-		doc := sample().Doc(ev, st.config().Terminal)
+		doc := demoRoast().Doc(ev, st.config().Terminal)
 		_, spec := st.printer()
 
 		data := struct {
@@ -211,12 +239,12 @@ func main() {
 
 	mux.HandleFunc("/preview.txt", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Write([]byte(sample().Doc(pick(r), st.config().Terminal).Plain()))
+		w.Write([]byte(demoRoast().Doc(pick(r), st.config().Terminal).Plain()))
 	})
 
 	mux.HandleFunc("/preview.bin", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/octet-stream")
-		w.Write(sample().Doc(pick(r), st.config().Terminal).ESCPOS(assets))
+		w.Write(demoRoast().Doc(pick(r), st.config().Terminal).ESCPOS(assets))
 	})
 
 	// Raw bytes for the browser to write over Web Serial. This is what lets the
@@ -266,7 +294,7 @@ func main() {
 			http.Error(w, "post only", http.StatusMethodNotAllowed)
 			return
 		}
-		send(w, sample().Doc(pick(r), st.config().Terminal), "receipt")
+		send(w, demoRoast().Doc(pick(r), st.config().Terminal), "receipt")
 	})
 
 	mux.HandleFunc("/print/test", func(w http.ResponseWriter, r *http.Request) {
@@ -325,6 +353,77 @@ func main() {
 			return
 		}
 		fmt.Fprintf(w, "Created %s.json", ev.Code)
+	})
+
+	// The kiosk itself: what a visitor sees and touches.
+	mux.HandleFunc("/kiosk", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		if err := kioskTpl.Execute(w, pick(r)); err != nil {
+			log.Printf("kiosk: %v", err)
+		}
+	})
+
+	// One audit, streamed. The kiosk shows each step as it lands rather than a
+	// spinner, which is what makes a six second wait tolerable.
+	mux.HandleFunc("/api/roast", func(w http.ResponseWriter, r *http.Request) {
+		handle := strings.TrimSpace(r.URL.Query().Get("handle"))
+		if handle == "" {
+			http.Error(w, "missing handle", http.StatusBadRequest)
+			return
+		}
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
+
+		ev := pick(r)
+		enc := json.NewEncoder(w)
+		emit := func(u roast.Update) {
+			fmt.Fprint(w, "data: ")
+			enc.Encode(u)
+			fmt.Fprint(w, "\n")
+			flusher.Flush()
+		}
+
+		result, err := provider.Roast(r.Context(), roast.Request{
+			Handle: handle,
+			Event:  ev.Code,
+		}, emit)
+		if err != nil {
+			emit(roast.Update{Phase: roast.PhaseError, Error: err.Error()})
+			return
+		}
+		st.keep(result)
+	})
+
+	// Printable bytes for a finished roast, for the browser to write over Web
+	// Serial or for the server to send itself.
+	mux.HandleFunc("/receipt.bin", func(w http.ResponseWriter, r *http.Request) {
+		rst, ok := st.recall(r.URL.Query().Get("code"))
+		if !ok {
+			http.Error(w, "no such roast", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.Write(rst.Doc(pick(r), st.config().Terminal).ESCPOS(assets))
+	})
+
+	mux.HandleFunc("/receipt/print", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "post only", http.StatusMethodNotAllowed)
+			return
+		}
+		rst, ok := st.recall(r.FormValue("code"))
+		if !ok {
+			http.Error(w, "no such roast", http.StatusNotFound)
+			return
+		}
+		send(w, rst.Doc(pick(r), st.config().Terminal), "receipt")
 	})
 
 	// Health is what a kiosk browser polls to decide the app is alive. Android
@@ -423,39 +522,8 @@ func all(s *event.Set) []event.Event {
 	return out
 }
 
-func pct(n int) *int { return &n }
-
-// sample is the fixture the designer renders until the GitHub adapter lands.
-func sample() roast.Roast {
-	return roast.Roast{
-		Code:     "7k2f9",
-		Handle:   "nmbrthirteen",
-		At:       time.Now(),
-		Score:    "89 / 100",
-		ScoreTag: "critical",
-
-		// Every label states what was counted, so nobody has to ask what the
-		// number means. Each one comes from a single GitHub call: public events
-		// give commit timestamps and messages, the repo list gives descriptions
-		// and push dates. Higher is always worse, which is what makes one
-		// legend line enough for the whole block.
-		Metrics: []roast.Metric{
-			{Label: "Commits after midnight", Value: "34%", Tag: "owl", Percent: pct(34)},
-			{Label: "Friday deploys", Value: "14%", Tag: "reckless", Percent: pct(14)},
-			{Label: "Repos with no description", Value: "71%", Percent: pct(71)},
-			{Label: "One-word commit messages", Value: "62%", Tag: "terse", Percent: pct(62)},
-			{Label: "Longest gap between commits", Value: "214 days"},
-		},
-		Verdict: "Your architecture diagram looks like a bowl of spaghetti dropped on AWS. " +
-			"Upgaming gives you a 12% survival rate in production.",
-
-		// Decimal odds, not American. Upgaming's market reads 7.50, not +650,
-		// and a stranger at a booth should not need a glossary.
-		Odds: []roast.Odd{
-			{Label: "You survive a prod crash", Price: "7.50"},
-			{Label: "A Friday ship goes unnoticed", Price: "13.00"},
-			{Label: "You blame a junior", Price: "1.25", Tag: "sure thing"},
-		},
-		Hiring: "6 open roles match your stack",
-	}
+func demoRoast() roast.Roast {
+	r := roast.Sample("nmbrthirteen")
+	r.Code = "7k2f9"
+	return r
 }

@@ -5,5 +5,5 @@ package ui
 
 import "embed"
 
-//go:embed preview.html assets
+//go:embed preview.html kiosk.html assets fonts
 var FS embed.FS

@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>{{.Kiosk.Headline}}</title>
+<style>
+  /* Sora and Anonymous Pro, latin only, served from the binary so a kiosk with
+     no network still renders on brand. */
+  @font-face { font-family: Sora; src: url(/fonts/sora-400.woff2) format("woff2"); font-weight: 400; font-display: swap; }
+  @font-face { font-family: Sora; src: url(/fonts/sora-600.woff2) format("woff2"); font-weight: 600; font-display: swap; }
+  @font-face { font-family: Sora; src: url(/fonts/sora-800.woff2) format("woff2"); font-weight: 800; font-display: swap; }
+  @font-face { font-family: "Anonymous Pro"; src: url(/fonts/anonymous-pro-400.woff2) format("woff2"); font-weight: 400; font-display: swap; }
+  @font-face { font-family: "Anonymous Pro"; src: url(/fonts/anonymous-pro-700.woff2) format("woff2"); font-weight: 700; font-display: swap; }
+
+  :root {
+    /* Straight from the lifeat palette. */
+    --black: #070707;
+    --white: #fffbf8;
+    --surface: #0d0d0d;
+    --elevated: #1a1a1a;
+    --border: #27272a;
+    --muted: #a1a1aa;
+    --subtle: #71717a;
+    --primary: #0fff50;
+
+    --sans: Sora, ui-sans-serif, system-ui, sans-serif;
+    --mono: "Anonymous Pro", Consolas, Monaco, ui-monospace, monospace;
+    --ease: cubic-bezier(.2, .8, .2, 1);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; margin: 0; overscroll-behavior: none; }
+  body {
+    background: var(--black); color: var(--white); font-family: var(--sans);
+    display: grid; place-items: center; overflow: hidden;
+    padding: clamp(24px, 6vw, 72px);
+  }
+
+  .screen { display: none; width: min(100%, 700px); text-align: center; }
+  .screen[data-active] { display: block; animation: rise .3s var(--ease) both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+
+  .mark { width: 56px; height: auto; margin-bottom: clamp(28px, 5vh, 52px); }
+  .mark path { fill: var(--primary); }
+
+  h1 {
+    font-size: clamp(34px, 6.4vw, 64px); line-height: 1.1; letter-spacing: -.02em;
+    font-weight: 800; margin: 0 0 clamp(28px, 5vh, 48px);
+  }
+
+  form { display: flex; gap: 12px; align-items: stretch; }
+  input {
+    flex: 1; min-width: 0; font-family: var(--mono); font-size: clamp(20px, 3.4vw, 30px);
+    color: var(--white); background: var(--elevated); border: 1px solid var(--border);
+    border-radius: 999px; padding: clamp(16px, 2.6vh, 24px) 28px; text-align: center;
+  }
+  input::placeholder { color: var(--subtle); }
+  input:focus { outline: none; border-color: var(--primary); }
+
+  /* The button language across lifeat: pill, mono, semibold, italic until hover. */
+  button {
+    font-family: var(--mono); font-weight: 600; font-style: italic; cursor: pointer;
+    background: var(--primary); color: var(--black); border: 0; border-radius: 999px;
+    transition: opacity .3s var(--ease), font-style .3s var(--ease);
+  }
+  button:hover:not(:disabled) { font-style: normal; }
+  button:disabled { background: var(--elevated); color: var(--subtle); cursor: not-allowed; }
+  button:active:not(:disabled) { opacity: .8; }
+  #go { font-size: clamp(22px, 3.6vw, 30px); font-style: normal; padding: 0 clamp(24px, 3.6vw, 34px); }
+  .wide { width: 100%; font-size: clamp(17px, 2.6vw, 21px); padding: clamp(16px, 2.8vh, 24px); }
+
+  .rows { display: flex; flex-direction: column; gap: clamp(14px, 2.4vh, 22px); text-align: left; }
+  .row { animation: rise .4s var(--ease) both; }
+  .row-top {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+    font-family: var(--mono); font-size: clamp(14px, 2.1vw, 18px);
+  }
+  .row-top b { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .row-tag { color: var(--primary); }
+  .track { height: 8px; border-radius: 999px; background: var(--elevated); margin-top: 10px; overflow: hidden; }
+  .fill { height: 100%; background: var(--primary); border-radius: 999px; width: 0; transition: width .9s var(--ease); }
+
+  .verdict { font-size: clamp(18px, 2.8vw, 26px); line-height: 1.45; margin: 0; }
+  .step { font-family: var(--mono); font-size: 14px; color: var(--subtle); margin: clamp(24px, 4vh, 40px) 0 0; }
+
+  .score {
+    font-family: var(--mono); font-weight: 700; font-size: clamp(60px, 14vw, 124px);
+    line-height: .95; letter-spacing: -.04em;
+  }
+  .score small {
+    display: block; font-family: var(--sans); font-size: clamp(14px, 2.2vw, 19px);
+    font-weight: 400; color: var(--primary); letter-spacing: 0; margin-top: 16px;
+  }
+  .note { font-family: var(--mono); font-size: 14px; color: var(--subtle); margin: 16px 0 0; min-height: 1.3em; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition-duration: .01ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="logo" viewBox="0 0 28 32">
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M4.018 22.897l1.505.963a.75.75 0 0 0 1.25-.707V12.438a.75.75 0 0 1 .409-.724L20.297 4l3.402 2.01-13.152 7.744a.75.75 0 0 0-.404.722v15.52L.548 24.323A1.2 1.2 0 0 1 0 23.357V8.48a.75.75 0 0 1 .408-.724L13.53 0l3.401 2.01-13.14 7.702a.75.75 0 0 0-.411.727v11.276c0 .41.208.79.55 1.01z"/>
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M23.586 17.965l-3.473 2.03a1.2 1.2 0 0 0-.548.968v3.343l6.949-4.076a1.2 1.2 0 0 0 .548-.966V9.44a.75.75 0 0 0-.386-.66L23.27 6.77l-13.13 7.7v3.35l13.446-7.92v8.065z"/>
+  </symbol>
+</svg>
+
+<section class="screen" id="entry" data-active>
+  <svg class="mark"><use href="#logo"/></svg>
+  <h1>{{.Kiosk.Headline}}</h1>
+  <form id="form">
+    <input id="handle" placeholder="torvalds" autocomplete="off" autocapitalize="off"
+           spellcheck="false" enterkeyhint="go" maxlength="39" autofocus>
+    <button type="submit" id="go" disabled aria-label="Start">&rarr;</button>
+  </form>
+</section>
+
+<section class="screen" id="audit">
+  <svg class="mark"><use href="#logo"/></svg>
+  <div class="rows" id="rows"></div>
+  <p class="step" id="step">Reading public commits</p>
+</section>
+
+<section class="screen" id="result">
+  <svg class="mark"><use href="#logo"/></svg>
+  <div class="score" id="score">89 / 100<small id="scoreTag"></small></div>
+  <p class="verdict" id="finalVerdict" style="margin-top:clamp(24px,4vh,40px)"></p>
+  <button class="wide" id="print" style="margin-top:clamp(28px,5vh,48px)">Print my receipt</button>
+  <p class="note" id="note"></p>
+</section>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const screens = ['entry', 'audit', 'result'];
+  let current = 'entry', idleTimer = null, roast = null;
+
+  function show(name) {
+    screens.forEach(s => $(s).toggleAttribute('data-active', s === name));
+    current = name;
+    if (name === 'entry') $('handle').focus();
+    resetIdleTimer();
+  }
+
+  // Someone who walks away must not hold the terminal.
+  function resetIdleTimer() {
+    clearTimeout(idleTimer);
+    if (current === 'entry' && !$('handle').value) return;
+    idleTimer = setTimeout(reset, current === 'result' ? 60000 : 45000);
+  }
+  function reset() {
+    $('handle').value = '';
+    $('go').disabled = true;
+    $('rows').innerHTML = '';
+    $('note').textContent = '';
+    show('entry');
+  }
+  ['pointerdown', 'keydown'].forEach(e => document.addEventListener(e, resetIdleTimer));
+
+  // Only what a GitHub username can hold, so a typo cannot become a bad request.
+  $('handle').addEventListener('input', e => {
+    e.target.value = e.target.value.replace(/[^A-Za-z0-9-]/g, '');
+    $('go').disabled = e.target.value.length === 0;
+  });
+
+  $('form').addEventListener('submit', e => {
+    e.preventDefault();
+    if ($('handle').value) start($('handle').value);
+  });
+
+  // Each update paints as it lands, so the wait shows real progress rather
+  // than a spinner that tells nobody anything.
+  function start(handle) {
+    $('rows').innerHTML = '';
+    $('step').textContent = 'Reading public commits';
+    show('audit');
+
+    const src = new EventSource('/api/roast?handle=' + encodeURIComponent(handle)
+      + location.search.replace('?', '&'));
+
+    src.onmessage = e => {
+      const u = JSON.parse(e.data);
+      if (u.phase === 'fetch') $('step').textContent = u.label;
+      if (u.phase === 'metric') addMetric(u.metric);
+      if (u.phase === 'verdict') u.verdict ? typeVerdict(u.verdict) : ($('step').textContent = u.label);
+      if (u.phase === 'done') { roast = u.roast; src.close(); finish(); }
+      if (u.phase === 'error') fail(src, u.error);
+      resetIdleTimer();
+    };
+    src.onerror = () => fail(src, 'Could not reach the audit.');
+  }
+
+  function fail(src, message) {
+    src.close();
+    $('step').textContent = message;
+    setTimeout(reset, 4000);
+  }
+
+  function addMetric(m) {
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML = `
+      <div class="row-top">
+        <span></span>
+        <span><b></b>${m.tag ? ' <span class="row-tag"></span>' : ''}</span>
+      </div>
+      ${m.percent != null ? '<div class="track"><div class="fill"></div></div>' : ''}`;
+    row.querySelector('.row-top span').textContent = m.label;
+    if (m.tag) row.querySelector('.row-tag').textContent = m.tag;
+    const value = row.querySelector('b');
+    $('rows').append(row);
+
+    if (m.percent == null) { value.textContent = m.value; return; }
+    value.textContent = '0%';
+    requestAnimationFrame(() => {
+      row.querySelector('.fill').style.width = m.percent + '%';
+      countTo(value, m.percent, m.value);
+    });
+  }
+
+  function countTo(el, target, finalText) {
+    const started = performance.now(), ms = 900;
+    const tick = now => {
+      const t = Math.min(1, (now - started) / ms);
+      el.textContent = Math.round(target * (1 - Math.pow(1 - t, 3))) + '%';
+      if (t < 1) requestAnimationFrame(tick); else el.textContent = finalText;
+    };
+    requestAnimationFrame(tick);
+  }
+
+  function typeVerdict(text) {
+    $('step').textContent = 'Writing the verdict';
+    const p = document.createElement('p');
+    p.className = 'verdict';
+    $('rows').append(p);
+    let i = 0;
+    const tick = () => {
+      p.textContent = text.slice(0, ++i);
+      if (i < text.length) setTimeout(tick, 16);
+    };
+    tick();
+  }
+
+  function finish() {
+    $('score').firstChild.textContent = roast.score;
+    $('scoreTag').textContent = 'roast severity: ' + roast.scoreTag;
+    $('finalVerdict').textContent = '“' + roast.verdict + '”';
+    $('print').disabled = false;
+    $('print').textContent = 'Print my receipt';
+    $('note').textContent = '';
+    show('result');
+  }
+
+  // Web Serial writes straight from this page, which is what lets the kiosk be
+  // a hosted URL with nothing installed on the device.
+  const serial = {
+    port: null,
+    async restore() {
+      if (!('serial' in navigator)) return;
+      const [granted] = await navigator.serial.getPorts();
+      if (!granted) return;
+      await granted.open({ baudRate: 115200 });
+      this.port = granted;
+    },
+    async write(bytes) {
+      const writer = this.port.writable.getWriter();
+      try {
+        for (let i = 0; i < bytes.length; i += 64) await writer.write(bytes.subarray(i, i + 64));
+      } finally { writer.releaseLock(); }
+    },
+  };
+  serial.restore().catch(() => {});
+
+  $('print').addEventListener('click', async e => {
+    e.target.disabled = true;
+    e.target.textContent = 'Printing';
+    try {
+      if (serial.port) {
+        const res = await fetch('/receipt.bin?code=' + roast.code + location.search.replace('?', '&'));
+        await serial.write(new Uint8Array(await res.arrayBuffer()));
+      } else {
+        const res = await fetch('/receipt/print', {
+          method: 'POST',
+          body: new URLSearchParams({ code: roast.code }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+      }
+      e.target.textContent = 'Take your receipt';
+      $('note').textContent = 'Scan the code for the digital version.';
+      setTimeout(reset, 8000);
+    } catch (err) {
+      e.target.disabled = false;
+      e.target.textContent = 'Try again';
+      $('note').textContent = err.message || String(err);
+    }
+  });
+
+  show('entry');
+})();
+</script>
+</body>
+</html>
