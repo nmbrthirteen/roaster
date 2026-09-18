@@ -53,7 +53,17 @@ echo   Laying out the package...
 if exist build\msix rmdir /s /q build\msix
 mkdir build\msix >nul 2>&1
 
-copy /y packaging\AppxManifest.xml build\msix\ >nul
+rem Every build gets a version of its own. Windows compares versions to decide
+rem whether an install is an update, so two packages that both say 1.0.0.0 are
+rem the same package to it, and the second one is refused as already installed.
+rem The parts are days since 2024 and minutes since midnight, which rise, stay
+rem inside the 65535 a version part allows, and need nothing kept between runs.
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$d=[int][math]::Floor(((Get-Date) - [datetime]'2024-01-01').TotalDays); $m=[int][math]::Floor((Get-Date).TimeOfDay.TotalMinutes); Set-Content 'build\version.txt' ('1.0.' + $d + '.' + $m) -NoNewline"
+if errorlevel 1 goto :fail
+set /p VERSION=<build\version.txt
+echo   Version %VERSION%
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $x=[xml](Get-Content 'packaging\AppxManifest.xml'); $x.Package.Identity.Version='%VERSION%'; $x.Save((Get-Item 'build\msix').FullName + '\AppxManifest.xml')"
+if errorlevel 1 goto :fail
 xcopy /e /i /y /q packaging\images build\msix\images >nul
 copy /y kiosk.exe   build\msix\ >nul
 copy /y roaster.exe build\msix\ >nul
@@ -73,7 +83,11 @@ set /p THUMB=<build\thumbprint.txt
 "%SIGNTOOL%" sign /fd SHA256 /sha1 %THUMB% build\UpgamingRoaster.msix || goto :fail
 
 echo   Installing...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; Add-AppxPackage -Path 'build\UpgamingRoaster.msix' -ForceUpdateFromAnyVersion"
+rem ForceApplicationShutdown closes the running stand, which is otherwise what
+rem holds the old copy in place. Taking the old one out and starting again is
+rem the way through anything else: a changed certificate, a half-installed
+rem package, an identity that moved.
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; try { Add-AppxPackage -Path 'build\UpgamingRoaster.msix' -ForceUpdateFromAnyVersion -ForceApplicationShutdown } catch { Write-Host ('    ' + $_.Exception.Message); Write-Host '    Removing the installed copy and trying once more...'; Get-AppxPackage -Name 'Upgaming.Roaster' | Remove-AppxPackage; Add-AppxPackage -Path 'build\UpgamingRoaster.msix' }"
 if errorlevel 1 goto :fail
 
 echo.
