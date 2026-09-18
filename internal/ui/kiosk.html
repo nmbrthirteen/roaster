@@ -512,16 +512,13 @@
   // unlock opens the menu if the code is right. Both ways in go through here:
   // typing it into the username field, and the five tap keypad.
   async function unlock(code) {
-    window.__dbg = { called: code, locked: admin.lockedUntil };
     if (Date.now() < admin.lockedUntil) return false;
     let res;
     try {
       res = await fetch('/admin/state', { headers: { 'X-Admin-Pin': code } });
-    } catch (e) {
-      window.__dbg = { threw: String(e) };
+    } catch {
       return false;
     }
-    window.__dbg = { status: res.status, ok: res.ok };
     if (!res.ok) {
       // Five wrong codes and the menu goes quiet for a minute. Nobody at a
       // booth is guessing a fourth digit patiently.

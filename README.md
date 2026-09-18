@@ -57,9 +57,12 @@ PC437 block glyphs the gauges are drawn from, and the native QR command.
 A device locked to this one app still has to be serviceable, so everything an
 operator would otherwise open Windows for is in the kiosk.
 
-Tap the mark five times within three seconds, then enter the four digit code.
-It submits on the fourth digit. Five wrong codes and the menu stops opening for
-a minute.
+Type the code into the username field and press the arrow. It opens the menu
+instead of running an audit. Tapping the mark five times within three seconds
+brings up a keypad, which is the way in from a screen with no input on it.
+
+Five wrong codes and the menu stops opening for a minute. A username that is
+not a run of four to eight digits never costs a round trip.
 
 The code is `adminPin` in `roaster.json`. It ships as **1379**, which is in a
 public repository and therefore worth nothing. Change it before an event: the
