@@ -428,6 +428,13 @@ func main() {
 		send(w, rst.Doc(pick(r), st.config().Terminal), "receipt")
 	})
 
+	// Example content for reviewing the audit and result screens without
+	// running an audit.
+	mux.HandleFunc("/api/example", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(demoRoast())
+	})
+
 	// Health is what a kiosk browser polls to decide the app is alive. Android
 	// kills background processes, so something has to notice and reload.
 	started := time.Now()
