@@ -100,6 +100,12 @@
   button:active:not(:disabled) { opacity: .8; }
   #go { font-size: clamp(22px, 3.6vw, 30px); font-style: normal; border-radius: 999px; padding: 0 clamp(26px, 3.8vw, 36px); }
   .wide { width: 100%; font-size: clamp(17px, 2.6vw, 21px); border-radius: 999px; padding: clamp(16px, 2.8vh, 24px); }
+  .quiet {
+    background: transparent; color: var(--muted); border: 1px solid var(--border);
+    font-style: normal; margin-top: 10px;
+  }
+  .quiet:hover:not(:disabled) { background: transparent; color: var(--white); border-color: var(--border); }
+  .link { border: 0; font-size: 14px; padding: 12px; margin-top: 4px; }
 
   .rows { display: flex; flex-direction: column; gap: clamp(14px, 2.4vh, 22px); text-align: left; }
   .row { animation: rise .4s var(--ease) both; }
@@ -232,6 +238,7 @@
   <svg class="mark"><use href="#logo"/></svg>
   <div class="rows" id="rows"></div>
   <p class="step" id="step">Reading public commits</p>
+  <button class="quiet link" id="cancel">Cancel</button>
 </section>
 
 <section class="screen" id="result">
@@ -239,6 +246,7 @@
   <div class="score"><span class="num" id="score">89 / 100</span><small id="scoreTag"></small></div>
   <p class="verdict" id="finalVerdict" style="margin-top:clamp(24px,4vh,40px)"></p>
   <button class="wide" id="print" style="margin-top:clamp(28px,5vh,48px)">Print my receipt</button>
+  <button class="wide quiet" id="again">Start over</button>
   <p class="note" id="note"></p>
 </section>
 
@@ -272,6 +280,7 @@
     idleTimer = setTimeout(reset, current === 'result' ? 60000 : 45000);
   }
   function reset() {
+    if (stream) { stream.close(); stream = null; }
     $('handle').value = '';
     $('go').disabled = true;
     $('rows').innerHTML = '';
@@ -281,17 +290,33 @@
   ['pointerdown', 'keydown'].forEach(e => document.addEventListener(e, resetIdleTimer));
 
   // Only what a GitHub username can hold.
+  $('again').addEventListener('click', reset);
+  $('cancel').addEventListener('click', reset);
+
   $('handle').addEventListener('input', e => {
     e.target.value = e.target.value.replace(/[^A-Za-z0-9-]/g, '');
     $('go').disabled = e.target.value.length === 0;
   });
 
-  $('form').addEventListener('submit', e => {
+  $('form').addEventListener('submit', async e => {
     e.preventDefault();
-    if ($('handle').value) start($('handle').value);
+    const typed = $('handle').value.trim();
+    if (!typed) return;
+
+    // A run of digits is never a handle anyone means to roast, so it is worth
+    // one request to see whether it is the code. Anything else goes straight
+    // to the audit with no round trip.
+    if (/^\d{4,8}$/.test(typed) && await unlock(typed)) {
+      $('handle').value = '';
+      $('go').disabled = true;
+      return;
+    }
+    start(typed);
   });
 
   // Each update paints as it lands, so the wait shows real progress.
+  let stream = null;
+
   function start(handle) {
     $('rows').innerHTML = '';
     $('step').textContent = 'Reading public commits';
@@ -299,6 +324,7 @@
 
     const src = new EventSource('/api/roast?handle=' + encodeURIComponent(handle)
       + location.search.replace('?', '&'));
+    stream = src;
 
     src.onmessage = e => {
       const u = JSON.parse(e.data);
@@ -369,6 +395,7 @@
     $('finalVerdict').textContent = '“' + roast.verdict + '”';
     $('print').disabled = false;
     $('print').textContent = 'Print my receipt';
+    $('again').textContent = 'Start over';
     $('note').textContent = '';
     show('result');
   }
@@ -415,6 +442,7 @@
       }
       e.target.textContent = 'Take your receipt';
       $('note').textContent = 'Scan the code for the digital version.';
+      $('again').textContent = 'Done';
       setTimeout(reset, 8000);
     } catch (err) {
       e.target.disabled = false;
@@ -481,33 +509,45 @@
     }));
   }
 
-  async function verify() {
-    const code = admin.pin;
-    say('Checking...');
+  // unlock opens the menu if the code is right. Both ways in go through here:
+  // typing it into the username field, and the five tap keypad.
+  async function unlock(code) {
+    window.__dbg = { called: code, locked: admin.lockedUntil };
+    if (Date.now() < admin.lockedUntil) return false;
+    let res;
     try {
-      const res = await fetch('/admin/state', { headers: { 'X-Admin-Pin': code } });
-      if (res.status === 403) {
-        admin.attempts++;
-        admin.pin = '';
-        // Five wrong codes and the menu goes away for a minute. Nobody at a
-        // booth is guessing a fourth digit patiently.
-        if (admin.attempts >= 5) {
-          admin.lockedUntil = Date.now() + 60000;
-          admin.attempts = 0;
-          closeAdmin();
-          return;
-        }
-        renderPad();
-        return say('Wrong code.', true);
-      }
-      if (!res.ok) throw new Error(await res.text());
-      admin.code = code;
-      admin.attempts = 0;
-      renderMenu(await res.json());
-      say('');
-    } catch (err) {
-      say(err.message || 'Could not reach the server.', true);
+      res = await fetch('/admin/state', { headers: { 'X-Admin-Pin': code } });
+    } catch (e) {
+      window.__dbg = { threw: String(e) };
+      return false;
     }
+    window.__dbg = { status: res.status, ok: res.ok };
+    if (!res.ok) {
+      // Five wrong codes and the menu goes quiet for a minute. Nobody at a
+      // booth is guessing a fourth digit patiently.
+      if (++admin.attempts >= 5) {
+        admin.lockedUntil = Date.now() + 60000;
+        admin.attempts = 0;
+      }
+      return false;
+    }
+    admin.attempts = 0;
+    admin.code = code;
+    admin.el.hidden = false;
+    clearTimeout(idleTimer);
+    renderMenu(await res.json());
+    say('');
+    return true;
+  }
+
+  async function verify() {
+    say('Checking...');
+    const code = admin.pin;
+    if (await unlock(code)) return;
+    admin.pin = '';
+    if (admin.el.hidden) return;
+    renderPad();
+    say(Date.now() < admin.lockedUntil ? 'Too many tries.' : 'Wrong code.', true);
   }
 
   const call = async (path, body) => {
