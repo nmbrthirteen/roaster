@@ -83,8 +83,13 @@ powershell -NoProfile -Command "Add-AppxPackage -Path 'build\UpgamingRoaster.msi
 if errorlevel 1 goto :fail
 
 echo.
-echo   Installed as Upgaming Roaster.
+echo   Installed as Upgaming Roaster. It starts by itself at sign-in.
 echo   Settings, Accounts, Other users, Set up a kiosk, and it is in the list.
+echo.
+echo   To put it on another device with no terminal, copy these two files:
+echo     build\Upgaming.cer            double click, install to
+echo                                    Local Machine, Trusted People
+echo     build\UpgamingRoaster.msix    double click, Install
 echo.
 pause
 exit /b 0

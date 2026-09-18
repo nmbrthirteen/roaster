@@ -73,8 +73,18 @@ winget install Microsoft.WindowsSDK
 
 It builds both binaries, lays out the package, makes a self-signed certificate,
 trusts it on that machine, signs, and installs. "Upgaming Roaster" then appears
-in the kiosk picker. Assigned Access itself needs Windows 11 Pro or Enterprise;
-check with `winver`.
+in the kiosk picker, and in Start, and it launches itself at sign-in.
+
+Assigned Access needs Windows 11 Pro or Enterprise; check with `winver`.
+
+### Putting it on a device with no terminal
+
+Package once on a machine that has Go and the SDK, then copy two files out of
+`build\` to the kiosk. Both install by double clicking, no command line, no Go,
+no SDK:
+
+1. `Upgaming.cer`, install to **Local Machine**, then **Trusted People**.
+2. `UpgamingRoaster.msix`, then Install.
 
 ## The hidden menu
 
