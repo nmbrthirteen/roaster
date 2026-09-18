@@ -162,9 +162,11 @@ func main() {
 
 	st := &station{cfg: cfg, saved: saved, path: *configPath, roasts: map[string]roast.Roast{}}
 
-	// Everything that reaches the outside world sits behind this. Swapping the
-	// demo for the GitHub adapter and the model call changes this line only.
-	var provider roast.Provider = roast.Demo{}
+	provider, err := pickProvider(cfg.Provider)
+	if err != nil {
+		log.Fatalf("provider: %v", err)
+	}
+	log.Printf("roasts: %s", cfg.Provider)
 	if cfg.Printer != "" {
 		if err := st.setPrinter(cfg.Printer); err != nil {
 			// A printer that has been unplugged must not stop the kiosk booting.
@@ -520,6 +522,20 @@ func all(s *event.Set) []event.Event {
 		}
 	}
 	return out
+}
+
+// pickProvider resolves the configured source of roasts. Everything that
+// reaches the outside world sits behind the Provider interface, so the kiosk
+// cannot tell the difference between a rehearsal and the real thing.
+func pickProvider(name string) (roast.Provider, error) {
+	switch name {
+	case "", "demo":
+		return roast.Demo{}, nil
+	case "live":
+		return nil, fmt.Errorf("the live provider is not built yet; set provider to demo")
+	default:
+		return nil, fmt.Errorf("unknown provider %q, want demo or live", name)
+	}
 }
 
 func demoRoast() roast.Roast {

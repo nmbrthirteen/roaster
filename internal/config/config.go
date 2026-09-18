@@ -19,6 +19,11 @@ type Config struct {
 	Event     string `json:"event"`     // event code the kiosk opens on
 	EventsDir string `json:"eventsDir"` // event files that override the built-in ones
 	KioskURL  string `json:"kioskUrl"`  // what the kiosk launcher opens
+
+	// Provider chooses where roasts come from: "demo" invents them locally so
+	// the stand can be rehearsed without credentials, "live" reads GitHub and
+	// calls the model. Switching is a config change, not a rebuild.
+	Provider string `json:"provider"`
 }
 
 func Defaults() Config {
@@ -27,6 +32,7 @@ func Defaults() Config {
 		Terminal:  "001",
 		EventsDir: "events",
 		KioskURL:  "http://localhost:3000",
+		Provider:  "demo",
 	}
 }
 

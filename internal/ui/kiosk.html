@@ -5,11 +5,15 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>{{.Kiosk.Headline}}</title>
 <style>
-  /* Sora and Anonymous Pro, latin only, served from the binary so a kiosk with
-     no network still renders on brand. */
+  /* The lifeat stack, served from the binary so a kiosk with no network still
+     renders on brand. Integral CF for headings, Sora for body copy, Roboto as
+     the default, Anonymous Pro for buttons. */
+  @font-face { font-family: Integral; src: url(/fonts/integral-bold.woff2) format("woff2"); font-weight: 700; font-display: swap; }
+  @font-face { font-family: Integral; src: url(/fonts/integral-heavy.woff2) format("woff2"); font-weight: 900; font-display: swap; }
+  @font-face { font-family: Roboto; src: url(/fonts/roboto-400.woff2) format("woff2"); font-weight: 400; font-display: swap; }
+  @font-face { font-family: Roboto; src: url(/fonts/roboto-500.woff2) format("woff2"); font-weight: 500; font-display: swap; }
   @font-face { font-family: Sora; src: url(/fonts/sora-400.woff2) format("woff2"); font-weight: 400; font-display: swap; }
   @font-face { font-family: Sora; src: url(/fonts/sora-600.woff2) format("woff2"); font-weight: 600; font-display: swap; }
-  @font-face { font-family: Sora; src: url(/fonts/sora-800.woff2) format("woff2"); font-weight: 800; font-display: swap; }
   @font-face { font-family: "Anonymous Pro"; src: url(/fonts/anonymous-pro-400.woff2) format("woff2"); font-weight: 400; font-display: swap; }
   @font-face { font-family: "Anonymous Pro"; src: url(/fonts/anonymous-pro-700.woff2) format("woff2"); font-weight: 700; font-display: swap; }
 
@@ -23,10 +27,16 @@
     --muted: #a1a1aa;
     --subtle: #71717a;
     --primary: #0fff50;
+    --secondary: #6662ff;
+    --blue: #5c8ef0;
 
-    --sans: Sora, ui-sans-serif, system-ui, sans-serif;
+    --display: Integral, system-ui, sans-serif;
+    --sans: Roboto, system-ui, sans-serif;
+    --sora: Sora, system-ui, sans-serif;
     --mono: "Anonymous Pro", Consolas, Monaco, ui-monospace, monospace;
-    --ease: cubic-bezier(.2, .8, .2, 1);
+
+    /* lifeat's entrance curve and stagger, from globals.css. */
+    --ease: cubic-bezier(.45, 0, .15, 1);
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { height: 100%; margin: 0; overscroll-behavior: none; }
@@ -36,32 +46,65 @@
     padding: clamp(24px, 6vw, 72px);
   }
 
-  .screen { display: none; width: min(100%, 700px); text-align: center; }
-  .screen[data-active] { display: block; animation: rise .3s var(--ease) both; }
-  @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+  /* Ambient layer, built from the utilities in lifeat's globals.css: the
+     diamond lattice at a tenth opacity, and the two brand glows. */
+  body::before {
+    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background:
+      radial-gradient(58% 38% at 50% -8%, rgba(15, 255, 80, .10), transparent 70%),
+      radial-gradient(52% 44% at 92% 108%, rgba(102, 98, 255, .13), transparent 70%),
+      url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0L60 30L30 60L0 30L30 0z' fill='none' stroke='%230FFF50' stroke-width='0.5' opacity='0.1'/%3E%3C/svg%3E");
+  }
+
+  /* The scan sweep, at lifeat's 3% green. */
+  body::after {
+    content: ""; position: fixed; left: 0; right: 0; top: 0; height: 45vh;
+    pointer-events: none; z-index: 0;
+    background: linear-gradient(transparent 0%, rgba(15, 255, 80, .03) 50%, transparent 100%);
+    animation: scan 8s linear infinite;
+  }
+  @keyframes scan {
+    from { transform: translateY(-45vh); }
+    to { transform: translateY(100vh); }
+  }
+
+  .screen { display: none; position: relative; z-index: 1; width: min(100%, 700px); text-align: center; }
+  .screen[data-active] { display: block; }
+  .screen[data-active] > * { animation: fade-up .85s var(--ease) both; }
+  .screen[data-active] > *:nth-child(2) { animation-delay: .08s; }
+  .screen[data-active] > *:nth-child(3) { animation-delay: .16s; }
+  .screen[data-active] > *:nth-child(4) { animation-delay: .24s; }
+  @keyframes fade-up { from { opacity: 0; transform: translateY(20px); } }
 
   .mark { width: 56px; height: auto; margin-bottom: clamp(28px, 5vh, 52px); }
   .mark path { fill: var(--primary); }
 
+  /* Headings across lifeat are Integral CF, uppercase, at 120% leading. */
   h1 {
-    font-size: clamp(34px, 6.4vw, 64px); line-height: 1.1; letter-spacing: -.02em;
-    font-weight: 800; margin: 0 0 clamp(28px, 5vh, 48px);
+    font-family: var(--display); font-weight: 900; text-transform: uppercase;
+    font-size: clamp(30px, 5.6vw, 60px); line-height: 1.2; letter-spacing: 0;
+    margin: 0;
+  }
+  .lede {
+    font-family: var(--sora); font-size: clamp(14px, 1.8vw, 18px); line-height: 1.4;
+    color: var(--white); max-width: 34ch; margin: 18px auto 0;
   }
 
-  form { display: flex; gap: 12px; align-items: stretch; }
+  form { display: flex; gap: 12px; align-items: stretch; margin-top: clamp(32px, 6vh, 60px); }
   input {
     flex: 1; min-width: 0; font-family: var(--mono); font-size: clamp(20px, 3.4vw, 30px);
     color: var(--white); background: var(--elevated); border: 1px solid var(--border);
-    border-radius: 999px; padding: clamp(16px, 2.6vh, 24px) 28px; text-align: center;
+    border-radius: 0; padding: clamp(16px, 2.6vh, 24px) 28px; text-align: center;
   }
   input::placeholder { color: var(--subtle); }
   input:focus { outline: none; border-color: var(--primary); }
 
-  /* The button language across lifeat: pill, mono, semibold, italic until hover. */
+  /* The secondary variant the hero CTA uses: violet, square, mono, italic
+     until hover. */
   button {
     font-family: var(--mono); font-weight: 600; font-style: italic; cursor: pointer;
-    background: var(--primary); color: var(--black); border: 0; border-radius: 999px;
-    transition: opacity .3s var(--ease), font-style .3s var(--ease);
+    background: var(--secondary); color: var(--white); border: 0; border-radius: 0;
+    transition: opacity .3s var(--ease), background .3s var(--ease);
   }
   button:hover:not(:disabled) { font-style: normal; }
   button:disabled { background: var(--elevated); color: var(--subtle); cursor: not-allowed; }
@@ -76,20 +119,26 @@
     font-family: var(--mono); font-size: clamp(14px, 2.1vw, 18px);
   }
   .row-top b { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .row-top span:first-child { font-family: var(--sans); }
   .row-tag { color: var(--primary); }
-  .track { height: 8px; border-radius: 999px; background: var(--elevated); margin-top: 10px; overflow: hidden; }
-  .fill { height: 100%; background: var(--primary); border-radius: 999px; width: 0; transition: width .9s var(--ease); }
+  .track { height: 8px; border-radius: 0; background: var(--elevated); margin-top: 10px; overflow: hidden; }
+  .fill { height: 100%; background: linear-gradient(90deg, var(--primary), var(--blue)); border-radius: 0; width: 0; transition: width .9s var(--ease); }
 
-  .verdict { font-size: clamp(18px, 2.8vw, 26px); line-height: 1.45; margin: 0; }
+  .verdict { font-family: var(--sora); font-size: clamp(17px, 2.5vw, 23px); line-height: 1.4; margin: 0; }
   .step { font-family: var(--mono); font-size: 14px; color: var(--subtle); margin: clamp(24px, 4vh, 40px) 0 0; }
 
   .score {
-    font-family: var(--mono); font-weight: 700; font-size: clamp(60px, 14vw, 124px);
-    line-height: .95; letter-spacing: -.04em;
+    font-family: var(--display); font-weight: 900; text-transform: uppercase; font-size: clamp(60px, 14vw, 124px);
+    line-height: 1.05; letter-spacing: 0;
+  }
+  /* lifeat's text-gradient: green into blue. */
+  .score .num {
+    background: linear-gradient(90deg, var(--primary) 0%, var(--blue) 100%);
+    background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent;
   }
   .score small {
-    display: block; font-family: var(--sans); font-size: clamp(14px, 2.2vw, 19px);
-    font-weight: 400; color: var(--primary); letter-spacing: 0; margin-top: 16px;
+    display: block; font-family: var(--mono); font-size: clamp(13px, 1.9vw, 17px);
+    font-weight: 400; color: var(--primary); text-transform: none; margin-top: 18px;
   }
   .note { font-family: var(--mono); font-size: 14px; color: var(--subtle); margin: 16px 0 0; min-height: 1.3em; }
 
@@ -110,6 +159,7 @@
 <section class="screen" id="entry" data-active>
   <svg class="mark"><use href="#logo"/></svg>
   <h1>{{.Kiosk.Headline}}</h1>
+  <p class="lede">{{.Kiosk.Subhead}}</p>
   <form id="form">
     <input id="handle" placeholder="torvalds" autocomplete="off" autocapitalize="off"
            spellcheck="false" enterkeyhint="go" maxlength="39" autofocus>
@@ -125,7 +175,7 @@
 
 <section class="screen" id="result">
   <svg class="mark"><use href="#logo"/></svg>
-  <div class="score" id="score">89 / 100<small id="scoreTag"></small></div>
+  <div class="score"><span class="num" id="score">89 / 100</span><small id="scoreTag"></small></div>
   <p class="verdict" id="finalVerdict" style="margin-top:clamp(24px,4vh,40px)"></p>
   <button class="wide" id="print" style="margin-top:clamp(28px,5vh,48px)">Print my receipt</button>
   <p class="note" id="note"></p>
@@ -244,7 +294,7 @@
   }
 
   function finish() {
-    $('score').firstChild.textContent = roast.score;
+    $('score').textContent = roast.score;
     $('scoreTag').textContent = 'roast severity: ' + roast.scoreTag;
     $('finalVerdict').textContent = '“' + roast.verdict + '”';
     $('print').disabled = false;
