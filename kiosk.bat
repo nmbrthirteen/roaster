@@ -1,8 +1,10 @@
 @echo off
-rem Run the stand. Double click this at the event.
+rem Run the stand. Double click this at the event, or let autostart.bat run it
+rem for you at boot.
 rem
-rem Same build as run.bat, then opens Edge locked to one full screen tab with
-rem the touch gestures that would navigate away disabled.
+rem Nothing here is allowed to stay dead. The server restarts if it exits, the
+rem browser restarts if it is closed, and the page reloads itself if the server
+rem goes away underneath it.
 
 setlocal
 cd /d "%~dp0"
@@ -23,21 +25,29 @@ if errorlevel 1 (
 if not exist "roaster.json" copy /y "roaster.example.json" "roaster.json" >nul
 
 echo   Building...
-go build -o roaster.exe .\cmd\roaster || goto :failed
-go build -ldflags="-H windowsgui" -o kiosk.exe .\cmd\kiosk || goto :failed
+go build -o roaster.exe .\cmd\roaster
+if errorlevel 1 goto :failed
+go build -ldflags="-H windowsgui" -o kiosk.exe .\cmd\kiosk
+if errorlevel 1 goto :failed
 
-rem The server runs in its own window so closing the browser does not kill it.
-start "Roaster server" /min roaster.exe
-echo   Waiting for the server...
-timeout /t 3 /nobreak >nul
+echo   Starting the supervised server...
+start "Roaster server" /min cmd /c "scripts\serve.bat"
 
-echo   Opening the kiosk.
-kiosk.exe
+echo   Waiting for it to answer...
+for /l %%i in (1,1,30) do (
+  curl -s -o nul http://localhost:3000/health && goto :ready
+  timeout /t 1 /nobreak >nul
+)
 
+:ready
+echo   Opening the kiosk. Close this window to stop everything.
 echo.
-echo   Kiosk closed. The server is still running in its own window.
-pause
-exit /b 0
+
+:browserloop
+kiosk.exe
+echo   [%time%] browser closed, reopening
+timeout /t 2 /nobreak >nul
+goto :browserloop
 
 :failed
 echo   The build failed. The reason is above.

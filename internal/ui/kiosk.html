@@ -334,6 +334,25 @@
     }
   });
 
+  // Watchdog. The batch supervisors restart the server and the browser; this
+  // is the third level, for when the page is still up but the thing behind it
+  // has gone away. Three consecutive misses is about 45 seconds, long enough
+  // to ride out a restart without reloading in someone's face.
+  let misses = 0;
+  setInterval(async () => {
+    try {
+      const res = await fetch('/health', { cache: 'no-store' });
+      if (!res.ok) throw new Error(res.status);
+      misses = 0;
+    } catch {
+      if (++misses >= 3) location.reload();
+    }
+  }, 15000);
+
+  // A script error must not leave a dead screen in front of a queue.
+  window.addEventListener('error', () => setTimeout(() => location.reload(), 5000));
+  window.addEventListener('unhandledrejection', e => e.preventDefault());
+
   // ?screen=audit or ?screen=result jumps straight to a state with example
   // content. Reviewing the wait and the result should not mean typing a name
   // and waiting six seconds every time.
