@@ -95,34 +95,28 @@ settings means editing the file on the device or deleting it first.
 Once it is packaged, the log to read is `%LOCALAPPDATA%\Roaster\kiosk.log`, and
 the settings to edit are beside it.
 
-### When it is not in the kiosk picker
+### Setting kiosk mode without the picker
 
-The picker lists applications installed for the account being set up, and
-`Add-AppxPackage` installs for the account that ran it. So put it on the device
-rather than on your account, and sign in as the kiosk account once:
+`scripts\kioskmode.bat`, as administrator, does the whole thing: puts the app on
+the device for every account, works out the identity kiosk mode wants, and
+assigns it to the account you name. `scripts\kioskmode.bat off` undoes it.
 
-```powershell
-Add-AppxProvisionedPackage -Online -PackagePath build\UpgamingRoaster.msix -SkipLicense
-```
+Use it rather than Settings. The picker lists applications installed for the
+account being locked down, and `Add-AppxPackage` installs for whoever ran it, so
+an app packaged from your account is missing from the list of an account that
+has never seen it. That is nearly always what an empty picker means.
 
-Then check Windows knows it by name, which is what the picker reads:
+An account that has never signed in does not have the app yet either. Sign in as
+it once, sign out, and run the script again.
 
-```powershell
-Get-StartApps | Where-Object Name -like '*Roaster*'
-```
-
-The AppID it prints is the identity kiosk mode wants. Assign it without the
-picker:
-
-```powershell
-Set-AssignedAccess -AppUserModelId '<the AppID>' -UserName '<the account>'
-```
-
-If neither takes it, the edition is the reason rather than the package. Single
-app kiosk was built around UWP apps, and this is a desktop application in a
-package, which is a different thing however installed it looks. The two routes
+If Windows still refuses, the edition is the reason rather than the package.
+Single app kiosk was built around store apps, and this is a desktop application
+in a package, which is a different thing however installed it looks. The routes
 left are Shell Launcher, on Enterprise, Education and IoT Enterprise, and
-`scripts\lockdown.bat`, which replaces the shell and works on every edition.
+`scripts\lockdown.bat`, which replaces the shell and needs no packaging at all.
+
+`scripts\check.bat` reports where the app is installed and what kiosk mode is
+set to, which is the quickest way to tell those apart.
 
 ### Putting it on a device with no terminal
 

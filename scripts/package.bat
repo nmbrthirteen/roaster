@@ -92,7 +92,10 @@ if errorlevel 1 goto :fail
 
 echo.
 echo   Installed as Upgaming Roaster. It starts by itself at sign-in.
-echo   Settings, Accounts, Other users, Set up a kiosk, and it is in the list.
+echo.
+echo   To lock the device to it, run scripts\kioskmode.bat rather than the
+echo   picker in Settings. The picker only lists applications the locked-down
+echo   account already has, and that is not the account this was installed for.
 echo.
 echo   To put it on another device with no terminal, copy these two files:
 echo     build\Upgaming.cer            double click, install to

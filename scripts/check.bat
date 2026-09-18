@@ -31,7 +31,11 @@ if exist roaster.exe (echo     roaster.exe: built) else (echo     roaster.exe: M
 
 echo.
 echo   [Installed package]
-powershell -NoProfile -Command "$p=Get-AppxPackage -Name 'Upgaming.Roaster'; if ($p) { Write-Host ('    installed ' + $p.Version) } else { Write-Host '    NOT installed' }"
+powershell -NoProfile -Command "$p = Get-AppxPackage -Name 'Upgaming.Roaster'; if (-not $p) { $p = Get-AppxPackage -AllUsers -Name 'Upgaming.Roaster' -ErrorAction SilentlyContinue | Select-Object -First 1 }; if ($p) { Write-Host ('    installed ' + $p.Version); Write-Host ('    identity  ' + $p.PackageFamilyName + '!Roaster') } else { Write-Host '    NOT installed' }; try { $v = Get-AppxProvisionedPackage -Online | Where-Object DisplayName -eq 'Upgaming.Roaster'; if ($v) { Write-Host '    on the device for every account' } else { Write-Host '    only for the account that installed it' } } catch { Write-Host '    cannot tell who has it, this window is not administrator' }"
+
+echo.
+echo   [Kiosk mode]
+powershell -NoProfile -Command "try { $a = Get-AssignedAccess; if ($a) { $a | ForEach-Object { Write-Host ('    ' + $_.UserName + ' runs ' + $_.AppUserModelId) } } else { Write-Host '    not set' } } catch { Write-Host ('    cannot tell: ' + $_.Exception.Message) }"
 
 echo.
 echo   [Certificate trust]
