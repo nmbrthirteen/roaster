@@ -40,6 +40,50 @@ type station struct {
 	// Finished roasts, kept so the kiosk can ask for the printable bytes after the
 	// audit without sending the whole document back and forth.
 	roasts map[string]roast.Roast
+
+	printed   int
+	lastError string
+	lastRoast *roast.Roast
+}
+
+// note records the last thing that went wrong, so the hidden menu can show it
+// without anyone reading a log file on a locked machine.
+func (s *station) note(msg string) {
+	s.mu.Lock()
+	s.lastError = msg
+	s.mu.Unlock()
+}
+
+func (s *station) counted() {
+	s.mu.Lock()
+	s.printed++
+	s.lastError = ""
+	s.mu.Unlock()
+}
+
+func (s *station) stats() (int, string, *roast.Roast) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.printed, s.lastError, s.lastRoast
+}
+
+func (s *station) setTerminal(v string) error {
+	s.mu.Lock()
+	s.cfg.Terminal, s.saved.Terminal = v, v
+	saved, path := s.saved, s.path
+	s.mu.Unlock()
+	return config.Save(path, saved)
+}
+
+func (s *station) setProvider(v string) error {
+	if v != "demo" && v != "remote" {
+		return fmt.Errorf("provider must be demo or remote")
+	}
+	s.mu.Lock()
+	s.cfg.Provider, s.saved.Provider = v, v
+	saved, path := s.saved, s.path
+	s.mu.Unlock()
+	return config.Save(path, saved)
 }
 
 func (s *station) keep(r roast.Roast) {
@@ -49,6 +93,7 @@ func (s *station) keep(r roast.Roast) {
 		s.roasts = map[string]roast.Roast{}
 	}
 	s.roasts[r.Code] = r
+	s.lastRoast = &r
 }
 
 func (s *station) recall(code string) (roast.Roast, bool) {
@@ -266,6 +311,10 @@ func main() {
 	// Choosing a printer persists to the settings file, so a device is set up once
 	// by hand and never again.
 	mux.HandleFunc("/printer", func(w http.ResponseWriter, r *http.Request) {
+		if pin := st.config().AdminPIN; pin != "" && r.Header.Get("X-Admin-Pin") != pin {
+			http.Error(w, "Wrong code.", http.StatusForbidden)
+			return
+		}
 		if r.Method != http.MethodPost {
 			http.Error(w, "post only", http.StatusMethodNotAllowed)
 			return
@@ -285,15 +334,18 @@ func main() {
 	send := func(w http.ResponseWriter, doc *receipt.Doc, what string) {
 		prn, _ := st.printer()
 		if prn == nil {
+			st.note("No printer selected.")
 			http.Error(w, "Pick a printer first.", http.StatusPreconditionFailed)
 			return
 		}
 		job := doc.ESCPOS(assets)
 		if err := prn.Print(job); err != nil {
 			log.Printf("print: %v", err)
+			st.note(err.Error())
 			http.Error(w, err.Error(), http.StatusBadGateway)
 			return
 		}
+		st.counted()
 		fmt.Fprintf(w, "Sent %s, %d bytes to %s.", what, len(job), prn.Name())
 	}
 
@@ -315,6 +367,10 @@ func main() {
 	})
 
 	mux.HandleFunc("/event", func(w http.ResponseWriter, r *http.Request) {
+		if pin := st.config().AdminPIN; pin != "" && r.Header.Get("X-Admin-Pin") != pin {
+			http.Error(w, "Wrong code.", http.StatusForbidden)
+			return
+		}
 		if r.Method != http.MethodPost {
 			http.Error(w, "post only", http.StatusMethodNotAllowed)
 			return
@@ -327,6 +383,10 @@ func main() {
 	})
 
 	mux.HandleFunc("/events", func(w http.ResponseWriter, r *http.Request) {
+		if pin := st.config().AdminPIN; pin != "" && r.Header.Get("X-Admin-Pin") != pin {
+			http.Error(w, "Wrong code.", http.StatusForbidden)
+			return
+		}
 		if r.Method != http.MethodPost {
 			http.Error(w, "post only", http.StatusMethodNotAllowed)
 			return
@@ -433,6 +493,9 @@ func main() {
 
 	// Health is what a kiosk browser polls to decide the app is alive.
 	started := time.Now()
+
+	admin{st: st, started: started, pick: pick, send: send}.routes(mux)
+
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		_, spec := st.printer()
 		w.Header().Set("Content-Type", "application/json")

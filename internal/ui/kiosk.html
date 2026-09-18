@@ -128,6 +128,81 @@
   }
   .note { font-family: var(--mono); font-size: 14px; color: var(--subtle); margin: 16px 0 0; min-height: 1.3em; }
 
+
+  /* Hidden menu. A device locked to one app still has to be serviceable, so
+     everything an operator would otherwise open Windows for lives here. */
+  .admin {
+    position: fixed; inset: 0; z-index: 50; background: rgba(7, 7, 7, .92);
+    display: grid; place-items: center; padding: clamp(16px, 4vw, 48px);
+    text-align: left;
+  }
+  .admin[hidden] { display: none; }
+  .panel {
+    width: min(100%, 560px); max-height: 92vh; overflow-y: auto;
+    background: var(--surface); border: 1px solid var(--border);
+    padding: clamp(20px, 3vw, 32px);
+  }
+  .panel h2 {
+    font-family: var(--display); font-weight: 900; text-transform: uppercase;
+    font-size: clamp(20px, 3vw, 28px); line-height: 1.2; margin: 0 0 4px;
+  }
+  .panel h3 {
+    font-family: var(--mono); font-size: 13px; font-weight: 700; color: var(--primary);
+    margin: 26px 0 10px; text-transform: none;
+  }
+  .panel p { font-family: var(--mono); font-size: 13px; color: var(--muted); margin: 0; }
+
+  .facts { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; font-family: var(--mono); font-size: 13px; }
+  .facts dt { color: var(--subtle); }
+  .facts dd { margin: 0; color: var(--white); text-align: right; }
+  .facts dd.warn { color: #ff6b6b; }
+
+  #aNewForm { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+  #aNewForm[hidden] { display: none; }
+
+  .admin select, .admin input {
+    width: 100%; font-family: var(--mono); font-size: 15px; color: var(--white);
+    background: var(--elevated); border: 1px solid var(--border); border-radius: 0;
+    padding: 12px 14px; text-align: left;
+  }
+  .admin select:focus, .admin input:focus { outline: none; border-color: var(--primary); }
+
+  .acts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 10px; }
+  .acts button, .admin .full {
+    font-family: var(--mono); font-size: 14px; font-weight: 600; font-style: normal;
+    border-radius: 0; padding: 13px 10px; background: var(--elevated); color: var(--white);
+    border: 1px solid var(--border);
+  }
+  .acts button:hover:not(:disabled) { border-color: var(--primary); }
+  .acts .danger { color: #ff8585; }
+  .acts .danger.armed { background: #ff6b6b; color: var(--black); border-color: #ff6b6b; }
+  .admin .full { width: 100%; grid-column: 1 / -1; }
+  .admin .go2 { background: var(--primary); color: var(--black); border-color: var(--primary); }
+
+  .nets { display: flex; flex-direction: column; gap: 6px; max-height: 210px; overflow-y: auto; }
+  .nets button {
+    display: flex; justify-content: space-between; gap: 12px; text-align: left;
+    font-family: var(--mono); font-size: 14px; font-weight: 400; font-style: normal;
+    background: var(--elevated); color: var(--white); border: 1px solid var(--border);
+    border-radius: 0; padding: 11px 13px;
+  }
+  .nets button span:last-child { color: var(--subtle); }
+
+  .pins { display: flex; justify-content: center; gap: 10px; margin: 20px 0 18px; }
+  .pins i {
+    width: 13px; height: 13px; border-radius: 50%; border: 1px solid var(--border);
+    display: block;
+  }
+  .pins i.on { background: var(--primary); border-color: var(--primary); }
+  .pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .pad button {
+    font-family: var(--mono); font-size: 20px; font-weight: 400; font-style: normal;
+    background: var(--elevated); color: var(--white); border: 1px solid var(--border);
+    border-radius: 0; padding: 16px 0;
+  }
+  .said { font-family: var(--mono); font-size: 13px; color: var(--primary); margin-top: 14px; min-height: 1.4em; }
+  .said.bad { color: #ff6b6b; }
+
   @media (prefers-reduced-motion: reduce) {
     * { animation: none !important; transition-duration: .01ms !important; }
   }
@@ -166,6 +241,16 @@
   <button class="wide" id="print" style="margin-top:clamp(28px,5vh,48px)">Print my receipt</button>
   <p class="note" id="note"></p>
 </section>
+
+
+<div class="admin" id="admin" hidden>
+  <div class="panel">
+    <h2 id="adminTitle">Enter code</h2>
+    <p id="adminHint">Five taps on the mark opened this.</p>
+    <div id="adminBody"></div>
+    <p class="said" id="said"></p>
+  </div>
+</div>
 
 <script>
 (() => {
@@ -298,7 +383,14 @@
       await granted.open({ baudRate: 115200 });
       this.port = granted;
     },
+    async connect() {
+      if (!('serial' in navigator)) throw new Error('This browser has no Web Serial.');
+      const port = await navigator.serial.requestPort();
+      await port.open({ baudRate: 115200 });
+      this.port = port;
+    },
     async write(bytes) {
+      if (!this.port) throw new Error('Connect the printer first.');
       const writer = this.port.writable.getWriter();
       try {
         for (let i = 0; i < bytes.length; i += 64) await writer.write(bytes.subarray(i, i + 64));
@@ -330,6 +422,328 @@
       $('note').textContent = err.message || String(err);
     }
   });
+
+
+  // ---- Hidden menu ------------------------------------------------------
+  // Five taps on the mark, then a code. Two gates, because a curious visitor
+  // will find one of them.
+  const admin = {
+    pin: '', code: '', taps: [], attempts: 0, lockedUntil: 0,
+    el: $('admin'), title: $('adminTitle'), hint: $('adminHint'),
+    body: $('adminBody'), said: $('said'),
+  };
+
+  const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const say = (msg, bad) => { admin.said.textContent = msg; admin.said.classList.toggle('bad', !!bad); };
+
+  document.querySelectorAll('.mark').forEach(mark => {
+    mark.style.cursor = 'default';
+    mark.addEventListener('click', () => {
+      const now = Date.now();
+      admin.taps = admin.taps.filter(t => now - t < 3000).concat(now);
+      if (admin.taps.length >= 5) { admin.taps = []; openAdmin(); }
+    });
+  });
+
+  function openAdmin() {
+    if (Date.now() < admin.lockedUntil) {
+      return;
+    }
+    admin.pin = '';
+    admin.el.hidden = false;
+    clearTimeout(idleTimer);
+    renderPad();
+  }
+
+  function closeAdmin() {
+    admin.el.hidden = true;
+    admin.code = '';
+    say('');
+    resetIdleTimer();
+  }
+
+  function renderPad() {
+    admin.title.textContent = 'Enter code';
+    admin.hint.textContent = 'Five taps on the mark opened this.';
+    const dots = [0, 1, 2, 3].map(i => `<i class="${i < admin.pin.length ? 'on' : ''}"></i>`).join('');
+    const keys = [1, 2, 3, 4, 5, 6, 7, 8, 9, 'close', 0, 'del']
+      .map(k => `<button data-k="${k}">${k === 'del' ? '&larr;' : k === 'close' ? '&times;' : k}</button>`).join('');
+    admin.body.innerHTML = `<div class="pins">${dots}</div><div class="pad">${keys}</div>`;
+
+    admin.body.querySelectorAll('[data-k]').forEach(b => b.addEventListener('click', () => {
+      const k = b.dataset.k;
+      if (k === 'close') return closeAdmin();
+      if (k === 'del') { admin.pin = admin.pin.slice(0, -1); return renderPad(); }
+      if (admin.pin.length >= 8) return;
+      admin.pin += k;
+      renderPad();
+      if (admin.pin.length === 4) verify();
+    }));
+  }
+
+  async function verify() {
+    const code = admin.pin;
+    say('Checking...');
+    try {
+      const res = await fetch('/admin/state', { headers: { 'X-Admin-Pin': code } });
+      if (res.status === 403) {
+        admin.attempts++;
+        admin.pin = '';
+        // Five wrong codes and the menu goes away for a minute. Nobody at a
+        // booth is guessing a fourth digit patiently.
+        if (admin.attempts >= 5) {
+          admin.lockedUntil = Date.now() + 60000;
+          admin.attempts = 0;
+          closeAdmin();
+          return;
+        }
+        renderPad();
+        return say('Wrong code.', true);
+      }
+      if (!res.ok) throw new Error(await res.text());
+      admin.code = code;
+      admin.attempts = 0;
+      renderMenu(await res.json());
+      say('');
+    } catch (err) {
+      say(err.message || 'Could not reach the server.', true);
+    }
+  }
+
+  const call = async (path, body) => {
+    const res = await fetch(path, {
+      method: body === undefined ? 'GET' : 'POST',
+      headers: { 'X-Admin-Pin': admin.code },
+      body,
+    });
+    const text = await res.text();
+    if (!res.ok) throw new Error(text || res.statusText);
+    return text;
+  };
+
+  async function refresh() {
+    try { renderMenu(JSON.parse(await call('/admin/state'))); }
+    catch (err) { say(err.message, true); }
+  }
+
+  function renderMenu(s) {
+    admin.title.textContent = 'Terminal ' + s.terminal;
+    admin.hint.textContent = s.event;
+
+    const mins = Math.floor(s.uptimeSeconds / 60);
+    const wifi = s.wifi && s.wifi.connected
+      ? `${esc(s.wifi.ssid)} ${s.wifi.signal}%`
+      : 'not connected';
+    const serialState = serial.port ? 'connected in browser' : (s.printer ? esc(s.printer) : 'none selected');
+
+    admin.body.innerHTML = `
+      <dl class="facts">
+        <dt>Printer</dt><dd class="${serial.port || s.printer ? '' : 'warn'}">${serialState}</dd>
+        <dt>Wi-Fi</dt><dd class="${s.wifi && s.wifi.connected ? '' : 'warn'}">${wifi}</dd>
+        <dt>Roasts</dt><dd>${s.printed}</dd>
+        <dt>Running</dt><dd>${mins} min</dd>
+        <dt>Roasts from</dt><dd>${esc(s.provider)}</dd>
+        ${s.lastError ? `<dt>Last error</dt><dd class="warn">${esc(s.lastError)}</dd>` : ''}
+      </dl>
+
+      <h3>Printer</h3>
+      <select id="aPrinter">
+        <option value="browser">This browser, over Web Serial</option>
+        <option value="">None</option>
+        ${(s.printers || []).map(p => `<option value="${esc(p.spec)}"${p.spec === s.printer ? ' selected' : ''}>${esc(p.label)}</option>`).join('')}
+      </select>
+      <div class="acts">
+        <button id="aConnect">Connect printer</button>
+        <button id="aTest">Test slip</button>
+        <button id="aReprint" class="full"${s.canReprint ? '' : ' disabled'}>Reprint the last receipt</button>
+      </div>
+
+      <h3>Wi-Fi</h3>
+      <div class="acts"><button id="aScan" class="full">Scan for networks</button></div>
+      <div class="nets" id="aNets"></div>
+
+      <h3>Event</h3>
+      <select id="aEvent">
+        ${(s.events || []).map(e => `<option value="${esc(e.code)}"${e.code === s.event ? ' selected' : ''}>${esc(e.name)}</option>`).join('')}
+      </select>
+
+      <div class="acts">
+        <button id="aNewEvent" class="full">Add an event</button>
+      </div>
+      <div id="aNewForm" hidden>
+        <input id="aName" placeholder="Berlin JS Conf 2026" maxlength="48">
+        <input id="aTitle" placeholder="Receipt headline, 21 characters" maxlength="21">
+        <input id="aStub" placeholder="Hiring line on the stub" maxlength="42">
+        <div class="acts">
+          <button id="aCreate" class="go2">Create and switch</button>
+          <button id="aCancel">Cancel</button>
+        </div>
+      </div>
+
+      <h3>Terminal number</h3>
+      <input id="aTerminal" value="${esc(s.terminal)}" maxlength="6" inputmode="numeric">
+
+      <h3>Power</h3>
+      <div class="acts">
+        <button id="aRestart">Restart app</button>
+        <button id="aQuit" class="danger">Exit kiosk</button>
+        <button id="aReboot" class="danger">Reboot device</button>
+        <button id="aOff" class="danger">Shut down</button>
+        <button id="aClose" class="full go2">Back to the kiosk</button>
+      </div>`;
+
+    on('aClose', closeAdmin);
+
+    on('aPrinter', async e => {
+      if (e.target.value === 'browser') return say('Press Connect printer.');
+      try { say(await call('/printer', new URLSearchParams({ spec: e.target.value }))); }
+      catch (err) { say(err.message, true); }
+    }, 'change');
+
+    on('aConnect', async () => {
+      try { await serial.connect(); say('Printer connected in this browser.'); }
+      catch (err) { say(err.message || 'No printer chosen.', true); }
+    });
+
+    on('aTest', () => act(async () => {
+      if (serial.port) { await printBytes('/test.bin'); return 'Test slip sent from this browser.'; }
+      return await call('/print/test', new URLSearchParams());
+    }));
+
+    on('aReprint', () => act(async () => {
+      if (serial.port) { await printBytes('/receipt.bin?code=' + encodeURIComponent(lastCode())); return 'Reprinted from this browser.'; }
+      return await call('/admin/reprint', new URLSearchParams());
+    }));
+
+    on('aScan', () => act(async () => {
+      say('Scanning...');
+      const nets = JSON.parse(await call('/admin/wifi/scan'));
+      renderNetworks(nets);
+      return nets.length ? `${nets.length} networks.` : 'No networks in range.';
+    }));
+
+    on('aEvent', async e => {
+      try {
+        say(await call('/event', new URLSearchParams({ code: e.target.value })));
+        setTimeout(() => location.search = '?event=' + encodeURIComponent(e.target.value), 600);
+      } catch (err) { say(err.message, true); }
+    }, 'change');
+
+    on('aNewEvent', () => {
+      const form = $('aNewForm');
+      form.hidden = !form.hidden;
+      if (!form.hidden) $('aName').focus();
+    });
+    on('aCancel', () => { $('aNewForm').hidden = true; say(''); });
+
+    on('aCreate', () => act(async () => {
+      const name = $('aName').value.trim();
+      if (!name) throw new Error('The event needs a name.');
+      const body = new URLSearchParams({
+        name,
+        title: $('aTitle').value.trim(),
+        stub: $('aStub').value.trim(),
+        from: s.event,
+      });
+      const msg = await call('/events', body);
+      const code = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      await call('/event', new URLSearchParams({ code }));
+      setTimeout(() => location.search = '?event=' + encodeURIComponent(code), 700);
+      return msg;
+    }));
+
+    on('aTerminal', e => act(async () =>
+      await call('/admin/settings', new URLSearchParams({ terminal: e.target.value.trim() || '001' }))), 'change');
+
+    on('aRestart', () => act(async () => {
+      const msg = await call('/admin/restart', new URLSearchParams());
+      setTimeout(() => location.reload(), 4000);
+      return msg;
+    }));
+
+    confirmed('aQuit', [
+      'Exit the kiosk and leave the stand unattended?',
+      'The screen will drop to Windows. Confirm.',
+    ], () => call('/admin/quit', new URLSearchParams()));
+
+    confirmed('aReboot', [
+      'Reboot the device?',
+      'The stand is down for about a minute. Confirm.',
+    ], () => call('/admin/reboot', new URLSearchParams()));
+
+    confirmed('aOff', [
+      'Shut the device down?',
+      'Someone has to press the power button to bring it back. Confirm.',
+    ], () => call('/admin/shutdown', new URLSearchParams()));
+  }
+
+  function renderNetworks(nets) {
+    const box = $('aNets');
+    if (!box) return;
+    box.innerHTML = nets.map((n, i) =>
+      `<button data-i="${i}"><span>${esc(n.ssid)}${n.saved ? ' &check;' : ''}</span><span>${n.signal}%${n.secure ? ' &#128274;' : ''}</span></button>`
+    ).join('');
+    box.querySelectorAll('[data-i]').forEach(b => b.addEventListener('click', () => {
+      const n = nets[Number(b.dataset.i)];
+      // A saved network needs no password; a new secured one does.
+      const pass = n.secure && !n.saved ? prompt('Password for ' + n.ssid) : '';
+      if (pass === null) return;
+      act(async () => await call('/admin/wifi/connect', new URLSearchParams({ ssid: n.ssid, password: pass || '' })));
+    }));
+  }
+
+  // Anything that ends the event asks twice, and forgets after five seconds of
+  // hesitation. One stray tap on a touchscreen must never reboot the stand.
+  function confirmed(id, prompts, run) {
+    const b = $(id);
+    if (!b) return;
+    const label = b.textContent;
+    let step = 0, timer = null;
+
+    const reset = () => {
+      clearTimeout(timer);
+      step = 0;
+      b.textContent = label;
+      b.classList.remove('armed');
+      say('');
+    };
+
+    b.addEventListener('click', () => {
+      clearTimeout(timer);
+      if (step < prompts.length) {
+        say(prompts[step], true);
+        b.textContent = step === prompts.length - 1 ? 'Confirm' : 'Tap again';
+        b.classList.add('armed');
+        step++;
+        timer = setTimeout(reset, 5000);
+        return;
+      }
+      reset();
+      act(run);
+    });
+  }
+
+  async function act(run) {
+    try {
+      const msg = await run();
+      if (msg) say(msg);
+    } catch (err) {
+      say(err.message || String(err), true);
+    }
+  }
+
+  function on(id, fn, ev) {
+    const el = $(id);
+    if (el) el.addEventListener(ev || 'click', fn);
+  }
+
+  function lastCode() { return roast ? roast.code : ''; }
+
+  async function printBytes(path) {
+    const res = await fetch(path);
+    if (!res.ok) throw new Error(await res.text());
+    await serial.write(new Uint8Array(await res.arrayBuffer()));
+  }
 
   // Third level of supervision: the page is up but the server behind it went
   // away. Three misses is about 45 seconds, enough to ride out a restart.

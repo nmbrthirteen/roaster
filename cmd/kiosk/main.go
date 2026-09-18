@@ -35,6 +35,9 @@ const (
 	// neither is worth reopening forever.
 	briefSession = 15 * time.Second
 	giveUpAfter  = 2
+
+	// Written by the server when an operator leaves through the hidden menu.
+	quitFile = ".quit"
 )
 
 func main() {
@@ -80,11 +83,17 @@ func main() {
 	// Closing the app once is usually an accident, so it reopens. Closing it
 	// again straight away is not, so it stops. Without that second rule there
 	// is no way off the stand short of Task Manager.
+	clearQuit()
 	brief := 0
 	for {
 		started := time.Now()
 		run(browser, browserArgs(target, *windowed))
 		if *once || *preview {
+			return
+		}
+		if askedToQuit() {
+			log.Printf("closed from the menu")
+			clearQuit()
 			return
 		}
 
@@ -161,6 +170,9 @@ func supervise(server string, stop <-chan struct{}) {
 			brief = 0
 		}
 
+		if askedToQuit() {
+			return
+		}
 		select {
 		case <-stop:
 			return
@@ -169,6 +181,15 @@ func supervise(server string, stop <-chan struct{}) {
 		}
 	}
 }
+
+func quitPath() string { return filepath.Join(filepath.Dir(mustExe()), quitFile) }
+
+func askedToQuit() bool {
+	_, err := os.Stat(quitPath())
+	return err == nil
+}
+
+func clearQuit() { _ = os.Remove(quitPath()) }
 
 func run(name string, args []string) {
 	cmd := exec.Command(name, args...)

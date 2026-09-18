@@ -24,6 +24,10 @@ type Config struct {
 	// call a service that holds them.
 	Provider string `json:"provider"`
 
+	// AdminPIN guards the hidden menu. Change it before an event: the menu can
+	// reboot the machine.
+	AdminPIN string `json:"adminPin"`
+
 	// RemoteURL is the roast endpoint. The terminal's token lives beside the
 	// binary rather than in here, so a settings file carries nothing secret.
 	RemoteURL string `json:"remoteUrl"`
@@ -36,6 +40,7 @@ func Defaults() Config {
 		EventsDir: "events",
 		KioskURL:  "http://localhost:3000/kiosk",
 		Provider:  "demo",
+		AdminPIN:  "1379",
 	}
 }
 

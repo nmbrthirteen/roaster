@@ -21,3 +21,6 @@ kiosk-profile/
 
 # Terminal token, machine-bound. Never commit.
 terminal.token
+
+# Written by the hidden menu when an operator leaves
+.quit
