@@ -1,0 +1,78 @@
+// Package config keeps the per-device settings in a file beside the binary.
+// Moving the kiosk to another machine should mean editing two lines, not
+// remembering a command line.
+package config
+
+import (
+	"encoding/json"
+	"errors"
+	"flag"
+	"fmt"
+	"io/fs"
+	"os"
+)
+
+type Config struct {
+	Addr      string `json:"addr"`      // listen address
+	Terminal  string `json:"terminal"`  // printed on every receipt, one per stand
+	Printer   string `json:"printer"`   // tcp:host:9100, lp:queue or file:path
+	Event     string `json:"event"`     // event code the kiosk opens on
+	EventsDir string `json:"eventsDir"` // event files that override the built-in ones
+	KioskURL  string `json:"kioskUrl"`  // what the kiosk launcher opens
+}
+
+func Defaults() Config {
+	return Config{
+		Addr:      ":3000",
+		Terminal:  "001",
+		EventsDir: "events",
+		KioskURL:  "http://localhost:3000",
+	}
+}
+
+// Load reads path over the defaults. A missing file is not an error: a fresh
+// device runs on the defaults until someone writes one.
+func Load(path string) (Config, error) {
+	c := Defaults()
+	raw, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return c, nil
+	}
+	if err != nil {
+		return c, err
+	}
+	if err := json.Unmarshal(raw, &c); err != nil {
+		return c, fmt.Errorf("%s: %w", path, err)
+	}
+	return c, nil
+}
+
+// ApplyFlags lets an explicit flag win over the file, so a single odd run does
+// not need the file edited and put back.
+func ApplyFlags(c *Config, fs *flag.FlagSet) {
+	fs.Visit(func(f *flag.Flag) {
+		v := f.Value.String()
+		switch f.Name {
+		case "addr":
+			c.Addr = v
+		case "terminal":
+			c.Terminal = v
+		case "printer":
+			c.Printer = v
+		case "event":
+			c.Event = v
+		case "events":
+			c.EventsDir = v
+		}
+	})
+}
+
+// Save writes the settings back, so a printer chosen in the UI survives a
+// restart without anyone editing the file by hand.
+func Save(path string, c Config) error {
+	raw, err := json.MarshalIndent(c, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, append(raw, '\n'), 0o644)
+}

@@ -1,0 +1,22 @@
+{
+  "code": "example-event",
+  "name": "Example Meetup 2026",
+  "packs": [
+    "github"
+  ],
+  "receipt": {
+    "title": "Performance review",
+    "logo": "logo",
+    "rule": "-",
+    "heavy": "=",
+    "cta": "Scan for your digital receipt",
+    "stub": "Hiring now at Upgaming",
+    "shareBase": "https://lifeat.upgaming.com/k"
+  },
+  "kiosk": {
+    "headline": "Roast your GitHub",
+    "subhead": "Good code deserves a good roast",
+    "accent": "#1de9b6",
+    "surface": "#0a0a0f"
+  }
+}

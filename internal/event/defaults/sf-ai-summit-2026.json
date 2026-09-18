@@ -1,0 +1,22 @@
+{
+  "code": "sf-ai-summit-2026",
+  "name": "SF AI Summit 2026",
+  "packs": [
+    "github"
+  ],
+  "receipt": {
+    "title": "Performance review",
+    "logo": "logo",
+    "rule": "-",
+    "cta": "Scan for your digital receipt",
+    "shareBase": "https://lifeat.upgaming.com/k",
+    "heavy": "=",
+    "stub": "Hiring now at Upgaming"
+  },
+  "kiosk": {
+    "headline": "Roast your GitHub",
+    "subhead": "Good code deserves a good roast",
+    "accent": "#1de9b6",
+    "surface": "#0a0a0f"
+  }
+}

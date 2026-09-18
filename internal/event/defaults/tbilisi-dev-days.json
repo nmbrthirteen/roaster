@@ -1,0 +1,22 @@
+{
+  "code": "tbilisi-dev-days",
+  "name": "Tbilisi Dev Days",
+  "packs": [
+    "github"
+  ],
+  "receipt": {
+    "title": "Annual code appraisal",
+    "logo": "logo",
+    "rule": "=",
+    "cta": "Scan for your digital receipt",
+    "shareBase": "https://lifeat.upgaming.com/k",
+    "heavy": "*",
+    "stub": "We are hiring in Tbilisi"
+  },
+  "kiosk": {
+    "headline": "Roast your GitHub",
+    "subhead": "We read your commits so you do not have to",
+    "accent": "#1de9b6",
+    "surface": "#07110e"
+  }
+}

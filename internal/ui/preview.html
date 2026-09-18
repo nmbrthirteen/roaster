@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Receipt designer</title>
+<style>
+  :root {
+    --ink: #0a0a0f; --surface: #141419; --line: #24242c;
+    --text: #e9e9ef; --muted: #85859a; --accent: #a29bf7;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --fs: 13px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--ink); color: var(--text);
+    font-family: var(--sans); display: grid; grid-template-columns: 260px 1fr;
+  }
+
+  .rail { border-right: 1px solid var(--line); padding: 24px 20px; display: flex; flex-direction: column; gap: 22px; }
+  .rail h1 { font-size: 14px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+  .rail h1 span { color: var(--muted); font-weight: 400; }
+  .field { display: flex; flex-direction: column; gap: 7px; }
+  .field label { font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; }
+  .field label b { color: var(--text); font-weight: 500; font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  select {
+    width: 100%; background: var(--surface); color: var(--text); font: inherit; font-size: 13px;
+    border: 1px solid var(--line); border-radius: 7px; padding: 8px 10px; cursor: pointer;
+  }
+  select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  input[type=text], input:not([type]) {
+    width: 100%; background: var(--surface); color: var(--text); font: inherit; font-size: 13px;
+    border: 1px solid var(--line); border-radius: 7px; padding: 8px 10px;
+  }
+  input::placeholder { color: var(--muted); }
+  details { font-size: 13px; }
+  summary { color: var(--muted); cursor: pointer; padding: 4px 0; list-style: none; }
+  summary::before { content: "+ "; }
+  details[open] summary::before { content: "- "; }
+  summary:hover { color: var(--text); }
+  .stack { display: flex; flex-direction: column; gap: 7px; padding: 8px 0 2px; }
+  .toggle { display: flex; align-items: center; gap: 9px; font-size: 13px; color: var(--text); cursor: pointer; }
+  .toggle input { accent-color: var(--accent); width: 15px; height: 15px; }
+  .stat { font-family: var(--mono); font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; }
+  .stat b { color: var(--text); font-weight: 500; }
+  button {
+    width: 100%; font: inherit; font-size: 13px; font-weight: 500; cursor: pointer;
+    background: var(--accent); color: #07110e; border: 0; border-radius: 7px; padding: 10px 12px;
+    transition: opacity .12s ease;
+  }
+  button:hover { opacity: .88; }
+  button:disabled { background: var(--surface); color: var(--muted); border: 1px solid var(--line); cursor: not-allowed; }
+  button.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); }
+  #status { font-size: 12px; color: var(--muted); min-height: 15px; line-height: 1.4; }
+
+  .rail footer { margin-top: auto; font-size: 12px; color: var(--muted); line-height: 1.5; }
+  .rail footer a { color: var(--accent); text-decoration: none; }
+
+  .stage { display: grid; place-items: start center; padding: 48px 24px 96px; overflow: auto; }
+
+  /* The paper. 42 columns is the printable width of an 80mm head in Font A. */
+  .paper {
+    /* 80mm of paper, 72mm of it printable: 42 columns plus the dead margin the
+       head cannot reach. The text gutter sits inside those 42 columns. */
+    background: #fbfbf9; color: #16161a; width: 46.7ch; padding: 20px 2.35ch 12px;
+    font-family: var(--mono); font-size: var(--fs); line-height: 1.167;
+    box-shadow: 0 1px 2px rgba(0,0,0,.4), 0 18px 48px -12px rgba(0,0,0,.65);
+    position: relative;
+  }
+  .paper::before, .paper::after {
+    content: ""; position: absolute; left: 0; right: 0; height: 6px;
+    background: repeating-linear-gradient(90deg, #fbfbf9 0 5px, transparent 5px 6px);
+  }
+  .paper::before { top: -6px; } .paper::after { bottom: -6px; transform: scaleY(-1); }
+
+  .ln { white-space: pre; }
+  .b { font-weight: 700; }
+  .u { text-decoration: underline; text-underline-offset: 2px; }
+  .inv { background: #16161a; color: #fbfbf9; }
+  .dw { font-size: 2em; line-height: 1.167; font-weight: 700; }
+  .th { font-size: 2em; line-height: 1.167; font-weight: 700; width: 200%; transform: scaleX(.5); transform-origin: left center; }
+  .img, .qr { display: flex; justify-content: center; padding: 2px 0; }
+  .img img { image-rendering: pixelated; }
+  .qr img { image-rendering: pixelated; }
+  .cut { border-top: 1px dashed #b9b9b2; margin-top: 4px; }
+
+  .caliper { display: none; }
+
+  /* Printing the designer on an office printer gives a true-size mock-up:
+     80mm of paper with the 42 columns landing on the 72mm the head can reach. */
+  @media print {
+    /* Naming the page size stops the dialog defaulting to whatever was used
+       last. A4 is 297mm tall, so a 259mm receipt lands on one sheet. */
+
+    body { display: block; background: #fff; }
+    .rail, .cut { display: none; }
+    .stage { display: block; padding: 8mm 0 0 8mm; overflow: visible; }
+
+    /* A thermal driver exposes the printable width as the page, so the receipt
+       fills it with no margin. An office sheet needs the unprintable edge drawn
+       in, or the mock-up is 8mm narrower than the real thing. */
+    body.thermal .stage { padding: 0; }
+    body.thermal .paper { width: 72mm; padding: 0; }
+    body.thermal .caliper { width: 72mm; }
+
+    .paper {
+      width: 80mm; padding: 4mm; box-shadow: none;
+      background: #fff; color: #000;
+      font-size: 2.857mm;  /* 42 monospace columns across the 72mm a head reaches */
+      /* Force the reversed section bars to print even if the browser's
+         background graphics box is off. */
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+    .paper::before, .paper::after { display: none; }
+
+    /* Caliper: measure it after printing. Anything but 80mm means the scale
+       was not 100 and the receipt is the wrong size. */
+    .inv { background: #000; color: #fff; }
+    .caliper { display: block; width: 80mm; margin: 0 0 3mm; }
+    .caliper .bar { height: 3mm; border: 0.3mm solid #000; border-bottom: 0; }
+    .caliper .label { font: 2.6mm var(--mono); text-align: center; padding-top: 0.6mm; }
+    .caliper .label::after { content: " print width"; }
+  }
+
+  /* Column guide: one stripe per printable character cell. */
+  .grid .paper { background-image: repeating-linear-gradient(90deg, rgba(162,155,247,.16) 0 1ch, transparent 1ch 2ch);
+                 background-position: 2.35ch 0; background-size: 42ch 100%; background-repeat: no-repeat; }
+</style>
+</head>
+<body class="thermal" style="--accent: {{.Event.Kiosk.Accent}}">
+<style id="pagesize">@page { size: 72mm 297mm; margin: 0; }</style>
+  <aside class="rail">
+    <h1>Receipt designer <span>/ 80mm</span></h1>
+
+    <div class="field">
+      <label for="ev">Event</label>
+      <select id="ev">
+        {{range .Events}}<option value="{{.Code}}"{{if eq .Code $.Event.Code}} selected{{end}}>{{.Name}}</option>{{end}}
+      </select>
+      <details>
+        <summary>New event</summary>
+        <form id="newEvent" class="stack">
+          <input name="name" placeholder="Berlin JS Conf 2026" required>
+          <input name="title" placeholder="Receipt headline, max 21 characters" maxlength="21">
+          <input name="stub" placeholder="Hiring line on the stub">
+          <input type="hidden" name="from" value="{{.Event.Code}}">
+          <button type="submit">Create and switch</button>
+        </form>
+      </details>
+    </div>
+
+    <div class="field">
+      <label for="printer">Printer</label>
+      <select id="printer">
+        <option value="browser">This browser, over Web Serial</option>
+        <option value=""{{if not .Printer}} selected{{end}}>None</option>
+        {{range .Printers}}<option value="{{.Spec}}"{{if eq .Spec $.Printer}} selected{{end}}>{{.Label}}</option>{{end}}
+        <option value="custom">Network address...</option>
+      </select>
+      <input id="custom" placeholder="tcp:192.168.1.50:9100" hidden>
+      <button class="ghost" id="connect" hidden>Connect printer</button>
+    </div>
+
+    <div class="field">
+      <label for="target">Print target</label>
+      <select id="target">
+        <option value="thermal">Thermal roll, 72mm printable</option>
+        <option value="office">Office sheet, A4</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="scale">Preview scale <b id="scaleVal">13px</b></label>
+      <input id="scale" type="range" min="9" max="30" value="13">
+    </div>
+
+    <label class="toggle"><input type="checkbox" id="grid"> Column guide</label>
+
+    <div class="field">
+      <div class="stat"><span>Columns</span><b>{{.Width}}</b></div>
+      <div class="stat"><span>Lines</span><b>{{.LineCount}}</b></div>
+      <div class="stat"><span>Paper used</span><b>{{.Millimetres}}mm</b></div>
+      <div class="stat"><span>ESC/POS job</span><b>{{.Bytes}} B</b></div>
+    </div>
+
+    <div class="field">
+      <button id="print">Print receipt</button>
+      <button class="ghost" id="test">Print test slip</button>
+      <button class="ghost" id="paper">Print on any printer</button>
+      <div id="status">{{if .Printer}}Printing to {{.Printer}}.{{else}}Pick a printer above.{{end}}</div>
+    </div>
+
+    <footer>
+      Paper A4, scale 100, margins none.<br>
+      <a href="/preview.txt">Plain text</a> &nbsp; <a href="/preview.bin">Raw bytes</a>
+    </footer>
+  </aside>
+
+  <main class="stage">
+    <div>
+      <div class="caliper"><div class="bar"></div><div class="label" id="caliperLabel">72mm</div></div>
+      <div class="paper">{{.Receipt}}</div>
+    </div>
+  </main>
+
+<script>
+  const root = document.documentElement;
+  const scale = document.getElementById('scale');
+  const scaleVal = document.getElementById('scaleVal');
+  scale.addEventListener('input', () => {
+    root.style.setProperty('--fs', scale.value + 'px');
+    scaleVal.textContent = scale.value + 'px';
+  });
+  document.getElementById('ev').addEventListener('change', async e => {
+    await post('/event', new URLSearchParams({ code: e.target.value }));
+    location.search = '?event=' + encodeURIComponent(e.target.value);
+  });
+  // @page cannot be scoped by class, so the rule is swapped wholesale.
+  const target = document.getElementById('target');
+  const status = document.getElementById('status');
+  const say = t => { status.textContent = t; };
+
+  // Web Serial lets a hosted page write ESC/POS straight to the printer, so the
+  // kiosk device needs nothing installed. The browser remembers the permission
+  // per origin, so the prompt appears once rather than every session.
+  const serial = {
+    port: null,
+    get supported() { return 'serial' in navigator; },
+    async open(port) {
+      await port.open({ baudRate: 115200 });
+      this.port = port;
+    },
+    async restore() {
+      if (!this.supported) return false;
+      const [granted] = await navigator.serial.getPorts();
+      if (!granted) return false;
+      await this.open(granted);
+      return true;
+    },
+    async connect() {
+      if (!this.supported) throw new Error('This browser has no Web Serial. Use Chrome or Edge.');
+      await this.open(await navigator.serial.requestPort());
+    },
+    async write(bytes) {
+      if (!this.port) throw new Error('Connect the printer first.');
+      const writer = this.port.writable.getWriter();
+      try {
+        // The printer buffer is a few kilobytes; small chunks let it keep up.
+        for (let i = 0; i < bytes.length; i += 64) {
+          await writer.write(bytes.subarray(i, i + 64));
+        }
+      } finally {
+        writer.releaseLock();
+      }
+    },
+  };
+
+  async function printInBrowser(path) {
+    const res = await fetch(path);
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    await serial.write(bytes);
+    say(`Printed ${bytes.length} bytes from this browser.`);
+  }
+
+  async function post(url, body) {
+    const res = await fetch(url, { method: 'POST', body });
+    const text = await res.text();
+    say(text);
+    return res.ok;
+  }
+
+  // Printer choice persists server-side, so a device is set up once.
+  const printerSel = document.getElementById('printer');
+  const custom = document.getElementById('custom');
+  const connectBtn = document.getElementById('connect');
+  const browserMode = () => printerSel.value === 'browser';
+
+  printerSel.addEventListener('change', async () => {
+    const isCustom = printerSel.value === 'custom';
+    custom.hidden = !isCustom;
+    connectBtn.hidden = !browserMode();
+    if (isCustom) { custom.focus(); return; }
+    if (browserMode()) {
+      say(serial.port ? 'Printer connected in this browser.'
+                      : 'Press Connect printer, then pick the printer in the dialog.');
+      return;
+    }
+    await post('/printer', new URLSearchParams({ spec: printerSel.value }));
+  });
+
+  connectBtn.addEventListener('click', async () => {
+    try {
+      await serial.connect();
+      say('Printer connected in this browser.');
+    } catch (err) {
+      say(err.message || String(err));
+    }
+  });
+  custom.addEventListener('change', () => post('/printer', new URLSearchParams({ spec: custom.value.trim() })));
+
+  document.getElementById('test').addEventListener('click', async () => {
+    try {
+      if (browserMode()) return printInBrowser('/test.bin' + location.search);
+      await post('/print/test' + location.search, null);
+    } catch (err) { say(err.message || String(err)); }
+  });
+
+  document.getElementById('newEvent').addEventListener('submit', async e => {
+    e.preventDefault();
+    const body = new URLSearchParams(new FormData(e.target));
+    if (await post('/events', body)) {
+      location.search = '?event=' + encodeURIComponent(slug(body.get('name')));
+    }
+  });
+  const slug = s => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+  target.addEventListener('change', e => {
+    const thermal = e.target.value === 'thermal';
+    document.getElementById('pagesize').textContent = thermal
+      ? '@page { size: 72mm 297mm; margin: 0; }'
+      : '@page { size: A4 portrait; margin: 0; }';
+    document.body.classList.toggle('thermal', thermal);
+    document.getElementById('caliperLabel').textContent = thermal ? '72mm' : '80mm';
+  });
+
+  document.getElementById('print').addEventListener('click', async e => {
+    e.target.disabled = true;
+    say('Sending...');
+    try {
+      if (browserMode()) await printInBrowser('/preview.bin' + location.search);
+      else await post('/print' + location.search, null);
+    } catch (err) { say(err.message || String(err)); }
+    e.target.disabled = false;
+  });
+
+  // Reconnect silently to a printer this origin was already granted.
+  serial.restore().then(ok => {
+    if (!ok) return;
+    printerSel.value = 'browser';
+    connectBtn.hidden = false;
+    say('Printer reconnected in this browser.');
+  }).catch(() => {});
+  document.getElementById('paper').addEventListener('click', () => window.print());
+
+  document.getElementById('grid').addEventListener('change', e => {
+    document.body.classList.toggle('grid', e.target.checked);
+  });
+</script>
+</body>
+</html>

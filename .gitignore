@@ -1,0 +1,17 @@
+# Build output
+/dist/
+/surface/
+*.exe
+/roaster
+/kiosk
+
+# Per-device settings and runtime state, written by the app itself
+roaster.json
+*.log
+
+# Secrets. The roast generation reads these from the environment.
+.env
+.env.*
+!.env.example
+
+.DS_Store
