@@ -1,0 +1,167 @@
+package github
+
+import (
+	"context"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+)
+
+// One account, shaped the way GitHub sends it: a repository whose history
+// holds somebody else's commit, and one whose history is attributed to nobody.
+const canned = `{"data":{"user":{
+  "login":"nmbrthirteen",
+  "name":"Nika",
+  "createdAt":"2016-04-02T10:00:00Z",
+  "followers":{"totalCount":41},
+  "following":{"totalCount":9},
+  "gists":{"totalCount":3},
+  "starredRepositories":{"totalCount":812},
+  "forks":{"totalCount":17},
+  "contributionsCollection":{
+    "totalCommitContributions":1204,
+    "totalPullRequestContributions":88,
+    "totalIssueContributions":31,
+    "totalPullRequestReviewContributions":62,
+    "restrictedContributionsCount":530,
+    "contributionCalendar":{"weeks":[
+      {"contributionDays":[{"date":"2026-01-01","contributionCount":4},{"date":"2026-01-02","contributionCount":0}]},
+      {"contributionDays":[{"date":"2026-01-03","contributionCount":0}]}
+    ]}
+  },
+  "repositories":{"totalCount":48,"nodes":[
+    {"name":"roaster","description":"A conference kiosk","stargazerCount":12,"forkCount":2,
+     "isArchived":false,"createdAt":"2026-09-18T10:00:00Z","pushedAt":"2026-09-20T02:00:00Z",
+     "primaryLanguage":{"name":"Go"},"licenseInfo":{"key":"mit"},"issues":{"totalCount":3},
+     "defaultBranchRef":{"target":{"history":{"nodes":[
+       {"messageHeadline":"fix","committedDate":"2026-09-20T02:13:00+04:00","author":{"user":{"login":"nmbrthirteen"}}},
+       {"messageHeadline":"Stop the printed receipt reading as random","committedDate":"2026-09-19T14:02:00+04:00","author":{"user":{"login":"NMBRTHIRTEEN"}}},
+       {"messageHeadline":"tidy up the launcher","committedDate":"2026-09-18T11:00:00+04:00","author":{"user":{"login":"someone-else"}}}
+     ]}}}},
+    {"name":"unattributed","description":null,"stargazerCount":0,"forkCount":0,
+     "isArchived":false,"createdAt":"2024-01-01T10:00:00Z","pushedAt":"2024-06-01T10:00:00Z",
+     "primaryLanguage":null,"licenseInfo":null,"issues":{"totalCount":0},
+     "defaultBranchRef":{"target":{"history":{"nodes":[
+       {"messageHeadline":"asdf","committedDate":"2024-06-01T03:30:00+04:00","author":{"user":null}}
+     ]}}}}
+  ]}
+}}}`
+
+func serve(t *testing.T, body string) Client {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "Bearer test-token" {
+			t.Errorf("the token should travel as a bearer header, got %q", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(body))
+	}))
+	t.Cleanup(srv.Close)
+	return Client{Token: "test-token", URL: srv.URL, HTTP: srv.Client()}
+}
+
+func TestReadsAnAccount(t *testing.T) {
+	f, err := serve(t, canned).Read(context.Background(), "nmbrthirteen")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if f.Handle != "nmbrthirteen" || f.Followers != 41 || f.Starred != 812 {
+		t.Errorf("the profile did not survive the trip: %+v", f)
+	}
+	if f.Owned != 48 || f.Forked != 17 {
+		t.Errorf("owned %d and forked %d, want 48 and 17", f.Owned, f.Forked)
+	}
+	if f.Year.Commits != 1204 || f.Year.Private != 530 {
+		t.Errorf("the contribution year is wrong: %+v", f.Year)
+	}
+	if len(f.Year.Days) != 3 {
+		t.Errorf("the calendar should flatten to one entry a day, got %d", len(f.Year.Days))
+	}
+	if len(f.Repos) != 2 {
+		t.Fatalf("want two repositories, got %d", len(f.Repos))
+	}
+	if f.Repos[0].Language != "Go" || f.Repos[0].License != "mit" {
+		t.Errorf("language and licence should come through: %+v", f.Repos[0])
+	}
+	if f.Repos[1].Language != "" {
+		t.Errorf("a repository with no language should read as empty, not crash")
+	}
+}
+
+// Somebody else's commit message is theirs to answer for.
+func TestOtherPeoplesCommitsAreLeftOut(t *testing.T) {
+	f, err := serve(t, canned).Read(context.Background(), "nmbrthirteen")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, c := range f.Commits {
+		if c.Message == "tidy up the launcher" {
+			t.Errorf("a commit by someone else was counted against this account")
+		}
+	}
+	if len(f.Repos[0].Commits) != 2 {
+		t.Errorf("want the two commits that are theirs, got %d", len(f.Repos[0].Commits))
+	}
+}
+
+// An account whose email GitHub cannot match to a login has nothing attributed
+// at all. Dropping the lot would read as somebody with no commits, which is a
+// worse answer than assuming the owner of the repository wrote them.
+func TestAnUnattributedRepoKeepsItsCommits(t *testing.T) {
+	f, err := serve(t, canned).Read(context.Background(), "nmbrthirteen")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(f.Repos[1].Commits) != 1 {
+		t.Fatalf("want the one commit, got %d", len(f.Repos[1].Commits))
+	}
+	if f.Repos[1].Commits[0].Message != "asdf" {
+		t.Errorf("got %q", f.Repos[1].Commits[0].Message)
+	}
+}
+
+// The offset a commit was made in is the whole of the after-midnight metric.
+func TestCommitTimesKeepTheirOwnOffset(t *testing.T) {
+	f, err := serve(t, canned).Read(context.Background(), "nmbrthirteen")
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := f.Commits[0]
+	if got := first.At.Hour(); got != 2 {
+		t.Errorf("committed at 02:13 in their own timezone, read back as hour %d", got)
+	}
+	if _, offset := first.At.Zone(); offset != 4*60*60 {
+		t.Errorf("the offset should survive parsing, got %d seconds", offset)
+	}
+}
+
+func TestAHandleNobodyHasIsSaidPlainly(t *testing.T) {
+	c := serve(t, `{"data":{"user":null},"errors":[{"message":"Could not resolve to a User"}]}`)
+	_, err := c.Read(context.Background(), "definitelynotarealaccount")
+	if !errors.Is(err, ErrNoAccount) {
+		t.Errorf("want a no-account error, got %v", err)
+	}
+}
+
+// A typo should cost nothing. GitHub's own rule is cheap to check here.
+func TestAnImpossibleHandleNeverLeavesTheDevice(t *testing.T) {
+	asked := false
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		asked = true
+	}))
+	defer srv.Close()
+
+	c := Client{Token: "test-token", URL: srv.URL, HTTP: srv.Client()}
+	for _, handle := range []string{"", "not a handle", "-leading", "trailing-", "a--b", strings.Repeat("a", 40)} {
+		if _, err := c.Read(context.Background(), handle); err == nil {
+			t.Errorf("%q should have been turned away", handle)
+		}
+	}
+	if asked {
+		t.Errorf("a handle that cannot exist should never reach GitHub")
+	}
+}

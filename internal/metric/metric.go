@@ -1,0 +1,142 @@
+// Package metric turns what GitHub says into the five numbers printed on the
+// receipt.
+//
+// Every one of them is arithmetic over fetched facts. Nothing here is invented,
+// estimated or asked of a model, because a receipt someone photographs and
+// shows to the person next to them has to survive being checked.
+package metric
+
+import (
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/upgaming/roaster/internal/github"
+	"github.com/upgaming/roaster/internal/roast"
+)
+
+// Small hours run to six. Anyone committing at half past five is not having an
+// early start.
+const nightEnds = 6
+
+// From reads the account into the row of gauges the receipt is laid out for:
+// four with bars and one without, in that order. The document was tuned to that
+// shape, so the shape is part of the contract.
+func From(f github.Facts) []roast.Metric {
+	return []roast.Metric{
+		gauge("Commits after midnight", share(f.Commits, atNight),
+			[3]string{"diurnal", "owl", "nocturnal"}),
+		gauge("Commits at the weekend", share(f.Commits, atWeekend),
+			[3]string{"weekends off", "weekends too", "no weekends"}),
+		gauge("Repos with no description", undescribed(f.Repos),
+			[3]string{"documented", "sparse", "silent"}),
+		gauge("One-word commit messages", share(f.Commits, oneWord),
+			[3]string{"wordy", "brief", "terse"}),
+		longestGap(f),
+	}
+}
+
+// Score and its severity band are the roast's own, so the demo and the real
+// audit cannot drift apart on what a number means.
+func Score(metrics []roast.Metric) int { return roast.Score(metrics) }
+
+func atNight(c github.Commit) bool {
+	return c.At.Hour() < nightEnds
+}
+
+func atWeekend(c github.Commit) bool {
+	switch c.At.Weekday() {
+	case time.Saturday, time.Sunday:
+		return true
+	}
+	return false
+}
+
+// oneWord counts the headline nobody will read twice: "fix", "wip", "asdf",
+// and the full stop on its own.
+func oneWord(c github.Commit) bool {
+	return len(strings.Fields(c.Message)) <= 1
+}
+
+// share is a percentage of the commits read, rounded to the nearest whole one.
+// An account with nothing public reads as zero rather than as an error: the
+// receipt still prints, and there is a joke in the blank.
+func share(commits []github.Commit, is func(github.Commit) bool) int {
+	if len(commits) == 0 {
+		return 0
+	}
+	n := 0
+	for _, c := range commits {
+		if is(c) {
+			n++
+		}
+	}
+	return percent(n, len(commits))
+}
+
+func undescribed(repos []github.Repo) int {
+	if len(repos) == 0 {
+		return 0
+	}
+	n := 0
+	for _, r := range repos {
+		if strings.TrimSpace(r.Description) == "" {
+			n++
+		}
+	}
+	return percent(n, len(repos))
+}
+
+// longestGap is the longest run of days in the contribution year with nothing
+// on it. The calendar is the only source that covers private work, and then
+// only as a count, so a quiet stretch here is a genuinely quiet stretch.
+func longestGap(f github.Facts) roast.Metric {
+	const label = "Longest gap between commits"
+
+	if len(f.Year.Days) == 0 {
+		return roast.Metric{Label: label, Value: "unknown"}
+	}
+
+	longest, run := 0, 0
+	for _, d := range f.Year.Days {
+		if d.Count > 0 {
+			run = 0
+			continue
+		}
+		run++
+		if run > longest {
+			longest = run
+		}
+	}
+
+	unit := "days"
+	if longest == 1 {
+		unit = "day"
+	}
+	return roast.Metric{Label: label, Value: fmt.Sprintf("%d %s", longest, unit)}
+}
+
+// gauge always carries a tag. Tagging only the bad rows left the column ragged
+// and made the whole block look arbitrary on paper.
+func gauge(label string, n int, bands [3]string) roast.Metric {
+	band := bands[0]
+	switch {
+	case n >= 66:
+		band = bands[2]
+	case n >= 33:
+		band = bands[1]
+	}
+	return roast.Metric{
+		Label:   label,
+		Value:   fmt.Sprintf("%d%%", n),
+		Tag:     band,
+		Percent: &n,
+	}
+}
+
+func percent(n, of int) int {
+	if of == 0 {
+		return 0
+	}
+	return (n*200 + of) / (of * 2) // rounded, without floating point
+}

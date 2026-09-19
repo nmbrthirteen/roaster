@@ -84,34 +84,17 @@ func build(handle string, rng *rand.Rand) Roast {
 		{Label: "Longest gap between commits", Value: fmt.Sprintf("%d days", 40+rng.Intn(400))},
 	}
 
-	// The score is the plain average of the gauges. Weighting the worst one
-	// made receipts where three bars were short still read as serious, which
-	// contradicts the picture directly above it.
-	total, n := 0, 0
-	for _, m := range metrics {
-		if m.Percent == nil {
-			continue
-		}
-		total += *m.Percent
-		n++
-	}
-	score := total / n
+	score := Score(metrics)
 
 	return Roast{
 		Code:     Code(),
 		Handle:   handle,
 		At:       time.Now(),
 		Score:    fmt.Sprintf("%d / 100", score),
-		ScoreTag: severity(score),
+		ScoreTag: Severity(score),
 		Metrics:  metrics,
 		Verdict:  pick(rng, verdicts),
-		// Odds are read off the score rather than drawn, so a bad audit really
-		// does pay worse. Numbers nobody can trace back look invented.
-		Odds: []Odd{
-			{Label: "You survive a prod crash", Price: odds(2.0 + float64(score)/12)},
-			{Label: "A Friday ship goes unnoticed", Price: odds(3.0 + float64(score)/6)},
-			{Label: "You blame a junior", Price: odds(2.2 - float64(score)/120), Tag: "sure thing"},
-		},
+		Odds:     Odds(score),
 	}
 }
 
@@ -129,8 +112,36 @@ func gauge(label string, rng *rand.Rand, lo, hi int, bands [3]string) Metric {
 	return Metric{Label: label, Value: fmt.Sprintf("%d%%", n), Tag: band, Percent: &n}
 }
 
-// odds formats a decimal price, clamped to something a bookmaker would print.
-func odds(v float64) string {
+// Odds are read off the score rather than drawn, so a bad audit really does pay
+// worse. Numbers nobody can trace back look invented.
+func Odds(score int) []Odd {
+	return []Odd{
+		{Label: "You survive a prod crash", Price: price(2.0 + float64(score)/12)},
+		{Label: "A Friday ship goes unnoticed", Price: price(3.0 + float64(score)/6)},
+		{Label: "You blame a junior", Price: price(2.2 - float64(score)/120), Tag: "sure thing"},
+	}
+}
+
+// Score is the plain average of the gauges. Weighting the worst one made
+// receipts where three bars were short still read as serious, which contradicts
+// the picture directly above it.
+func Score(metrics []Metric) int {
+	total, n := 0, 0
+	for _, m := range metrics {
+		if m.Percent == nil {
+			continue
+		}
+		total += *m.Percent
+		n++
+	}
+	if n == 0 {
+		return 0
+	}
+	return total / n
+}
+
+// price formats a decimal price, clamped to something a bookmaker would print.
+func price(v float64) string {
 	if v < 1.05 {
 		v = 1.05
 	}
@@ -140,10 +151,10 @@ func odds(v float64) string {
 	return fmt.Sprintf("%.2f", v)
 }
 
-// severity bands are set against where the average of four gauges actually
+// Severity bands are set against where the average of four gauges actually
 // lands, not against a tidy quartering of nought to a hundred. Bands that never
 // fire are worse than no bands.
-func severity(score int) string {
+func Severity(score int) string {
 	switch {
 	case score >= 62:
 		return "critical"

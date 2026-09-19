@@ -1,0 +1,237 @@
+// Package github reads the public record of one account.
+//
+// Everything here is one request. A stand has a queue in front of it, and the
+// difference between one round trip and five is the difference between a visitor
+// watching the screen and a visitor watching the floor. REST would need a call
+// for the profile, one for the repositories, one per repository for commits, and
+// one for the contribution calendar. GraphQL answers all of it at once.
+package github
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"regexp"
+	"strings"
+	"time"
+)
+
+const (
+	endpoint = "https://api.github.com/graphql"
+
+	// How much of an account to read. Thirty repositories by most recently
+	// pushed covers anyone's working year, and twenty commit headlines each is
+	// enough to see a habit without pulling a whole history.
+	repoCount   = 30
+	commitCount = 20
+
+	// A stand cannot wait longer than this and still feel like a stand.
+	timeout = 10 * time.Second
+)
+
+// ErrNoAccount is a handle GitHub has never heard of, which is worth saying in
+// those words rather than as a failure.
+var ErrNoAccount = fmt.Errorf("no such account")
+
+// handleRule is GitHub's own: letters, digits and single hyphens, never at
+// either end. Checking it here means a typo costs nothing instead of a round
+// trip. The length is checked beside it, because RE2 has no lookahead and the
+// two rules do not fold into one readable pattern.
+var handleRule = regexp.MustCompile(`^[A-Za-z0-9](?:-?[A-Za-z0-9])*$`)
+
+const handleMax = 39
+
+type Client struct {
+	Token string       // a token with no scopes; everything read is public
+	HTTP  *http.Client // nil means one with the timeout above
+	URL   string       // nil means GitHub; set by tests
+}
+
+// Facts is the account as GitHub has it. Nothing here is judged or scored yet.
+type Facts struct {
+	Handle    string
+	Name      string
+	Bio       string
+	Company   string
+	Created   time.Time
+	Followers int
+	Following int
+	Gists     int
+	Starred   int // repositories this account has starred
+
+	Year   Year
+	Repos  []Repo
+	Owned  int // repositories that are not forks
+	Forked int
+
+	// Commits across every repository read, newest first, and only this
+	// account's own.
+	Commits []Commit
+
+	Read time.Time
+}
+
+// Year is the contribution calendar and its totals, which is the only place
+// private work shows up at all, and then only as a number.
+type Year struct {
+	Commits      int
+	PullRequests int
+	Issues       int
+	Reviews      int
+	Private      int
+	Days         []Day
+}
+
+type Day struct {
+	Date  time.Time
+	Count int
+}
+
+type Repo struct {
+	Name        string
+	Description string
+	Stars       int
+	Forks       int
+	Language    string
+	License     string
+	Archived    bool
+	Created     time.Time
+	Pushed      time.Time
+	OpenIssues  int
+	Commits     []Commit
+}
+
+type Commit struct {
+	Repo    string
+	Message string
+
+	// At keeps the committer's own offset rather than UTC, which is what makes
+	// "half your commits happen after midnight" a fact about them instead of a
+	// fact about a timezone.
+	At time.Time
+}
+
+const query = `
+query($login: String!, $repos: Int!, $commits: Int!) {
+  user(login: $login) {
+    login
+    name
+    bio
+    company
+    createdAt
+    followers { totalCount }
+    following { totalCount }
+    gists { totalCount }
+    starredRepositories { totalCount }
+    contributionsCollection {
+      totalCommitContributions
+      totalPullRequestContributions
+      totalIssueContributions
+      totalPullRequestReviewContributions
+      restrictedContributionsCount
+      contributionCalendar {
+        weeks { contributionDays { date contributionCount } }
+      }
+    }
+    forks: repositories(ownerAffiliations: OWNER, isFork: true) { totalCount }
+    repositories(first: $repos, ownerAffiliations: OWNER, isFork: false,
+                 orderBy: {field: PUSHED_AT, direction: DESC}) {
+      totalCount
+      nodes {
+        name
+        description
+        stargazerCount
+        forkCount
+        isArchived
+        createdAt
+        pushedAt
+        primaryLanguage { name }
+        licenseInfo { key }
+        issues(states: OPEN) { totalCount }
+        defaultBranchRef {
+          target {
+            ... on Commit {
+              history(first: $commits) {
+                nodes {
+                  messageHeadline
+                  committedDate
+                  author { user { login } }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}`
+
+// Read fetches the account. The error is worth showing to a visitor as it
+// stands: they are the one who typed the handle.
+func (c Client) Read(ctx context.Context, handle string) (Facts, error) {
+	handle = strings.TrimSpace(handle)
+	if len(handle) > handleMax || !handleRule.MatchString(handle) {
+		return Facts{}, fmt.Errorf("%q is not a GitHub handle", handle)
+	}
+	if c.Token == "" {
+		return Facts{}, fmt.Errorf("no GitHub token; the GraphQL API refuses anonymous calls")
+	}
+
+	body, err := json.Marshal(map[string]any{
+		"query": query,
+		"variables": map[string]any{
+			"login":   handle,
+			"repos":   repoCount,
+			"commits": commitCount,
+		},
+	})
+	if err != nil {
+		return Facts{}, err
+	}
+
+	url := c.URL
+	if url == "" {
+		url = endpoint
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return Facts{}, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+
+	client := c.HTTP
+	if client == nil {
+		client = &http.Client{Timeout: timeout}
+	}
+	res, err := client.Do(req)
+	if err != nil {
+		return Facts{}, fmt.Errorf("could not reach GitHub: %w", err)
+	}
+	defer res.Body.Close()
+
+	switch res.StatusCode {
+	case http.StatusOK:
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return Facts{}, fmt.Errorf("GitHub rejected the token")
+	default:
+		return Facts{}, fmt.Errorf("GitHub returned %s", res.Status)
+	}
+
+	var out response
+	if err := json.NewDecoder(res.Body).Decode(&out); err != nil {
+		return Facts{}, fmt.Errorf("GitHub sent something unreadable: %w", err)
+	}
+	// A missing account comes back as a 200 with the user null and a note in
+	// errors, so the status code alone never tells you.
+	if out.Data.User == nil {
+		if len(out.Errors) > 0 {
+			return Facts{}, fmt.Errorf("%w: @%s (%s)", ErrNoAccount, handle, out.Errors[0].Message)
+		}
+		return Facts{}, fmt.Errorf("%w: @%s", ErrNoAccount, handle)
+	}
+
+	return out.Data.User.facts(), nil
+}

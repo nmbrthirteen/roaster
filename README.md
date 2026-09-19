@@ -239,6 +239,39 @@ which skips the automatic sign-in.
 `scripts\autostart.bat` is the lighter version: the stand starts at sign-in and
 Windows is otherwise untouched.
 
+## Reading GitHub
+
+`internal/github` reads one account in one request. A stand has a queue in front
+of it, and the difference between one round trip and five is the difference
+between a visitor watching the screen and a visitor watching the floor. REST
+would need a call for the profile, one for the repositories, one per repository
+for commits and one for the contribution calendar. The GraphQL query answers all
+of it at once, and the handle travels as a variable rather than as text spliced
+into the query.
+
+Two details in there are load-bearing. Commit timestamps keep the offset they
+were made in rather than being normalised to UTC, which is what makes "three in
+four of your commits happen after midnight" a fact about the person instead of a
+fact about a timezone. And commits by other people are dropped, because somebody
+else's commit message is theirs to answer for, unless GitHub attributed nothing
+in that repository at all, in which case the owner keeps the lot.
+
+`internal/metric` turns that into the five rows the receipt is laid out for.
+Every one of them is arithmetic over fetched facts. Nothing is estimated and
+nothing is asked of a model, because a receipt someone photographs and shows to
+the person next to them has to survive being checked.
+
+See it on a real account:
+
+```sh
+export GITHUB_TOKEN=...   # no scopes needed; everything read is public
+go run ./cmd/roaster -facts torvalds
+```
+
+It prints the gauges, the score and how long GitHub took. The token is read from
+the environment and nowhere else: a flag would put it in shell history and in
+the process list of a machine other people use.
+
 ## Credentials
 
 No model key ever goes on a kiosk device. With `"provider": "remote"` the

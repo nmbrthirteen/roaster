@@ -5,6 +5,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -12,8 +13,11 @@ import (
 	"net/http"
 	"os"
 	"runtime"
+	"time"
 
 	"github.com/upgaming/roaster/internal/config"
+	"github.com/upgaming/roaster/internal/github"
+	"github.com/upgaming/roaster/internal/metric"
 	"github.com/upgaming/roaster/internal/receipt"
 	"github.com/upgaming/roaster/internal/roast"
 	"github.com/upgaming/roaster/internal/secret"
@@ -29,6 +33,7 @@ func main() {
 	flag.String("terminal", "001", "terminal number printed on every receipt")
 	flag.String("printer", "", "printer: tcp:host:9100, lp:queue or file:path")
 	flag.String("event", "", "event code the kiosk opens on")
+	facts := flag.String("facts", "", "read one GitHub account, print what the receipt would say, and exit")
 	setToken := flag.Bool("set-token", false, "store this terminal's token, read from standard input")
 	stateDir := flag.String("state", "", "settings and token folder, for writing into a packaged install's")
 	flag.Parse()
@@ -39,6 +44,10 @@ func main() {
 
 	if *setToken {
 		storeToken()
+		return
+	}
+	if *facts != "" {
+		readFacts(*facts)
 		return
 	}
 
@@ -101,6 +110,46 @@ func pickProvider(cfg config.Config) (roast.Provider, error) {
 	default:
 		return nil, fmt.Errorf("unknown provider %q, want demo or remote", cfg.Provider)
 	}
+}
+
+// readFacts is how to see a real audit without a model, a printer or a stand.
+// It prints what the gauges would say and how long GitHub took to say it,
+// because a queue at a booth is the constraint everything here is built around.
+//
+// The token is read from the environment and nowhere else. A flag would put it
+// in shell history and in the process list of a machine other people use.
+func readFacts(handle string) {
+	token := os.Getenv("GITHUB_TOKEN")
+	if token == "" {
+		log.Fatal("set GITHUB_TOKEN first: GitHub's GraphQL API refuses anonymous calls")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	started := time.Now()
+	f, err := github.Client{Token: token}.Read(ctx, handle)
+	if err != nil {
+		log.Fatal(err)
+	}
+	took := time.Since(started)
+
+	metrics := metric.From(f)
+	score := metric.Score(metrics)
+
+	fmt.Printf("\n@%s", f.Handle)
+	if f.Name != "" {
+		fmt.Printf(", %s", f.Name)
+	}
+	fmt.Printf("\njoined %s, %d followers, %d repos, %d forks\n",
+		f.Created.Format("January 2006"), f.Followers, f.Owned, f.Forked)
+	fmt.Printf("read %d commits across %d repos\n\n", len(f.Commits), len(f.Repos))
+
+	for _, m := range metrics {
+		fmt.Printf("  %-30s %8s  %s\n", m.Label, m.Value, m.Tag)
+	}
+	fmt.Printf("\n  %-30s %8s  %s\n", "Score", fmt.Sprintf("%d / 100", score), roast.Severity(score))
+	fmt.Printf("\nGitHub answered in %s\n\n", took.Round(time.Millisecond))
 }
 
 // startLog mirrors the log to a file in the folder the app writes to, and says
