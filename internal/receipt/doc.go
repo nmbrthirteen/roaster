@@ -2,10 +2,37 @@
 // flattens it into fixed-width lines.
 package receipt
 
-import "strings"
+import (
+	"strings"
+	"sync/atomic"
+)
 
-// Width is the printable column count in Font A.
-const Width = 42
+// Columns is how many characters a line holds in Font A. Most 80mm printers
+// print 48, some narrower heads only 42, and 58mm paper 32; the stand picks
+// its own in the hidden menu.
+const (
+	WideColumns   = 48
+	NarrowColumns = 42
+	SmallColumns  = 32
+)
+
+var width atomic.Int32
+
+func init() { width.Store(WideColumns) }
+
+// Width is the printable column count in Font A for this stand's printer.
+func Width() int { return int(width.Load()) }
+
+// SetWidth changes it. Anything but the three known widths is refused, since
+// a line wider than the head wraps and one narrower wastes the paper.
+func SetWidth(n int) bool {
+	switch n {
+	case WideColumns, NarrowColumns, SmallColumns:
+		width.Store(int32(n))
+		return true
+	}
+	return false
+}
 
 // Gutter is the blank columns held at each edge.
 const Gutter = 2
@@ -34,9 +61,9 @@ func (s Style) Cols() int { return s.ColsBleed(false) }
 
 // ColsBleed is Cols for content allowed to use the margin.
 func (s Style) ColsBleed(bleed bool) int {
-	w := Width
+	w := Width()
 	if s.Double {
-		w = Width / 2
+		w = Width() / 2
 	}
 	if bleed {
 		return w
@@ -151,13 +178,22 @@ type Para struct {
 	Value  string
 	Indent int
 	Style  Style
+
+	// Mark opens the first line, and the lines after it wrap in line with the
+	// text rather than under the mark: a checkbox, a bullet.
+	Mark string
 }
 
 func (p Para) lines() []Line {
 	pad := strings.Repeat(" ", p.Indent)
+	hang := strings.Repeat(" ", len([]rune(p.Mark)))
 	var out []Line
-	for _, s := range wrap(p.Value, p.Style.Cols()-p.Indent) {
-		out = append(out, Line{Style: p.Style, Text: pad + s})
+	for i, s := range wrap(p.Value, p.Style.Cols()-p.Indent-len(hang)) {
+		lead := hang
+		if i == 0 {
+			lead = p.Mark
+		}
+		out = append(out, Line{Style: p.Style, Text: pad + lead + s})
 	}
 	return out
 }

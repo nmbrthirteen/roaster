@@ -35,7 +35,7 @@ func (b Bar) lines() []Line {
 	}
 	out := KV{Label: b.Label, Value: value}.lines()
 
-	cells := Width - 2*Gutter
+	cells := Width() - 2*Gutter
 	filled := b.Percent * cells / 100
 	switch {
 	case filled < 0:
@@ -65,7 +65,7 @@ func (h Hero) lines() []Line {
 type Tear struct{}
 
 func (Tear) lines() []Line {
-	return []Line{{Text: strings.Repeat("- ", (Width-2*Gutter)/2)}}
+	return []Line{{Text: strings.Repeat("- ", (Width()-2*Gutter)/2)}}
 }
 
 // Heatmap is a contribution calendar: a column a week, a row a weekday, each
@@ -116,7 +116,8 @@ func (h Heatmap) lines() []Line {
 		for _, w := range h.Weeks {
 			row.WriteRune(level(w[d]))
 		}
-		out[d] = Line{Text: row.String()}
+		// Centred, so a wider head leaves even margins either side.
+		out[d] = Line{Text: row.String(), Style: Style{Align: AlignCenter}}
 	}
 	return out
 }

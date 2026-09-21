@@ -67,15 +67,15 @@ func (d *Doc) Plain() string {
 	for _, ln := range d.Lines() {
 		switch {
 		case ln.QR != "":
-			fmt.Fprintf(&b, "%s\n", pad("[QR "+ln.QR+"]", Width, AlignCenter))
+			fmt.Fprintf(&b, "%s\n", pad("[QR "+ln.QR+"]", Width(), AlignCenter))
 		case ln.Image != "":
-			fmt.Fprintf(&b, "%s\n", pad("["+ln.Image+"]", Width, AlignCenter))
+			fmt.Fprintf(&b, "%s\n", pad("["+ln.Image+"]", Width(), AlignCenter))
 		case ln.Text != "":
 			b.WriteString(ln.Text + "\n")
 		}
 		b.WriteString(strings.Repeat("\n", ln.Feed))
 		if ln.Cut {
-			b.WriteString(strings.Repeat("- ", Width/2) + "\n")
+			b.WriteString(strings.Repeat("- ", Width()/2) + "\n")
 		}
 	}
 	return b.String()

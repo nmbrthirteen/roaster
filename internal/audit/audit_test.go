@@ -81,7 +81,7 @@ func TestAnAuditArrivesInOrder(t *testing.T) {
 	for _, u := range updates {
 		phases = append(phases, u.Phase)
 	}
-	want := "fetch feed metric metric metric metric metric verdict verdict done"
+	want := "fetch section section section section feed metric metric metric metric metric verdict verdict done"
 	if got := strings.Join(phases, " "); got != want {
 		t.Errorf("phases\n got %s\nwant %s", got, want)
 	}
@@ -89,7 +89,7 @@ func TestAnAuditArrivesInOrder(t *testing.T) {
 	if r.Verdict != "You commit at 3am and it shows." {
 		t.Errorf("the verdict should be the one written, got %q", r.Verdict)
 	}
-	if r.Code == "" || r.Handle != "nmbrthirteen" || len(r.Odds) != 3 {
+	if r.Code == "" || r.Handle != "nmbrthirteen" || len(r.Actions) != 3 {
 		t.Errorf("the roast is missing parts it prints: %+v", r)
 	}
 	if last := updates[len(updates)-1]; last.Roast == nil || last.Roast.Code != r.Code {

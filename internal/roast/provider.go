@@ -17,6 +17,7 @@ type Request struct {
 // Phase names the stages the kiosk shows while it waits.
 const (
 	PhaseFetch   = "fetch"   // reading the account
+	PhaseSection = "section" // one step of reading the account, in order
 	PhaseFeed    = "feed"    // the items read, played while the verdict is written
 	PhaseMetric  = "metric"  // one computed measurement, revealed as it lands
 	PhaseVerdict = "verdict" // the written roast, streamed
@@ -25,13 +26,14 @@ const (
 )
 
 type Update struct {
-	Phase   string  `json:"phase"`
-	Label   string  `json:"label,omitempty"`
-	Metric  *Metric `json:"metric,omitempty"`
-	Feed    []Item  `json:"feed,omitempty"`
-	Verdict string  `json:"verdict,omitempty"`
-	Roast   *Roast  `json:"roast,omitempty"`
-	Error   string  `json:"error,omitempty"`
+	Phase   string   `json:"phase"`
+	Label   string   `json:"label,omitempty"`
+	Metric  *Metric  `json:"metric,omitempty"`
+	Feed    []Item   `json:"feed,omitempty"`
+	Section *Section `json:"section,omitempty"`
+	Verdict string   `json:"verdict,omitempty"`
+	Roast   *Roast   `json:"roast,omitempty"`
+	Error   string   `json:"error,omitempty"`
 }
 
 // Provider turns a handle into a roast.

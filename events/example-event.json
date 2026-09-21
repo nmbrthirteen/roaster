@@ -16,7 +16,7 @@
   },
   "kiosk": {
     "headline": "Roast your GitHub",
-    "subhead": "Type your handle. We have already judged it.",
+    "subhead": "We read every commit. Even the ones that just say fix.",
     "accent": "#1de9b6",
     "surface": "#0a0a0f"
   }

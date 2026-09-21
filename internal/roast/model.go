@@ -13,10 +13,12 @@ type Metric struct {
 	Percent *int `json:"percent,omitempty"`
 }
 
-type Odd struct {
-	Label string `json:"label"`
-	Price string `json:"price"`         // American odds, e.g. "+650"
-	Tag   string `json:"tag,omitempty"` // e.g. "lock"
+// Finding is one more thing the account gives away. The share page has room
+// for these; the receipt does not.
+type Finding struct {
+	Title string `json:"title"`
+	Value string `json:"value"`
+	Line  string `json:"line"`
 }
 
 // Item is one thing a person published: a commit, a post, an answer.
@@ -25,6 +27,13 @@ type Item struct {
 	Where string    `json:"where"`         // the repository, community or tag
 	Text  string    `json:"text"`
 	At    time.Time `json:"at"`
+}
+
+// Section is one step of the audit screen's reading: a command, and what it
+// printed.
+type Section struct {
+	Cmd   string   `json:"cmd"`
+	Lines []string `json:"lines"`
 }
 
 type Roast struct {
@@ -36,7 +45,16 @@ type Roast struct {
 	ScoreTag string    `json:"scoreTag"` // severity word under it
 	Metrics  []Metric  `json:"metrics"`
 	Verdict  string    `json:"verdict"`
-	Odds     []Odd     `json:"odds"`
+
+	// Actions are the to-do list a performance review ends on, each one
+	// earned by a number above it.
+	Actions []string `json:"actions"`
+
+	// Findings, Habits and Story are for the share page: more of the roast,
+	// and the terminal reading the stand played.
+	Findings []Finding `json:"findings,omitempty"`
+	Habits   []Finding `json:"habits,omitempty"`
+	Story    []Section `json:"story,omitempty"`
 
 	// Exhibit is the worst item, quoted on the receipt. Nil is an account with
 	// nothing public.

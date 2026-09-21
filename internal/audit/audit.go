@@ -90,6 +90,9 @@ func (a Audit) Roast(ctx context.Context, req roast.Request, emit func(roast.Upd
 		return roast.Roast{}, ErrGitHub
 	}
 
+	for i := range got.story {
+		emit(roast.Update{Phase: roast.PhaseSection, Section: &got.story[i]})
+	}
 	emit(roast.Update{Phase: roast.PhaseFeed, Feed: got.feed})
 
 	metrics := got.brief.Metrics
@@ -117,7 +120,10 @@ func (a Audit) Roast(ctx context.Context, req roast.Request, emit func(roast.Upd
 		ScoreTag: roast.Severity(score),
 		Metrics:  metrics,
 		Verdict:  line,
-		Odds:     roast.Odds(score),
+		Actions:  got.actions,
+		Findings: got.findings,
+		Habits:   got.habits,
+		Story:    got.story,
 		Exhibit:  got.exhibit,
 		Heat:     got.heat,
 	}
@@ -142,11 +148,15 @@ func (a Audit) measure(ctx context.Context, handle string) (measured, error) {
 
 		metrics := metric.From(facts)
 		return measured{
-			handle:  facts.Handle,
-			brief:   verdict.From(facts, metrics, a.now()),
-			feed:    metric.Feed(facts.Commits, metric.FeedMax),
-			exhibit: metric.Worst(facts.Commits),
-			heat:    metric.Heat(facts.Year.Days, metric.HeatWeeks),
+			handle:   facts.Handle,
+			brief:    verdict.From(facts, metrics, a.now()),
+			story:    metric.Story(facts, a.now()),
+			actions:  metric.Actions(facts),
+			findings: metric.Findings(facts, a.now()),
+			habits:   metric.Habits(facts, a.now()),
+			feed:     metric.Feed(facts.Commits, metric.FeedMax),
+			exhibit:  metric.Worst(facts.Commits),
+			heat:     metric.Heat(facts.Year.Days, metric.HeatWeeks),
 		}, nil
 	}
 

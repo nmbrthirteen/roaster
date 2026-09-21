@@ -34,8 +34,8 @@ var packs = map[string]Pack{
 	GitHub: {
 		Key:         GitHub,
 		Name:        "GitHub",
-		Headline:    "Roast your GitHub",
-		Placeholder: "torvalds",
+		Headline:    "Type your GitHub username",
+		Placeholder: "yourusername",
 		HandleChars: "A-Za-z0-9-",
 		HandleMax:   39,
 		Feed:        "git log --graph --oneline",

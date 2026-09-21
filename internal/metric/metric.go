@@ -97,18 +97,7 @@ func longestGap(f github.Facts) roast.Metric {
 		return roast.Metric{Label: label, Value: "unknown"}
 	}
 
-	longest, run := 0, 0
-	for _, d := range f.Year.Days {
-		if d.Count > 0 {
-			run = 0
-			continue
-		}
-		run++
-		if run > longest {
-			longest = run
-		}
-	}
-
+	longest := quietest(f)
 	unit := "days"
 	if longest == 1 {
 		unit = "day"

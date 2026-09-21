@@ -9,6 +9,7 @@ import (
 	"github.com/upgaming/roaster/internal/config"
 	"github.com/upgaming/roaster/internal/event"
 	"github.com/upgaming/roaster/internal/printer"
+	"github.com/upgaming/roaster/internal/receipt"
 	"github.com/upgaming/roaster/internal/roast"
 )
 
@@ -107,6 +108,19 @@ func (s *station) setPIN(v string) error {
 }
 
 var pinRule = regexp.MustCompile(`^\d{4,8}$`)
+
+// setColumns follows the printer's head: 48 on most 80mm printers, 42 on a
+// narrow one, 32 on 58mm paper.
+func (s *station) setColumns(n int) error {
+	if !receipt.SetWidth(n) {
+		return fmt.Errorf("A printer line is 48, 42 or 32 characters.")
+	}
+	s.mu.Lock()
+	s.cfg.Columns, s.saved.Columns = n, n
+	saved, path := s.saved, s.path
+	s.mu.Unlock()
+	return config.Save(path, saved)
+}
 
 func (s *station) setProvider(v string) error {
 	if v != "demo" && v != "remote" {

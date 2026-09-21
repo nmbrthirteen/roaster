@@ -25,19 +25,22 @@ type archive struct {
 }
 
 type entry struct {
-	Code     string         `json:"code"`
-	Handle   string         `json:"handle"`
-	Pack     string         `json:"pack,omitempty"`
-	Event    string         `json:"event,omitempty"`
-	Terminal string         `json:"terminal,omitempty"`
-	Score    string         `json:"score"`
-	ScoreTag string         `json:"scoreTag"`
-	Verdict  string         `json:"verdict"`
-	Metrics  []roast.Metric `json:"metrics"`
-	Odds     []roast.Odd    `json:"odds"`
-	Exhibit  *roast.Item    `json:"exhibit,omitempty"`
-	Heat     [][7]int       `json:"heat,omitempty"`
-	Feed     []roast.Item   `json:"feed,omitempty"`
+	Code     string          `json:"code"`
+	Handle   string          `json:"handle"`
+	Pack     string          `json:"pack,omitempty"`
+	Event    string          `json:"event,omitempty"`
+	Terminal string          `json:"terminal,omitempty"`
+	Score    string          `json:"score"`
+	ScoreTag string          `json:"scoreTag"`
+	Verdict  string          `json:"verdict"`
+	Metrics  []roast.Metric  `json:"metrics"`
+	Actions  []string        `json:"actions"`
+	Findings []roast.Finding `json:"findings,omitempty"`
+	Habits   []roast.Finding `json:"habits,omitempty"`
+	Story    []roast.Section `json:"story,omitempty"`
+	Exhibit  *roast.Item     `json:"exhibit,omitempty"`
+	Heat     [][7]int        `json:"heat,omitempty"`
+	Feed     []roast.Item    `json:"feed,omitempty"`
 }
 
 func (a archive) Roast(ctx context.Context, req roast.Request, emit func(roast.Update)) (roast.Roast, error) {
@@ -53,7 +56,8 @@ func (a archive) Roast(ctx context.Context, req roast.Request, emit func(roast.U
 	}
 	go a.save(entry{
 		Code: r.Code, Handle: r.Handle, Pack: r.Pack, Event: req.Event, Terminal: req.Terminal,
-		Score: r.Score, ScoreTag: r.ScoreTag, Verdict: r.Verdict, Metrics: r.Metrics, Odds: r.Odds,
+		Score: r.Score, ScoreTag: r.ScoreTag, Verdict: r.Verdict, Metrics: r.Metrics,
+		Actions: r.Actions, Findings: r.Findings, Habits: r.Habits, Story: r.Story,
 		Exhibit: r.Exhibit, Heat: r.Heat, Feed: feed,
 	})
 	return r, nil

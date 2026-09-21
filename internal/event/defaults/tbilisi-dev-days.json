@@ -16,7 +16,7 @@
   },
   "kiosk": {
     "headline": "Roast your GitHub",
-    "subhead": "We read your commits so you do not have to",
+    "subhead": "We read every commit. Even the ones that just say fix.",
     "accent": "#1de9b6",
     "surface": "#07110e"
   }

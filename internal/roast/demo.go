@@ -7,6 +7,8 @@ import (
 	"math/rand"
 	"strings"
 	"time"
+
+	"github.com/upgaming/roaster/internal/github"
 )
 
 // Demo stands in for the real audit until the GitHub adapter and the model call
@@ -47,6 +49,10 @@ func (Demo) Roast(ctx context.Context, req Request, emit func(Update)) (Roast, e
 	if strings.EqualFold(handle, handleMissing) {
 		return Roast{}, fmt.Errorf("no GitHub account called @%s", handle)
 	}
+	// The same check the real audit makes, so a rehearsal refuses the same names.
+	if !github.Valid(strings.TrimPrefix(handle, "@")) {
+		return Roast{}, fmt.Errorf("%q %w", handle, github.ErrBadHandle)
+	}
 	r.Pack = req.Pack
 	var feed []Item
 	if strings.EqualFold(handle, handleEmpty) {
@@ -59,6 +65,16 @@ func (Demo) Roast(ctx context.Context, req Request, emit func(Update)) (Roast, e
 	} else {
 		feed = history(rng, r.At)
 		r.Exhibit = &feed[len(feed)/3]
+	}
+	r.Story = demoStory(handle, len(feed) == 0)
+	if len(feed) == 0 {
+		r.Actions = []string{"Create a repository. Git is free, we checked.", "Write a profile README. Recruiters can't read silence.", "Frame this receipt. It won't get better."}
+		r.Findings = demoFindings[:2]
+		r.Habits = nil
+	}
+	for _, s := range r.Story {
+		section := s
+		emit(Update{Phase: PhaseSection, Section: &section})
 	}
 	emit(Update{Phase: PhaseFeed, Feed: feed})
 
@@ -114,7 +130,9 @@ func build(handle string, rng *rand.Rand) Roast {
 		ScoreTag: Severity(score),
 		Metrics:  metrics,
 		Verdict:  pick(rng, verdicts),
-		Odds:     Odds(score),
+		Actions:  demoActions,
+		Findings: demoFindings,
+		Habits:   demoHabits,
 		Heat:     calendar(rng, now),
 	}
 }
@@ -141,6 +159,57 @@ func history(rng *rand.Rand, now time.Time) []Item {
 		}
 	}
 	return out
+}
+
+// demoStory is the reading a real audit would show, for a rehearsal.
+func demoStory(handle string, empty bool) []Section {
+	user := func(created string, repos, followers, following int) Section {
+		return Section{
+			Cmd: "gh api users/" + handle + " --jq '{login, created_at, public_repos, followers, following}'",
+			Lines: []string{"{", fmt.Sprintf(`  "login": %q,`, handle), fmt.Sprintf(`  "created_at": %q,`, created),
+				fmt.Sprintf(`  "public_repos": %d,`, repos), fmt.Sprintf(`  "followers": %d,`, followers),
+				fmt.Sprintf(`  "following": %d`, following), "}"},
+		}
+	}
+	readme := "gh api repos/" + handle + "/" + handle + "/readme -H 'Accept: application/vnd.github.raw' | head -5"
+	list := "gh repo list " + handle + " --limit 5"
+	year := func(commits, prs, reviews, private int, gap string) Section {
+		return Section{
+			Cmd: "gh api graphql -F login=" + handle + " -f query=@contributions.graphql --jq .data.user.contributionsCollection",
+			Lines: []string{"{", fmt.Sprintf(`  "totalCommitContributions": %d,`, commits),
+				fmt.Sprintf(`  "totalPullRequestContributions": %d,`, prs),
+				fmt.Sprintf(`  "totalPullRequestReviewContributions": %d,`, reviews),
+				fmt.Sprintf(`  "restrictedContributionsCount": %d`, private), "}", "# longest quiet stretch: " + gap},
+		}
+	}
+	if empty {
+		return []Section{
+			user("2021-04-11T09:30:12Z", 0, 0, 3),
+			{Cmd: readme, Lines: []string{"gh: Not Found (HTTP 404)", "# no profile README. a person of few words."}},
+			{Cmd: list, Lines: []string{"no repositories match your search in @" + handle, "# nothing to see, nothing to judge."}},
+			year(0, 0, 0, 0, "365 days"),
+		}
+	}
+	return []Section{
+		user("2017-03-02T10:12:40Z", 23, 41, 212),
+		{Cmd: readme, Lines: []string{
+			"<h1 align=\"center\">Hi, I'm " + handle + " 👋</h1>",
+			"<p align=\"center\">Full-stack developer. Rust enthusiast.</p>",
+			"![Go](https://img.shields.io/badge/Go-00ADD8?logo=go)",
+			"![Rust](https://img.shields.io/badge/Rust-000?logo=rust)",
+			"![TypeScript](https://img.shields.io/badge/TypeScript-3178C6)",
+			"# 14 skill badges", "# claims: Go, Rust, TypeScript", "# not one repo written in Rust"}},
+		{Cmd: list, Lines: []string{
+			"Showing 5 of 23 repositories in @" + handle,
+			fmt.Sprintf("%-18s %-11s %s", "NAME", "LANGUAGE", "UPDATED"),
+			fmt.Sprintf("%-18s %-11s %s", "api-server", "Go", "2d ago"),
+			fmt.Sprintf("%-18s %-11s %s", "dotfiles", "Shell", "5d ago"),
+			fmt.Sprintf("%-18s %-11s %s", "portfolio-v3", "TypeScript", "2mo ago"),
+			fmt.Sprintf("%-18s %-11s %s", "todo-app", "JavaScript", "3y ago"),
+			fmt.Sprintf("%-18s %-11s %s", "rust-learning", "Rust", "4y ago  archived"),
+			"# 11 of 23 have no description", "# 9 of 23 have no README"}},
+		year(412, 18, 3, 97, "41 days"),
+	}
 }
 
 // calendar ends on today's weekday, the way GitHub's does.
@@ -173,15 +242,27 @@ func gauge(label string, rng *rand.Rand, lo, hi int, bands [3]string) Metric {
 	return Metric{Label: label, Value: fmt.Sprintf("%d%%", n), Tag: band, Percent: &n}
 }
 
-// Odds are read off the score rather than drawn, so a bad audit really does pay
-// worse. Numbers nobody can trace back look invented.
-func Odds(score int) []Odd {
-	return []Odd{
-		{Label: "You fix prod without the logs", Price: price(2.0 + float64(score)/12)},
-		{Label: "Friday deploy survives Monday", Price: price(3.0 + float64(score)/6)},
-		{Label: "You blame the cache", Price: price(2.2 - float64(score)/120), Tag: "sure thing"},
+var (
+	demoActions = []string{
+		`Learn a second word. "fix" is lonely.`,
+		"Sleep. Commits at 3am are a cry for help.",
+		"Write 7 READMEs. Future you forgot already.",
 	}
-}
+	demoFindings = []Finding{
+		{Title: "Time served", Value: "since Mar 2016", Line: "10 years on GitHub and 14 repos to show for it."},
+		{Title: "Social standing", Value: "12 followers, following 87", Line: "Follows more people than follow back. Networking is going great."},
+		{Title: "Stars collected", Value: "9", Line: "dotfiles carries the whole account. The rest are along for the ride."},
+		{Title: "Main language", Value: "TypeScript, 57% of repos", Line: "Dabbles in 3 other languages. Commitment is a work in progress."},
+		{Title: "Teamwork this year", Value: "4 pull requests, 0 reviews", Line: "Opens pull requests, reviews none. Takes, never gives."},
+	}
+	demoHabits = []Finding{
+		{Title: "Favourite first words", Value: "fix ×23, update ×11, wip ×5", Line: "Mostly fixing. Who wrote all these bugs, then?"},
+		{Title: "Peak hour", Value: "02:00", Line: "Nothing good was ever committed at this hour."},
+		{Title: "Busiest day", Value: "Friday", Line: "Ships on Fridays. Brave, or unsupervised."},
+		{Title: "Words per message", Value: "1.8", Line: "Hemingway would find this too short."},
+		{Title: "The graveyard", Value: "6 repos untouched for a year", Line: "Not archived, not deleted. Just resting."},
+	}
+)
 
 // Score is the plain average of the gauges. Weighting the worst one made
 // receipts where three bars were short still read as serious, which contradicts
@@ -199,17 +280,6 @@ func Score(metrics []Metric) int {
 		return 0
 	}
 	return total / n
-}
-
-// price formats a decimal price, clamped to something a bookmaker would print.
-func price(v float64) string {
-	if v < 1.05 {
-		v = 1.05
-	}
-	if v > 99 {
-		v = 99
-	}
-	return fmt.Sprintf("%.2f", v)
 }
 
 // Severity bands are set against where the average of four gauges actually

@@ -23,8 +23,8 @@ func TestTheHeatmapFillsTheColumnExactly(t *testing.T) {
 	heat[10][2] = 9
 
 	for _, ln := range (&receipt.Doc{Blocks: []receipt.Block{receipt.Heatmap{Weeks: heat}}}).Lines() {
-		if n := len([]rune(ln.Text)); n != receipt.Width-receipt.Gutter {
-			t.Errorf("want each row %d columns with the gutter, got %d: %q", receipt.Width-receipt.Gutter, n, ln.Text)
+		if n := len([]rune(ln.Text)); n != receipt.Width()-receipt.Gutter {
+			t.Errorf("want each row %d columns with the gutter, got %d: %q", receipt.Width()-receipt.Gutter, n, ln.Text)
 		}
 	}
 }

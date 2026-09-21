@@ -39,7 +39,7 @@ var (
 
 	// ErrBadHandle is text that could never be a handle. Nothing was asked of
 	// GitHub, and the message is written to be shown to whoever typed it.
-	ErrBadHandle = errors.New("is not a GitHub handle")
+	ErrBadHandle = errors.New("can't be a GitHub username. Those use only letters, numbers and single hyphens")
 )
 
 // handleRule is GitHub's own: letters, digits and single hyphens, never at

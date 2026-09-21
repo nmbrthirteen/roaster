@@ -47,7 +47,7 @@ func (s *Server) preview(w http.ResponseWriter, r *http.Request) {
 		Printers    []printer.Candidate
 	}{
 		Receipt:     template.HTML(doc.HTML(s.assets)),
-		Width:       receipt.Width,
+		Width:       receipt.Width(),
 		LineCount:   len(doc.Lines()),
 		Millimetres: strconv.Itoa(int(doc.EstimateHeightMM(s.assets))),
 		Bytes:       len(doc.ESCPOS(s.assets)),

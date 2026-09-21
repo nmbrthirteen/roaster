@@ -43,7 +43,7 @@
   body {
     background: var(--black); color: var(--white); font-family: var(--sans);
     display: grid; place-items: center; overflow: hidden;
-    padding: clamp(24px, 6vw, 72px);
+    padding: clamp(20px, 3vw, 40px);
   }
 
   /* GridLines: four horizontal rules at quarters, six vertical at fifths. */
@@ -79,13 +79,14 @@
   /* Integral CF, uppercase, 120% leading. */
   h1 {
     font-family: var(--display); font-weight: 900; text-transform: uppercase;
-    font-size: clamp(44px, 8vw, 104px); line-height: 1.12; letter-spacing: 0;
-    margin: 0;
+    font-size: clamp(40px, 7vw, 84px); line-height: 1.1; letter-spacing: 0;
+    margin: 0; text-wrap: balance;
   }
   .lede {
     font-family: var(--sora); font-size: clamp(20px, 2.8vw, 30px); line-height: 1.45;
-    color: var(--white); max-width: 36ch; margin: 22px auto 0;
+    color: var(--white); max-width: 36ch; margin: 22px auto 0; text-wrap: balance;
   }
+  .lede .sentence { display: block; }
 
   form { display: flex; gap: 16px; align-items: stretch; margin-top: clamp(40px, 7vh, 72px); }
   input {
@@ -105,20 +106,43 @@
   button:hover:not(:disabled) { font-style: normal; }
   button:disabled { background: var(--elevated); color: var(--subtle); cursor: not-allowed; }
   button:active:not(:disabled) { opacity: .8; }
-  /* The stand's own keyboard. Windows' touch keyboard never opens on the
-     visitor screen, so its dictation, emoji and settings are never in reach. */
-  .keys {
-    display: grid; grid-template-columns: repeat(10, 1fr); gap: clamp(6px, 1vw, 10px);
-    margin-top: clamp(24px, 4vh, 40px);
+  /* The stand's own keyboard, laid out like Windows' touch keyboard with its
+     number row. It opens only when the handle field is tapped, and Windows'
+     own keyboard never opens on the visitor screen, so its dictation, emoji
+     and settings are never in reach. */
+  .kb {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+    background: var(--surface); border-top: 1px solid var(--border);
+    padding: clamp(16px, 2.4vh, 28px) clamp(12px, 3vw, 40px) clamp(20px, 3vh, 36px);
+    transform: translateY(100%); visibility: hidden;
+    transition: transform .2s cubic-bezier(.25, 1, .5, 1), visibility 0s linear .2s;
   }
-  .keys button {
-    min-height: clamp(64px, 7.5vh, 92px); padding: 0; border-radius: 14px;
+  .kb[data-open] { transform: none; visibility: visible; transition: transform .2s cubic-bezier(.25, 1, .5, 1); }
+  .kb-inner { max-width: 1000px; margin: 0 auto; display: flex; flex-direction: column; gap: clamp(8px, 1vh, 12px); }
+  .kb-row { display: grid; grid-template-columns: repeat(23, 1fr); gap: clamp(6px, .9vw, 10px); }
+  .kb-row.digits { grid-template-columns: repeat(11, 1fr); margin-bottom: clamp(10px, 1.6vh, 18px); }
+  .kb button {
+    grid-column: span 2; min-height: clamp(64px, 7vh, 88px); padding: 0; border-radius: 12px;
     font-family: var(--mono); font-size: clamp(22px, 3.2vw, 34px); font-weight: 400; font-style: normal;
     background: var(--elevated); color: var(--white); border: 1px solid var(--border);
-    touch-action: manipulation; user-select: none;
+    touch-action: manipulation; user-select: none; -webkit-user-select: none;
+    transition: transform .08s ease-out, background-color .08s ease-out;
   }
-  .keys button:active:not(:disabled) { background: var(--border); opacity: 1; }
-  .keys .erase { font-size: clamp(18px, 2.4vw, 24px); color: var(--muted); }
+  .kb .digits button { grid-column: auto; min-height: clamp(52px, 5.6vh, 68px); font-size: clamp(20px, 2.6vw, 28px); background: var(--black); color: var(--muted); }
+  .kb button:active:not(:disabled) { transform: scale(.96); background: var(--border); opacity: 1; }
+  .kb .erase { grid-column: span 3; display: grid; place-items: center; color: var(--muted); }
+  .kb .erase svg { width: 34px; height: 34px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
+  .kb button:disabled { background: var(--elevated); color: var(--subtle); opacity: .45; }
+  .kb .digits button:disabled { background: var(--black); }
+  .kb .shift { display: grid; place-items: center; color: var(--muted); }
+  .kb .shift svg { width: 30px; height: 30px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; }
+  .kb .shift.on { background: var(--white); color: var(--black); border-color: var(--white); }
+  .kb .enter { background: var(--primary); color: var(--black); border-color: var(--primary); font-size: clamp(20px, 2.6vw, 28px); font-weight: 700; }
+  .kb .enter:disabled { background: var(--elevated); color: var(--subtle); border-color: var(--border); }
+  .kb .enter:active:not(:disabled) { background: var(--primary); }
+  .kb .offset-1 { grid-column: 2 / span 2; }
+  #entry { transition: transform .2s cubic-bezier(.25, 1, .5, 1); }
+  @media (prefers-reduced-motion: reduce) { .kb, .kb[data-open], #entry { transition: none; } }
 
   #go { min-width: 120px; font-size: clamp(34px, 5vw, 50px); font-style: normal; border-radius: 999px; padding: 0 clamp(30px, 4vw, 44px); }
   .wide { width: 100%; min-height: 96px; font-size: clamp(26px, 3.6vw, 36px); border-radius: 999px; padding: clamp(24px, 3.6vh, 34px); }
@@ -129,13 +153,39 @@
   .quiet:hover:not(:disabled) { background: transparent; color: var(--white); border-color: var(--border); }
 
   /* Anchored to the bottom, so new output never moves what is there. */
+  /* What the audit is doing and how far along it is, readable from a step
+     back: the terminal below is the detail, this is the plot. */
+  .audit-head {
+    flex: none; padding: clamp(28px, 4vh, 56px) clamp(20px, 3.5vw, 48px) clamp(16px, 2vh, 24px);
+    border-bottom: 1px solid var(--border);
+  }
+  .audit-title {
+    margin: 0; font-family: var(--sora); font-weight: 600; line-height: 1.15;
+    font-size: clamp(32px, 5vw, 56px); color: var(--white); overflow-wrap: anywhere;
+  }
+  .audit-title span { color: var(--primary); }
+  /* Seven fixed segments and one line of text: nothing changes size as the
+     audit moves on, so nothing on screen jumps. */
+  .progress {
+    display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px;
+    margin-top: clamp(18px, 2.4vh, 28px);
+  }
+  .progress span { height: 8px; background: var(--border); transition: background-color .2s ease-out; }
+  .progress span[data-state="done"] { background: var(--primary); }
+  .progress span[data-state="active"] { background: var(--white); }
+  .progress-text {
+    margin: 12px 0 0; font-family: var(--mono); font-size: clamp(18px, 2.2vw, 24px);
+    color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
   .term {
     flex: 1; min-height: 0; overflow: hidden;
-    display: flex; flex-direction: column; justify-content: flex-end;
-    padding: clamp(20px, 3vw, 40px) clamp(20px, 3.5vw, 48px) 14px;
-    font-family: var(--mono); font-size: clamp(15px, 1.6vw, 22px); line-height: 1.7;
+    display: flex; flex-direction: column; justify-content: flex-start;
+    padding: clamp(20px, 2.6vh, 36px) clamp(20px, 3.5vw, 48px) 14px;
+    font-family: var(--mono); font-size: clamp(18px, 2.6vw, 28px); line-height: 1.55;
   }
-  .term div { animation: appear .35s var(--ease) both; white-space: pre; }
+  .term div { animation: appear .35s var(--ease) both; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .term .cmd:not(:first-child) { margin-top: .7em; }
   @keyframes appear { from { opacity: 0; } }
   .term::after { content: "\2588"; color: var(--primary); animation: blink 1.06s steps(1) infinite; }
   @keyframes blink { 50% { opacity: 0; } }
@@ -149,6 +199,11 @@
   .term .out i { color: var(--primary); font-style: normal; }
   .term .bar { color: var(--primary); letter-spacing: -.04em; }
   .term .bar u { color: #2a2a30; text-decoration: none; }
+  .term .out .k { color: #8884ff; }
+  .term .out .s { color: var(--primary); }
+  .term .out .n { color: var(--white); }
+  .term .out .c { color: var(--subtle); }
+  .term .out .h { color: var(--white); }
   .term .say { color: var(--white); white-space: pre-wrap; max-width: 72ch; }
 
   /* git log --graph, coloured the way git colours its lanes. */
@@ -176,16 +231,25 @@
 
   .verdict { font-family: var(--sora); font-size: clamp(24px, 3.6vw, 38px); line-height: 1.4; margin: 0; }
 
-  .score {
-    font-family: var(--mono); font-weight: 700; text-transform: none; font-size: clamp(88px, 18vw, 190px);
-    line-height: 1.05; letter-spacing: -.03em;
+  .result-handle { font-family: var(--mono); font-size: clamp(20px, 2.6vw, 28px); color: var(--muted); margin: 0; }
+  .score { margin: clamp(8px, 1.4vh, 16px) 0 0; font-family: var(--mono); font-weight: 700; line-height: 1; }
+  .score .num { color: var(--primary); font-size: clamp(120px, 24vw, 260px); letter-spacing: -.04em; }
+  .score .of { color: var(--subtle); font-size: clamp(32px, 5vw, 56px); font-weight: 400; margin-left: .15em; }
+  .severity { margin: clamp(10px, 1.6vh, 18px) 0 0; font-family: var(--mono); font-size: clamp(20px, 2.6vw, 28px); color: var(--white); }
+  .severity b { color: var(--primary); font-weight: 700; }
+
+  /* The receipt's QR, on screen too, for anyone who would rather keep a link
+     than a slip of paper. */
+  .share {
+    display: grid; grid-template-columns: auto 1fr; gap: clamp(20px, 3vw, 32px); align-items: center;
+    margin-top: clamp(28px, 4.5vh, 48px); padding: clamp(18px, 2.4vw, 28px);
+    border: 1px solid var(--border); background: var(--surface); text-align: left;
   }
-  .score .num { color: var(--primary); }
-  .score small {
-    display: block; font-family: var(--mono); font-size: clamp(20px, 2.8vw, 28px);
-    font-weight: 400; color: var(--primary); text-transform: none;
-    letter-spacing: 0; margin-top: 20px;
-  }
+  .share img { display: block; width: clamp(180px, 30vw, 320px); height: auto; background: #fff; padding: 10px; }
+  .share h3 { margin: 0; font-family: var(--sora); font-weight: 600; font-size: clamp(24px, 3.4vw, 38px); color: var(--white); }
+  .share p { margin: 10px 0 0; font-family: var(--sora); font-size: clamp(18px, 2.5vw, 27px); color: var(--muted); line-height: 1.4; }
+  .share code { display: block; margin-top: 14px; font-family: var(--mono); font-size: clamp(17px, 2.3vw, 25px); color: var(--primary); overflow-wrap: anywhere; }
+  .countdown { font-family: var(--mono); font-size: clamp(18px, 2.4vw, 26px); color: var(--muted); margin: 24px 0 0; font-variant-numeric: tabular-nums; }
   .note { font-family: var(--mono); font-size: clamp(17px, 2vw, 22px); color: var(--subtle); margin: 20px 0 0; min-height: 1.3em; }
 
 
@@ -287,10 +351,18 @@
            spellcheck="false" enterkeyhint="go" inputmode="none" autofocus>
     <button type="submit" id="go" disabled aria-label="Start">&rarr;</button>
   </form>
-  <div class="keys" id="keys" role="group" aria-label="Keyboard"></div>
 </section>
 
+<div class="kb" id="kb" role="group" aria-label="Keyboard"><div class="kb-inner" id="kbKeys"></div></div>
+
 <section class="screen" id="audit">
+  <header class="audit-head">
+    <h2 class="audit-title">Roasting <span id="auditHandle"></span></h2>
+    <div class="progress" id="progress" role="progressbar" aria-valuemin="0" aria-valuemax="7" aria-valuenow="0">
+      <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+    </div>
+    <p class="progress-text" id="progressText">Starting</p>
+  </header>
   <div class="term" id="term"></div>
   <div class="tmux">
     <span>[roaster] 0:audit*</span>
@@ -301,12 +373,22 @@
 </section>
 
 <section class="screen" id="result">
-  <svg class="mark"><use href="#logo"/></svg>
-  <div class="score"><span class="num" id="score">89 / 100</span><small id="scoreTag"></small></div>
+  <p class="result-handle" id="resultHandle"></p>
+  <div class="score"><span class="num" id="score"></span><span class="of">/100</span></div>
+  <p class="severity">Roast severity: <b id="scoreTag"></b></p>
   <p class="verdict" id="finalVerdict" style="margin-top:clamp(24px,4vh,40px)"></p>
-  <button class="wide" id="print" style="margin-top:clamp(28px,5vh,48px)">Print my receipt</button>
+  <div class="share">
+    <img id="shareQr" alt="QR code for your full roast" width="220" height="220">
+    <div>
+      <h3>Your full roast</h3>
+      <p>Scan it to open on your phone. The same code is on your receipt.</p>
+      <code id="shareUrl"></code>
+    </div>
+  </div>
+  <button class="wide" id="print" style="margin-top:clamp(24px,4vh,40px)">Print my receipt</button>
   <button class="wide quiet" id="again">Start over</button>
   <p class="note" id="note"></p>
+  <p class="countdown" id="countdown"></p>
 </section>
 
 
@@ -326,44 +408,146 @@
 
   // Set in the hidden menu. Brings the handle rules and the loader's words.
   const pack = {{.Pack}};
+  const shareBase = {{.Receipt.ShareBase}};
   const handleRule = new RegExp('[^' + pack.handleChars + ']', 'g');
+
+  // Each sentence of the line under the headline starts its own line, so a
+  // break never strands a single word.
+  const lede = document.querySelector('#entry .lede');
+  const sentences = lede.textContent.trim().split(/(?<=[.!?])\s+/);
+  if (sentences.length > 1) {
+    lede.textContent = '';
+    for (const text of sentences) {
+      const part = document.createElement('span');
+      part.className = 'sentence';
+      part.textContent = text;
+      lede.append(part);
+    }
+  }
   $('handle').placeholder = pack.placeholder;
   $('handle').maxLength = pack.handleMax;
 
-  // Only characters a handle can hold. Anything the pack allows beyond letters,
-  // digits and a hyphen gets a key of its own on the last row.
-  function buildKeys() {
-    const extras = ['.', '_'].filter(c => c.replace(handleRule, '') === c);
-    const rows = ['1234567890', 'qwertyuiop', 'asdfghjkl-', 'zxcvbnm' + extras.join('')];
-    const box = $('keys');
-    rows.forEach((row, i) => {
-      for (const ch of row) box.append(key(ch, ch));
-      if (i === rows.length - 1) {
-        const erase = key('Delete', null);
-        erase.classList.add('erase');
-        erase.style.gridColumn = `span ${10 - row.length}`;
-        box.append(erase);
-      }
-    });
-  }
+  // Only characters a handle can hold, laid out like Windows' own touch
+  // keyboard. Anything the pack allows beyond letters, digits and a hyphen
+  // gets a key at the end of the bottom row.
+  const shifted = { 1: '!', 2: '@', 3: '#', 4: '$', 5: '%', 6: '^', 7: '&', 8: '*', 9: '(', 0: ')', '-': '_' };
 
-  function key(label, ch) {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.textContent = label;
-    // Keeps focus, and the caret, in the field while a key is pressed.
-    b.addEventListener('pointerdown', e => e.preventDefault());
-    b.addEventListener('click', () => {
-      const input = $('handle');
-      input.value = ch ? (input.value + ch).slice(0, input.maxLength) : input.value.slice(0, -1);
-      input.dispatchEvent(new Event('input'));
-    });
-    return b;
-  }
-  buildKeys();
+  const kb = {
+    el: $('kb'),
+    shift: false, // stays on until tapped off
+
+    build() {
+      const extras = ['.', '_'].filter(c => c.replace(handleRule, '') === c);
+      const row = (cls) => { const r = document.createElement('div'); r.className = 'kb-row ' + cls; $('kbKeys').append(r); return r; };
+
+      const digits = row('digits');
+      for (const ch of '1234567890-') digits.append(this.key(ch, ch));
+
+      const top = row('');
+      for (const ch of 'qwertyuiop') top.append(this.key(ch, ch));
+      const erase = this.key('', null);
+      erase.classList.add('erase');
+      erase.setAttribute('aria-label', 'Delete');
+      erase.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 5H20a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H8.5L3 12z"/><path d="M11.5 9.5l5 5M16.5 9.5l-5 5"/></svg>';
+      top.append(erase);
+
+      const middle = row('');
+      [...'asdfghjkl'].forEach((ch, i) => {
+        const b = this.key(ch, ch);
+        if (i === 0) b.classList.add('offset-1');
+        middle.append(b);
+      });
+
+      // Go sits after the last letter and takes the rest of the row.
+      const bottom = row('');
+      const shift = document.createElement('button');
+      shift.type = 'button';
+      shift.className = 'shift';
+      shift.setAttribute('aria-label', 'Shift');
+      shift.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4l7.5 8H15v7H9v-7H4.5z"/></svg>';
+      shift.addEventListener('pointerdown', e => e.preventDefault());
+      shift.addEventListener('click', () => this.toggleShift());
+      this.shiftKey = shift;
+      bottom.append(shift);
+      const last = [...'zxcvbnm', ...extras];
+      last.forEach(ch => bottom.append(this.key(ch, ch)));
+      const enter = this.key('Go', null);
+      enter.classList.add('enter');
+      enter.id = 'kbGo';
+      enter.disabled = true;
+      enter.style.gridColumn = `span ${23 - 2 - 2 * last.length}`;
+      bottom.append(enter);
+      this.relabel();
+    },
+
+    key(label, ch) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = label;
+      if (ch) b.dataset.ch = ch;
+      // Keeps focus, and the caret, in the field while a key is pressed.
+      b.addEventListener('pointerdown', e => e.preventDefault());
+      b.addEventListener('click', () => {
+        const input = $('handle');
+        if (b.classList.contains('enter')) {
+          this.close();
+          $('form').requestSubmit();
+          return;
+        }
+        input.value = ch ? (input.value + this.out(ch)).slice(0, input.maxLength) : input.value.slice(0, -1);
+        input.dispatchEvent(new Event('input'));
+      });
+      return b;
+    },
+
+    out(ch) {
+      if (!this.shift) return ch;
+      return shifted[ch] ?? ch.toUpperCase();
+    },
+
+    toggleShift() { this.setShift(!this.shift); },
+
+    setShift(on) {
+      this.shift = on;
+      this.shiftKey.classList.toggle('on', on);
+      this.shiftKey.setAttribute('aria-pressed', on);
+      this.relabel();
+    },
+
+    // Keys show what they would type.
+    relabel() {
+      for (const b of this.el.querySelectorAll('button[data-ch]')) b.textContent = this.out(b.dataset.ch);
+    },
+
+    open() {
+      if (this.el.hasAttribute('data-open')) return;
+      this.el.setAttribute('data-open', '');
+      // On a screen too short for both, the entry screen moves up so the field
+      // stays visible above the keys.
+      requestAnimationFrame(() => {
+        const field = $('form').getBoundingClientRect();
+        const overlap = field.bottom + 24 - (innerHeight - this.el.offsetHeight);
+        $('entry').style.transform = overlap > 0 ? `translateY(${-overlap}px)` : '';
+      });
+    },
+
+    close() {
+      this.el.removeAttribute('data-open');
+      $('entry').style.transform = '';
+    },
+  };
+  kb.build();
+
+  // Opens on a tap on the field only: focus alone, as on page load, leaves the
+  // screen clear.
+  $('handle').addEventListener('pointerdown', () => kb.open());
+  document.addEventListener('pointerdown', e => {
+    if (!kb.el.contains(e.target) && e.target !== $('handle')) kb.close();
+  });
   let current = 'entry', idleTimer = null, roast = null;
 
   function show(name) {
+    if (name !== 'entry') kb.close();
     screens.forEach(s => $(s).toggleAttribute('data-active', s === name));
     current = name;
     if (name === 'entry') $('handle').focus();
@@ -371,16 +555,31 @@
   }
 
   // Someone who walks away must not hold the terminal.
+  // The result waits five minutes, long enough to read, print and scan, and
+  // says so. Once the receipt is out, one minute is enough to scan the code.
+  const fiveMinutes = 5 * 60 * 1000;
+  let resultWait = fiveMinutes, deadline = 0;
+
   function resetIdleTimer() {
     clearTimeout(idleTimer);
     if (current === 'entry' && !$('handle').value) return;
-    idleTimer = setTimeout(reset, current === 'result' ? 60000 : 45000);
+    const wait = current === 'result' ? resultWait : 45000;
+    deadline = Date.now() + wait;
+    idleTimer = setTimeout(reset, wait);
   }
+
+  setInterval(() => {
+    if (current !== 'result') return;
+    const left = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+    $('countdown').textContent = `Back to the start in ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+  }, 250);
   function reset() {
     if (stream) { stream.close(); stream = null; }
     feed.stop();
     $('handle').value = '';
-    $('go').disabled = true;
+    $('go').disabled = $('kbGo').disabled = true;
+    kb.close();
+    kb.setShift(false);
     $('term').innerHTML = '';
     $('note').textContent = '';
     show('entry');
@@ -391,9 +590,15 @@
   $('again').addEventListener('click', reset);
   $('cancel').addEventListener('click', reset);
 
+  // Anything can be typed; a name the platform cannot have is refused by the
+  // lookup, in words. A pasted profile link or an @ keeps only the name.
   $('handle').addEventListener('input', e => {
-    e.target.value = e.target.value.replace(handleRule, '');
-    $('go').disabled = e.target.value.length === 0;
+    let v = e.target.value.replace(/\s+/g, '');
+    const link = v.match(/github\.com\/([^/?#]+)/i);
+    if (link) v = link[1];
+    v = v.replace(/^@/, '');
+    e.target.value = v;
+    $('go').disabled = $('kbGo').disabled = v.length === 0;
   });
 
   $('form').addEventListener('submit', async e => {
@@ -414,14 +619,16 @@
 
   // Each update paints as it lands, so the wait shows real progress.
   let stream = null;
+  let verdictIn = false;
 
   function start(handle) {
     $('term').innerHTML = '';
     feed.stop();
     feed.who = handle;
+    verdictIn = false;
     show('audit');
     session(handle);
-    line('cmd', 'audit ' + handle);
+    line('cmd', './roast ' + handle);
 
     const src = new EventSource('/api/roast?handle=' + encodeURIComponent(handle)
       + location.search.replace('?', '&'));
@@ -429,29 +636,78 @@
 
     src.onmessage = e => {
       const u = JSON.parse(e.data);
-      if (u.phase === 'fetch') line('dim', u.label.toLowerCase() + '...');
-      if (u.phase === 'feed') feed.load(u.feed);
-      if (u.phase === 'metric') measured(u.metric);
-      if (u.phase === 'verdict' && !u.verdict) feed.play();
-      if (u.phase === 'verdict' && u.verdict) { feed.stop(); typeVerdict(u.verdict); }
-      if (u.phase === 'done') { roast = u.roast; src.close(); finish(); }
+      if (u.phase === 'fetch') { stage('profile'); line('dim', 'querying api.github.com/graphql...'); }
+      if (u.phase === 'section') feed.section(u.section);
+      if (u.phase === 'feed') feed.log(u.feed);
+      if (u.phase === 'metric') {
+        if (!feed.measuring) {
+          feed.measuring = true;
+          const cmd = `./roast gauges ${feed.who}`;
+          feed.push(() => { stage('gauges'); line('cmd', cmd); }, typingTime(cmd));
+        }
+        feed.push(() => measured(u.metric), 300);
+      }
+      // The reading always plays to the end, however fast the verdict comes
+      // back: it is half the fun. The verdict is typed last, and the result
+      // screen follows once it has been read.
+      if (u.phase === 'verdict' && !u.verdict) feed.push(() => { stage('verdict'); if (!verdictIn) line('dim', 'waiting for the verdict...'); }, 0);
+      if (u.phase === 'verdict' && u.verdict) {
+        verdictIn = true;
+        feed.push(() => { stage('verdict'); typeVerdict(u.verdict); }, typingTime('cat verdict.txt') + 14 * u.verdict.length + 1500);
+      }
+      if (u.phase === 'done') { roast = u.roast; src.close(); feed.push(() => stream === src && finish(), 0); }
       if (u.phase === 'error') fail(src, u.error);
       resetIdleTimer();
     };
     src.onerror = () => fail(src, 'could not reach the audit');
   }
 
+  // Fills the progress bar to the step the terminal has reached, and names it.
+  const stepOrder = ['profile', 'readme', 'repos', 'year', 'commits', 'gauges', 'verdict'];
+  const stepText = {
+    profile: 'Reading the profile', readme: 'Reading the README', repos: 'Going through the repos',
+    year: 'Counting contributions', commits: 'Reading commits', gauges: 'Measuring the damage',
+    verdict: 'Writing the verdict',
+  };
+  function stage(name) {
+    const at = stepOrder.indexOf(name);
+    [...$('progress').children].forEach((seg, i) => {
+      seg.dataset.state = at < 0 ? '' : i < at ? 'done' : i === at ? 'active' : '';
+    });
+    $('progress').setAttribute('aria-valuenow', String(Math.max(at, 0)));
+    $('progressText').textContent = at < 0 ? 'Starting' : `${stepText[name]}, step ${at + 1} of ${stepOrder.length}`;
+  }
+
   function session(handle) {
     const now = new Date();
     line('dim', 'Last login: ' + now.toDateString().slice(0, 10) + ' '
       + now.toTimeString().slice(0, 8) + ' on ttys001');
-    $('tmuxHandle').textContent = '@' + handle;
+    $('tmuxHandle').textContent = $('auditHandle').textContent = '@' + handle;
+    stage(null);
     $('tmuxClock').textContent = now.toTimeString().slice(0, 5);
   }
 
   const prompt = '<span class="user">upgaming@roaster</span>:<span class="path">~</span>$ ';
 
   // Whatever no longer fits scrolls off the top, however tall the screen is.
+  // Milliseconds per character a command is typed at, and how long one takes.
+  const typing = 8;
+  const typingTime = cmd => typing * cmd.length + 150;
+
+  // Output coloured the way jq and a shell colour it: JSON keys, strings and
+  // numbers apart, and # comments dimmed.
+  function colour(text) {
+    if (text.startsWith('#')) return `<span class="c">${esc(text)}</span>`;
+    const kv = text.match(/^(\s*)"([^"]+)": (.*?)(,?)$/);
+    if (kv) {
+      const [, pad, key, value, comma] = kv;
+      const cls = value.startsWith('"') ? 's' : value === 'null' ? 'c' : 'n';
+      return `${pad}<span class="k">"${esc(key)}"</span>: <span class="${cls}">${esc(value)}</span>${comma}`;
+    }
+    if (/^(NAME|Showing)\b/.test(text)) return `<span class="h">${esc(text)}</span>`;
+    return esc(text);
+  }
+
   function line(cls, text) {
     const el = document.createElement('div');
     el.className = cls;
@@ -462,8 +718,10 @@
       const typed = document.createTextNode('');
       el.append(typed);
       let i = 0;
-      const key = () => { typed.data = text.slice(0, ++i); if (i < text.length) setTimeout(key, 16); };
+      const key = () => { typed.data = text.slice(0, ++i); if (i < text.length) setTimeout(key, typing); };
       key();
+    } else if (cls === 'out') {
+      el.innerHTML = colour(text);
     } else {
       el.textContent = text;
     }
@@ -495,31 +753,46 @@
     grow();
   }
 
-  // Plays while the verdict is written and stops the moment it lands, so the
-  // screen never runs longer than the real work.
+  // Everything the audit sends plays in the order it arrives, a line at a
+  // time, so the screen reads the account top to bottom: who they are, their
+  // README, their repos, their year, their commits, the gauges, the verdict.
   const feed = {
-    items: null, shown: 0, timer: null, lanes: new Map(), pace: 450, who: '',
+    steps: [], timer: null, lanes: new Map(), who: '', sections: 0,
+    line: 150, commit: 180, commits: 8,
 
-    load(items) { this.items = items || []; this.shown = 0; this.lanes.clear(); },
-
-    // No items at all means a roast service older than the feed, which is
-    // not the same as an account with nothing public.
-    play() {
-      if (!this.items) { line('cmd', 'writing the verdict'); return; }
-      if (this.items.length) line('cmd', pack.feed);
-      this.tick();
+    push(step, pause) {
+      this.steps.push({ step, pause });
+      if (!this.timer) this.next();
     },
 
-    tick() {
-      const quiet = !this.items.length;
-      if (this.shown >= (quiet ? pack.quiet.length : this.items.length)) return;
-      const i = this.shown++;
-      if (quiet) line(pack.quiet[i][0], pack.quiet[i][1].replace('{handle}', this.who));
-      else this.draw(this.items[i]);
-      this.timer = setTimeout(() => this.tick(), quiet ? this.pace * 2 : this.pace);
+    next() {
+      const s = this.steps.shift();
+      if (!s) { this.timer = null; return; }
+      s.step();
+      this.timer = setTimeout(() => this.next(), s.pause);
     },
 
-    stop() { clearTimeout(this.timer); this.items = null; this.shown = 0; },
+    stop() { clearTimeout(this.timer); this.timer = null; this.steps = []; this.lanes.clear(); this.sections = 0; this.measuring = false; },
+
+    // A command is typed, so it waits for its own typing before the output.
+    section(sec) {
+      const step = ['profile', 'readme', 'repos', 'year'][this.sections++];
+      this.push(() => { if (step) stage(step); line('cmd', sec.cmd); }, typingTime(sec.cmd));
+      for (const text of sec.lines || []) this.push(() => line('out', text), this.line);
+    },
+
+    // An account with nothing public gets the pack's quiet bit instead of a log.
+    log(items) {
+      this.push(() => stage('commits'), 0);
+      if (!items || !items.length) {
+        for (const [kind, text] of pack.quiet) {
+          this.push(() => line(kind, text.replace('{handle}', this.who)), kind === 'cmd' ? typingTime(text) : 600);
+        }
+        return;
+      }
+      this.push(() => line('cmd', pack.feed), typingTime(pack.feed));
+      for (const c of items.slice(0, this.commits)) this.push(() => this.draw(c), this.commit);
+    },
 
     // Three lanes at most, one per repository, so the feed reads as branches.
     draw(c) {
@@ -564,13 +837,18 @@
   }
 
   function finish() {
-    $('score').textContent = roast.score;
-    $('scoreTag').textContent = 'roast severity: ' + roast.scoreTag;
+    const url = shareBase.replace(/\/$/, '') + '/' + roast.code;
+    $('resultHandle').textContent = '@' + roast.handle;
+    $('score').textContent = String(roast.score).split('/')[0].trim();
+    $('scoreTag').textContent = roast.scoreTag;
     $('finalVerdict').textContent = '“' + roast.verdict + '”';
+    $('shareQr').src = '/qr?m=8&d=' + encodeURIComponent(url);
+    $('shareUrl').textContent = url.replace(/^https?:\/\//, '');
     $('print').disabled = false;
     $('print').textContent = 'Print my receipt';
     $('again').textContent = 'Start over';
     $('note').textContent = '';
+    resultWait = fiveMinutes;
     show('result');
   }
 
@@ -620,7 +898,8 @@
       e.target.textContent = 'Take your receipt';
       $('note').textContent = 'Scan the code for the digital version.';
       $('again').textContent = 'Done';
-      setTimeout(reset, 8000);
+      resultWait = 60 * 1000;
+      resetIdleTimer();
     } catch (err) {
       e.target.disabled = false;
       e.target.textContent = 'Try again';
@@ -768,6 +1047,10 @@
         <option value="">None</option>
         ${(s.printers || []).map(p => `<option value="${esc(p.spec)}"${p.spec === s.printer ? ' selected' : ''}>${esc(p.label)}</option>`).join('')}
       </select>
+      <select id="aColumns">
+        ${[[48, '80 mm paper, 48 characters a line (most printers)'], [42, '80 mm paper, 42 characters a line (narrow head)'], [32, '58 mm paper, 32 characters a line']]
+          .map(([n, label]) => `<option value="${n}"${n === s.columns ? ' selected' : ''}>${label}</option>`).join('')}
+      </select>
       <div class="acts">
         ${hasSerial ? '<button id="aConnect">Connect printer</button>' : ''}
         <button id="aTest">Test slip</button>
@@ -906,6 +1189,7 @@
       return msg;
     });
     on('aSource', e => save({ provider: e.target.value }), 'change');
+    on('aColumns', e => save({ columns: e.target.value }, () => say('Saved. Print a test slip to check the edges.')), 'change');
     on('aRemote', e => save({ remoteUrl: e.target.value.trim() }), 'change');
     on('aToken', e => e.target.value.trim() && save({ token: e.target.value.trim() }), 'change');
     on('aCheck', () => act(async () => { say('Checking...'); return await call('/admin/service'); }));
@@ -1066,7 +1350,7 @@
       if (preview === 'result') return finish();
       show('audit');
       session(r.handle);
-      line('cmd', 'audit ' + r.handle);
+      line('cmd', './roast ' + r.handle);
       r.metrics.forEach(measured);
       typeVerdict(r.verdict);
     });

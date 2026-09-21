@@ -60,6 +60,9 @@ func New(o Options) (*Server, error) {
 		kiosk:    template.Must(template.ParseFS(ui.FS, "kiosk.html")),
 	}
 
+	if o.Config.Columns != 0 && !receipt.SetWidth(o.Config.Columns) {
+		log.Printf("columns %d is not a printer width; using %d", o.Config.Columns, receipt.Width())
+	}
 	if err := s.st.reloadEvents(); err != nil {
 		return nil, fmt.Errorf("events: %w", err)
 	}
@@ -181,7 +184,7 @@ func testSlip(spec string, ev event.Event) *receipt.Doc {
 		},
 		receipt.Feed{Lines: 2},
 		receipt.KV{Label: "Target", Value: spec},
-		receipt.KV{Label: "Columns", Value: strconv.Itoa(receipt.Width)},
+		receipt.KV{Label: "Columns", Value: strconv.Itoa(receipt.Width())},
 		receipt.Feed{Lines: 2},
 		receipt.Section{Label: "This line should be reversed"},
 		receipt.Feed{Lines: 1},

@@ -21,7 +21,7 @@ func (r Roast) Doc(ev event.Event, terminal string) *receipt.Doc {
 
 	// A masthead that outruns the 21 double-width columns falls back to single
 	// width rather than wrapping across two lines.
-	if len([]rune(ev.Receipt.Title)) > receipt.Width/2 {
+	if len([]rune(ev.Receipt.Title)) > receipt.Width()/2 {
 		head = receipt.Style{Align: receipt.AlignCenter, Bold: true, Tall: true}
 	}
 
@@ -74,16 +74,12 @@ func (r Roast) Doc(ev event.Event, terminal string) *receipt.Doc {
 		receipt.Para{Value: "“" + r.Verdict + "”"},
 
 		brk,
-		receipt.Section{Label: "Bet slip"},
-		receipt.Text{Value: "Odds set by people who read your code."},
+		receipt.Section{Label: "Action items"},
+		receipt.Text{Value: "Agreed in this review. Due by the next one."},
 		gap,
 	)
-	for _, o := range r.Odds {
-		v := o.Price
-		if o.Tag != "" {
-			v = fmt.Sprintf("%s  %s", o.Price, o.Tag)
-		}
-		d.Add(receipt.KV{Label: o.Label, Value: v, Leader: '.'})
+	for _, a := range r.Actions {
+		d.Add(receipt.Para{Value: a, Mark: "[ ] "})
 	}
 
 	share := ev.ShareURL(r.Code)

@@ -9,12 +9,14 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/upgaming/roaster/internal/event"
 	"github.com/upgaming/roaster/internal/netconf"
 	"github.com/upgaming/roaster/internal/printer"
+	"github.com/upgaming/roaster/internal/receipt"
 	"github.com/upgaming/roaster/internal/roast"
 	"github.com/upgaming/roaster/internal/secret"
 	"github.com/upgaming/roaster/internal/state"
@@ -37,6 +39,7 @@ type adminState struct {
 	EventCode string              `json:"event"`
 	Events    []event.Event       `json:"events"`
 	Printer   string              `json:"printer"`
+	Columns   int                 `json:"columns"`
 	Printers  []printer.Candidate `json:"printers"`
 	Provider  string              `json:"provider"`
 	RemoteURL string              `json:"remoteUrl"`
@@ -79,6 +82,7 @@ func (s *Server) adminState(w http.ResponseWriter, r *http.Request) {
 		EventCode: s.pick(r).Code,
 		Events:    all(s.st.eventSet()),
 		Printer:   spec,
+		Columns:   receipt.Width(),
 		Printers:  printer.Discover(),
 		Provider:  cfg.Provider,
 		RemoteURL: cfg.RemoteURL,
@@ -103,6 +107,13 @@ func (s *Server) adminSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	if v := r.FormValue("pack"); v != "" {
 		if err := s.st.setPack(v); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+	if v := r.FormValue("columns"); v != "" {
+		n, _ := strconv.Atoi(v)
+		if err := s.st.setColumns(n); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}

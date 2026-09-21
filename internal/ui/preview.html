@@ -60,11 +60,13 @@
 
   .stage { display: grid; place-items: start center; padding: 48px 24px 96px; overflow: auto; }
 
-  /* The paper. 42 columns is the printable width of an 80mm head in Font A. */
+  /* The paper. --cols is the printer's line width, set from the stand's
+     settings, so the mock-up is as wide as the text the printer gets. */
   .paper {
-    /* 80mm of paper, 72mm of it printable: 42 columns plus the dead margin the
-       head cannot reach. The text gutter sits inside those 42 columns. */
-    background: #fbfbf9; color: #16161a; width: 46.7ch; padding: 20px 2.35ch 12px;
+    /* 80mm of paper, 72mm of it printable: the columns plus the 4mm dead
+       margin each side that the head cannot reach. */
+    --cols: 42; --gutter: calc(var(--cols) * 1ch * 4 / 72);
+    background: #fbfbf9; color: #16161a; width: calc(var(--cols) * 1ch + 2 * var(--gutter)); padding: 20px var(--gutter) 12px;
     font-family: var(--mono); font-size: var(--fs); line-height: 1.167;
     box-shadow: 0 1px 2px rgba(0,0,0,.4), 0 18px 48px -12px rgba(0,0,0,.65);
     position: relative;
@@ -89,7 +91,7 @@
   .caliper { display: none; }
 
   /* Printing the designer on an office printer gives a true-size mock-up:
-     80mm of paper with the 42 columns landing on the 72mm the head can reach. */
+     80mm of paper with the columns landing on the 72mm the head can reach. */
   @media print {
     /* Naming the page size stops the dialog defaulting to whatever was used
        last. A4 is 297mm tall, so a 259mm receipt lands on one sheet. */
@@ -108,7 +110,7 @@
     .paper {
       width: 80mm; padding: 4mm; box-shadow: none;
       background: #fff; color: #000;
-      font-size: 2.857mm;  /* 42 monospace columns across the 72mm a head reaches */
+      font-size: calc(120mm / var(--cols));  /* the columns across the 72mm a head reaches, at 0.6em a character */
       /* Force the reversed section bars to print even if the browser's
          background graphics box is off. */
       -webkit-print-color-adjust: exact; print-color-adjust: exact;
@@ -126,7 +128,7 @@
 
   /* Column guide: one stripe per printable character cell. */
   .grid .paper { background-image: repeating-linear-gradient(90deg, rgba(162,155,247,.16) 0 1ch, transparent 1ch 2ch);
-                 background-position: 2.35ch 0; background-size: 42ch 100%; background-repeat: no-repeat; }
+                 background-position: var(--gutter) 0; background-size: calc(var(--cols) * 1ch) 100%; background-repeat: no-repeat; }
 </style>
 </head>
 <body class="thermal" style="--accent: {{.Event.Kiosk.Accent}}">
@@ -201,7 +203,7 @@
   <main class="stage">
     <div>
       <div class="caliper"><div class="bar"></div><div class="label" id="caliperLabel">72mm</div></div>
-      <div class="paper">{{.Receipt}}</div>
+      <div class="paper" style="--cols: {{.Width}}">{{.Receipt}}</div>
     </div>
   </main>
 
