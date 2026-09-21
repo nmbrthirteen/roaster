@@ -101,15 +101,19 @@ func (s *Server) audit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	result, err := provider.Roast(r.Context(), roast.Request{
-		Handle: handle,
-		Pack:   roast.PackFor(s.st.config().Pack).Key,
-		Event:  ev.Code,
+		Handle:   handle,
+		Pack:     roast.PackFor(s.st.config().Pack).Key,
+		Event:    ev.Code,
+		Terminal: s.st.config().Terminal,
 	}, emit)
 	if err != nil {
 		s.st.note("Last audit: " + err.Error())
 		emit(roast.Update{Phase: roast.PhaseError, Error: err.Error()})
 		return
 	}
+	// The stand's own clock, so the receipt prints the time in the room rather
+	// than the roast server's zone.
+	result.At = time.Now()
 	s.st.keep(result)
 }
 

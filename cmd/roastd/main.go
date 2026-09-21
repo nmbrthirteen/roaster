@@ -42,6 +42,9 @@ type settings struct {
 	tokens   []string
 	optOut   map[string]bool
 	parallel int
+
+	strapiURL   string // STRAPI_URL; with STRAPI_TOKEN, every roast is saved there
+	strapiToken string // STRAPI_TOKEN, allowed to create roast entries and nothing more
 }
 
 func main() {
@@ -69,7 +72,14 @@ func main() {
 		slog.Warn("no model key is set; verdicts will be written from the numbers alone")
 	}
 
-	svc := newService(roast.Router{roast.GitHub: provider}, cfg.tokens, limits{
+	var router roast.Provider = roast.Router{roast.GitHub: provider}
+	if cfg.strapiURL != "" && cfg.strapiToken != "" {
+		router = archive{next: router, url: cfg.strapiURL, token: cfg.strapiToken}
+	} else {
+		slog.Warn("STRAPI_URL or STRAPI_TOKEN is not set; roasts will not be saved and share links will not open")
+	}
+
+	svc := newService(router, cfg.tokens, limits{
 		slots:  cfg.parallel,
 		queue:  10 * time.Second,
 		budget: 40 * time.Second,
@@ -120,6 +130,9 @@ func fromEnv(env func(string) string) (settings, error) {
 		model:    env("OPENAI_MODEL"),
 		optOut:   map[string]bool{},
 		parallel: 16,
+
+		strapiURL:   env("STRAPI_URL"),
+		strapiToken: env("STRAPI_TOKEN"),
 	}
 	// OpenAI when its key is there, Claude when only that one is, and the
 	// numbers alone when neither is. One writer, chosen once, logged at start.

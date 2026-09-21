@@ -8,9 +8,10 @@ import (
 // Request is what a stand sends. It crosses the network to the roast service,
 // so its field names are part of that contract.
 type Request struct {
-	Handle string `json:"handle"`
-	Pack   string `json:"pack,omitempty"`
-	Event  string `json:"event,omitempty"`
+	Handle   string `json:"handle"`
+	Pack     string `json:"pack,omitempty"`
+	Event    string `json:"event,omitempty"`
+	Terminal string `json:"terminal,omitempty"` // the number printed on the receipt
 }
 
 // Phase names the stages the kiosk shows while it waits.
