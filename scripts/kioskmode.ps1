@@ -35,6 +35,10 @@ $taskName = 'Roaster kiosk mode'
 $logonUI = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Authentication\LogonUI'
 $resumeAfterMs = 120000
 
+# A swipe in from the edge of a touchscreen brings up the taskbar, and from
+# there the power button. Off while the device is a stand, back on after.
+$edgeUI = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\EdgeUI'
+
 function Set-Configuration {
   $cim = Get-CimInstance -Namespace 'root\cimv2\mdm\dmmap' -ClassName 'MDM_AssignedAccess'
   if ($Off) {
@@ -147,6 +151,7 @@ if ($Off) {
   Write-Host '  Taking this device out of kiosk mode...'
   Invoke-AsSystem
   Remove-ItemProperty -Path $logonUI -Name 'IdleTimeOut' -ErrorAction SilentlyContinue
+  Remove-ItemProperty -Path $edgeUI -Name 'AllowEdgeSwipe' -ErrorAction SilentlyContinue
   Write-Host '    cleared'
   exit 0
 }
@@ -192,6 +197,9 @@ if ($Account) {
 }
 Invoke-AsSystem
 New-ItemProperty -Path $logonUI -Name 'IdleTimeOut' -PropertyType DWord -Value $resumeAfterMs -Force | Out-Null
+# New-Item -Force would recreate an existing key and lose its other values.
+if (-not (Test-Path $edgeUI)) { New-Item -Path $edgeUI | Out-Null }
+New-ItemProperty -Path $edgeUI -Name 'AllowEdgeSwipe' -PropertyType DWord -Value 0 -Force | Out-Null
 Write-Host '    assigned'
 
 $packaged = Get-AppxPackage -AllUsers -Name 'Upgaming.Roaster' -ErrorAction SilentlyContinue
