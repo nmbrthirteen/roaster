@@ -178,9 +178,10 @@ func (h *host) open(instance uintptr) error {
 }
 
 // tighten turns off what a page in a browser gets and an application does not:
-// the context menu, developer tools, the status bar, zoom, and the error page
-// that would explain the server being down in Microsoft's words rather than
-// ours.
+// the context menu, developer tools, the status bar, zoom by keys, wheel or
+// pinch, swipe back and forward, browser shortcuts such as F5 and Ctrl+P, and
+// the error page that would explain the server being down in Microsoft's words
+// rather than ours.
 func (h *host) tighten() {
 	settings, err := h.view.GetSettings()
 	if err != nil {
@@ -192,6 +193,9 @@ func (h *host) tighten() {
 		"dev tools":     settings.PutAreDevToolsEnabled(false),
 		"status bar":    settings.PutIsStatusBarEnabled(false),
 		"zoom":          settings.PutIsZoomControlEnabled(false),
+		"pinch zoom":    settings.PutIsPinchZoomEnabled(false),
+		"swipe back":    settings.PutIsSwipeNavigationEnabled(false),
+		"browser keys":  settings.PutAreBrowserAcceleratorKeysEnabled(false),
 		"error page":    settings.PutIsBuiltInErrorPageEnabled(false),
 	} {
 		if err != nil {

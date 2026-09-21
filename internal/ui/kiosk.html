@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>{{.Headline}}</title>
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="theme-color" content="#070707">
@@ -39,7 +39,8 @@
     --ease: cubic-bezier(.45, 0, .15, 1);
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { height: 100%; margin: 0; overscroll-behavior: none; }
+  /* Scrolling is allowed, pinching is not: a zoomed stand has no way back. */
+  html, body { height: 100%; margin: 0; overscroll-behavior: none; touch-action: pan-x pan-y; }
   body {
     background: var(--black); color: var(--white); font-family: var(--sans);
     display: grid; place-items: center; overflow: hidden;
@@ -585,6 +586,10 @@
     show('entry');
   }
   ['pointerdown', 'keydown'].forEach(e => document.addEventListener(e, resetIdleTimer));
+  // Ctrl and the wheel, or a trackpad pinch, zoom the page. The WebView is told
+  // the same, but a stand should not rely on one switch.
+  document.addEventListener('wheel', e => { if (e.ctrlKey) e.preventDefault(); }, { passive: false });
+  ['gesturestart', 'gesturechange'].forEach(e => document.addEventListener(e, ev => ev.preventDefault()));
 
   // Only what a GitHub username can hold.
   $('again').addEventListener('click', reset);
