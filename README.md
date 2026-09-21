@@ -5,8 +5,14 @@ them a roast on thermal paper. Built for the Upgaming stand: a visitor types
 their handle, the audit runs while they watch, and an 80mm receipt comes out
 with a QR code to the digital version and the open roles.
 
-The whole thing is one Go binary with no runtime to install. The front end is
-plain HTML, CSS and JavaScript with no build step.
+Three Go binaries, none with a runtime to install. The front end is plain HTML,
+CSS and JavaScript with no build step.
+
+| | Runs on | What it is |
+|---|---|---|
+| `kiosk` | the stand | The Windows application a visitor sees. Starts `roaster` and shows its page. |
+| `roaster` | the stand | The page, the receipt designer, the hidden menu and the printer. |
+| `roastd` | a server | The roast service: reads GitHub, has the verdict written. The only place the keys live. |
 
 ## How the printing works
 
@@ -256,6 +262,13 @@ fact about a timezone. And commits by other people are dropped, because somebody
 else's commit message is theirs to answer for, unless GitHub attributed nothing
 in that repository at all, in which case the owner keeps the lot.
 
+The same request lists the top level of every repository it reads, which is how
+a missing README is counted. A repository only counts as having none when that
+is certain: a README of any spelling at the top, or a `.github` or `docs` folder
+GitHub would also look in, and it has one. For an account with little else
+public, the missing READMEs are often the truest line on the receipt, so the
+rule errs toward never accusing anyone on a guess.
+
 `internal/metric` turns that into the five rows the receipt is laid out for.
 Every one of them is arithmetic over fetched facts. Nothing is estimated and
 nothing is asked of a model, because a receipt someone photographs and shows to
@@ -272,11 +285,87 @@ It prints the gauges, the score and how long GitHub took. The token is read from
 the environment and nowhere else: a flag would put it in shell history and in
 the process list of a machine other people use.
 
+## The roast service
+
+`cmd/roastd` is the real roaster, and the only place the model key and the GitHub
+token exist. A stand posts a handle with its terminal token and gets the audit
+back as a stream. The kiosk's `remote` provider already speaks it, so pointing a
+stand at the service is two settings:
+
+```json
+{ "provider": "remote", "remoteUrl": "https://roast.example.com/roast" }
+```
+
+and the terminal's token, written with `roaster -set-token`.
+
+Run it with the settings in `.env.example` set in the environment:
+
+```sh
+go run ./cmd/roastd
+```
+
+### What it does with a handle
+
+1. **Reads the account** in one GraphQL request, about a second and a half.
+2. **Measures it.** The five gauges, the score and the odds are arithmetic, and
+   they reach the screen the moment GitHub answers.
+3. **Asks for the verdict.** Claude Opus 5 writes the one line that is not a
+   number, at low effort because a queue is waiting.
+4. **Prints regardless.** A verdict that is slow, refused, unprintable or never
+   asked for is written from the numbers instead, and that line is true because
+   it only says what was measured. The only thing that ends an audit early is
+   GitHub itself, since without the account there is nothing true to print.
+
+### Holding up under a crowd
+
+- **A repeat costs GitHub nothing and still gets a new joke.** An account is
+  read once and kept for ten minutes; the verdict is written fresh every time. A
+  visitor who walks away mid-audit is usually back a second later, so the audit
+  runs to the end and their account is already read when they return.
+- **A crowd costs one read.** Five stands typing the speaker's handle at the same
+  moment share a single GitHub request.
+- **Load is bounded.** Sixteen audits run at once across every stand. A request
+  that cannot get a slot within ten seconds is told the service is busy, rather
+  than left hanging, and every audit is capped at forty seconds.
+- **Each stand is limited.** A burst of six, then one every three seconds, which
+  no queue of humans reaches and a stolen token does.
+- **It keeps nothing it cannot lose.** Scale it by running more copies behind a
+  load balancer. A deploy lets running roasts finish before it stops.
+- **Every audit logs its cost.** GitHub reports each query's cost and the
+  remaining hourly budget in the same response, so the log shows how close the
+  token is to its limit rather than leaving it to be estimated.
+
+### What keeps it safe
+
+- **The model sees the work and nothing about the person.** No name, bio,
+  employer, location or follower count, and not even the handle. It cannot make
+  a joke about what it was never given.
+- **Account text is treated as hostile.** Commit messages and repository names
+  are written by whoever wants to write them, including someone hoping to make
+  the stand say something it should not. They are capped, stripped of control
+  characters, and fenced into a block the model is told is data; angle brackets
+  are swapped for lookalikes, so nothing can close that block early.
+- **What comes back is checked.** Links and swearing never reach paper. The
+  model's line is thrown away and the numbers write it instead, so a false alarm
+  costs a tamer joke and nothing more.
+- **A refusal stays a refusal.** If the model declines a roast, the numbers
+  write the tamer line. No second model is asked to try again.
+- **Never the same joke twice.** The model is shown what this account was told
+  on earlier visits and the last twelve lines the queue read, and told to share
+  none of their jokes. The prompt also rules out the stock lines that fit anyone.
+  When the numbers write the line instead, each gauge has several to rotate
+  through, so the fallback does not repeat either.
+- **Anyone can opt out.** `ROAST_OPT_OUT` lists handles that are never read at
+  all.
+- **Stands prove who they are.** Terminal tokens are compared as digests in
+  constant time, and the log names a stand by a fingerprint of its token, never
+  the token.
+
 ## Credentials
 
 No model key ever goes on a kiosk device. With `"provider": "remote"` the
 device posts a handle to `remoteUrl` and relays what comes back. The Anthropic
-and GitHub keys live on that service, read from its environment. See
+and GitHub keys live on `roastd`, read from its environment. See
 `.env.example`.
 
 The device carries one credential: a terminal token, stored in `terminal.token`

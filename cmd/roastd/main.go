@@ -1,0 +1,153 @@
+// Command roastd is the roast service, and the only place the model key and the
+// GitHub token exist. Stands post a handle to it with their terminal token and
+// get the audit back as a stream of server-sent events, which the kiosk's
+// "remote" provider already speaks.
+//
+// It holds nothing that cannot be lost: the cache is a convenience, and a
+// restart costs a few repeat lookups. So it scales by running more copies of
+// it behind a load balancer, and it deploys anywhere that sets PORT.
+//
+// Configuration is the environment alone. See .env.example.
+package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"os"
+	"os/signal"
+	"strconv"
+	"strings"
+	"syscall"
+	"time"
+
+	"github.com/upgaming/roaster/internal/audit"
+	"github.com/upgaming/roaster/internal/github"
+	"github.com/upgaming/roaster/internal/verdict"
+)
+
+// A terminal token shorter than this is a password someone typed, not a token
+// someone generated.
+const minTokenLength = 24
+
+type settings struct {
+	addr     string
+	github   string
+	model    bool // ANTHROPIC_API_KEY is set; the SDK reads it itself
+	tokens   []string
+	optOut   map[string]bool
+	parallel int
+}
+
+func main() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
+
+	cfg, err := fromEnv(os.Getenv)
+	if err != nil {
+		slog.Error("configuration", "err", err)
+		os.Exit(1)
+	}
+
+	provider := audit.Audit{
+		GitHub:  github.Client{Token: cfg.github},
+		Blocked: cfg.optOut,
+		// Ten minutes covers a crowd passing one handle around, and a
+		// thousand briefs is a few megabytes.
+		Memory: audit.NewMemory(10*time.Minute, 1000),
+	}
+	if cfg.model {
+		provider.Writer = verdict.NewClaude()
+	} else {
+		slog.Warn("ANTHROPIC_API_KEY is not set; verdicts will be written from the numbers alone")
+	}
+
+	svc := newService(provider, cfg.tokens, limits{
+		slots:  cfg.parallel,
+		queue:  10 * time.Second,
+		budget: 40 * time.Second,
+		every:  3 * time.Second,
+		burst:  6,
+	})
+
+	srv := &http.Server{
+		Addr:    cfg.addr,
+		Handler: svc.handler(),
+		// Headers have to arrive promptly. There is no write timeout, because
+		// an audit is a stream that runs as long as the audit does, and the
+		// budget above is what bounds it.
+		ReadHeaderTimeout: 5 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
+
+	stop, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
+	go func() {
+		slog.Info("listening", "addr", cfg.addr, "terminals", len(cfg.tokens), "slots", cfg.parallel, "model", cfg.model)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			slog.Error("listen", "err", err)
+			os.Exit(1)
+		}
+	}()
+
+	<-stop.Done()
+
+	// A deploy should not cut anyone off mid-roast. Stop taking new ones and
+	// let the running ones finish, up to the length of one audit.
+	slog.Info("shutting down; letting running roasts finish")
+	ctx, done := context.WithTimeout(context.Background(), 45*time.Second)
+	defer done()
+	if err := srv.Shutdown(ctx); err != nil {
+		slog.Error("shutdown", "err", err)
+	}
+}
+
+// fromEnv reads the settings, refusing to start on anything that would make the
+// service insecure or useless rather than discovering it on the first request.
+func fromEnv(env func(string) string) (settings, error) {
+	cfg := settings{
+		addr:     ":8080",
+		github:   env("GITHUB_TOKEN"),
+		model:    env("ANTHROPIC_API_KEY") != "",
+		optOut:   map[string]bool{},
+		parallel: 16,
+	}
+	if port := env("PORT"); port != "" {
+		cfg.addr = ":" + port
+	}
+
+	if cfg.github == "" {
+		return cfg, fmt.Errorf("GITHUB_TOKEN is required; GitHub's GraphQL API refuses anonymous calls")
+	}
+
+	for _, t := range strings.Split(env("TERMINAL_TOKENS"), ",") {
+		t = strings.TrimSpace(t)
+		if t == "" {
+			continue
+		}
+		if len(t) < minTokenLength {
+			return cfg, fmt.Errorf("a terminal token is shorter than %d characters; generate them, do not type them", minTokenLength)
+		}
+		cfg.tokens = append(cfg.tokens, t)
+	}
+	if len(cfg.tokens) == 0 {
+		return cfg, fmt.Errorf("TERMINAL_TOKENS is required: with none, no stand could reach the service")
+	}
+
+	for _, h := range strings.Split(env("ROAST_OPT_OUT"), ",") {
+		if h = strings.ToLower(strings.TrimPrefix(strings.TrimSpace(h), "@")); h != "" {
+			cfg.optOut[h] = true
+		}
+	}
+
+	if v := env("ROAST_PARALLEL"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 {
+			return cfg, fmt.Errorf("ROAST_PARALLEL should be a whole number of 1 or more, got %q", v)
+		}
+		cfg.parallel = n
+	}
+	return cfg, nil
+}
