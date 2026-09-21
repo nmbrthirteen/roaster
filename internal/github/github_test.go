@@ -7,11 +7,12 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 // One account, shaped the way GitHub sends it: a repository whose history
 // holds somebody else's commit, and one whose history is attributed to nobody.
-const canned = `{"data":{"user":{
+const canned = `{"data":{"rateLimit":{"cost":7,"remaining":4993},"user":{
   "login":"nmbrthirteen",
   "name":"Nika",
   "createdAt":"2016-04-02T10:00:00Z",
@@ -20,6 +21,7 @@ const canned = `{"data":{"user":{
   "gists":{"totalCount":3},
   "starredRepositories":{"totalCount":812},
   "forks":{"totalCount":17},
+  "profile":{"object":{"text":"# Hi, I'm Nika\n![Rust](https://img.shields.io/badge/Rust-000?logo=rust)"}},
   "contributionsCollection":{
     "totalCommitContributions":1204,
     "totalPullRequestContributions":88,
@@ -71,6 +73,9 @@ func TestReadsAnAccount(t *testing.T) {
 	if f.Handle != "nmbrthirteen" || f.Followers != 41 || f.Starred != 812 {
 		t.Errorf("the profile did not survive the trip: %+v", f)
 	}
+	if f.Cost != 7 || f.Remaining != 4993 {
+		t.Errorf("what the read cost should come back with it, got cost %d remaining %d", f.Cost, f.Remaining)
+	}
 	if f.Owned != 48 || f.Forked != 17 {
 		t.Errorf("owned %d and forked %d, want 48 and 17", f.Owned, f.Forked)
 	}
@@ -88,6 +93,38 @@ func TestReadsAnAccount(t *testing.T) {
 	}
 	if f.Repos[1].Language != "" {
 		t.Errorf("a repository with no language should read as empty, not crash")
+	}
+}
+
+func TestTheProfileReadmeComesInTheSameRequest(t *testing.T) {
+	f, err := serve(t, canned).Read(context.Background(), "nmbrthirteen")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(f.Readme, "img.shields.io/badge/Rust") {
+		t.Errorf("the profile README should come through, got %q", f.Readme)
+	}
+}
+
+func TestAnAccountWithNoProfileReadmeReadsAsEmpty(t *testing.T) {
+	body := strings.Replace(canned, `"profile":{"object":{"text":"# Hi, I'm Nika\n![Rust](https://img.shields.io/badge/Rust-000?logo=rust)"}},`, `"profile":null,`, 1)
+	f, err := serve(t, body).Read(context.Background(), "nmbrthirteen")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.Readme != "" {
+		t.Errorf("no profile repository should mean no README, got %q", f.Readme)
+	}
+}
+
+func TestALongReadmeIsCutOnACharacterBoundary(t *testing.T) {
+	long := strings.Repeat("é", readmeMax) // two bytes a character
+	got := capped(long, readmeMax+1)
+	if !utf8.ValidString(got) {
+		t.Errorf("the cut split a character in half")
+	}
+	if len(got) > readmeMax+1 {
+		t.Errorf("the cut overran the cap: %d bytes", len(got))
 	}
 }
 
@@ -157,11 +194,56 @@ func TestAnImpossibleHandleNeverLeavesTheDevice(t *testing.T) {
 
 	c := Client{Token: "test-token", URL: srv.URL, HTTP: srv.Client()}
 	for _, handle := range []string{"", "not a handle", "-leading", "trailing-", "a--b", strings.Repeat("a", 40)} {
-		if _, err := c.Read(context.Background(), handle); err == nil {
-			t.Errorf("%q should have been turned away", handle)
+		if _, err := c.Read(context.Background(), handle); !errors.Is(err, ErrBadHandle) {
+			t.Errorf("%q should have been turned away as a bad handle, got %v", handle, err)
 		}
 	}
 	if asked {
 		t.Errorf("a handle that cannot exist should never reach GitHub")
+	}
+}
+
+func tree(entries ...[2]string) repo {
+	var r repo
+	r.Root = &struct {
+		Entries []struct {
+			Name string `json:"name"`
+			Type string `json:"type"`
+		} `json:"entries"`
+	}{}
+	for _, e := range entries {
+		r.Root.Entries = append(r.Root.Entries, struct {
+			Name string `json:"name"`
+			Type string `json:"type"`
+		}{Name: e[0], Type: e[1]})
+	}
+	return r
+}
+
+// A repository is only said to have no README when that is certain.
+func TestAReadmeIsFoundHoweverItIsSpelled(t *testing.T) {
+	for name, r := range map[string]repo{
+		"README.md":     tree([2]string{"README.md", "blob"}),
+		"readme.rst":    tree([2]string{"main.go", "blob"}, [2]string{"readme.rst", "blob"}),
+		"README bare":   tree([2]string{"README", "blob"}),
+		"in .github":    tree([2]string{".github", "tree"}),
+		"maybe in docs": tree([2]string{"Docs", "tree"}),
+	} {
+		if !hasReadme(r) {
+			t.Errorf("%s: should count as having a README", name)
+		}
+	}
+}
+
+func TestNoReadmeIsOnlySaidWhenCertain(t *testing.T) {
+	for name, r := range map[string]repo{
+		"just code":               tree([2]string{"main.go", "blob"}, [2]string{"go.mod", "blob"}),
+		"a folder called readme":  tree([2]string{"readme", "tree"}),
+		"a file that only starts": tree([2]string{"README-old.txt.bak", "blob"}),
+		"an empty repository":     {},
+	} {
+		if hasReadme(r) {
+			t.Errorf("%s: should count as having no README", name)
+		}
 	}
 }

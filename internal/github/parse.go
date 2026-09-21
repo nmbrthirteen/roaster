@@ -1,14 +1,20 @@
 package github
 
 import (
+	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // The wire shapes. They exist only to be turned into Facts, which is what the
 // rest of the program sees, so a change at GitHub lands in this file alone.
 type response struct {
 	Data struct {
+		RateLimit *struct {
+			Cost      int `json:"cost"`
+			Remaining int `json:"remaining"`
+		} `json:"rateLimit"`
 		User *user `json:"user"`
 	} `json:"data"`
 	Errors []struct {
@@ -31,6 +37,12 @@ type user struct {
 	Gists     count  `json:"gists"`
 	Starred   count  `json:"starredRepositories"`
 	Forks     count  `json:"forks"`
+
+	Profile *struct {
+		Object *struct {
+			Text *string `json:"text"`
+		} `json:"object"`
+	} `json:"profile"`
 
 	Contributions struct {
 		Commits      int `json:"totalCommitContributions"`
@@ -70,6 +82,13 @@ type repo struct {
 		Key string `json:"key"`
 	} `json:"licenseInfo"`
 	Issues count `json:"issues"`
+
+	Root *struct {
+		Entries []struct {
+			Name string `json:"name"`
+			Type string `json:"type"`
+		} `json:"entries"`
+	} `json:"root"`
 
 	DefaultBranchRef *struct {
 		Target struct {
@@ -113,6 +132,10 @@ func (u *user) facts() Facts {
 		Read: time.Now(),
 	}
 
+	if u.Profile != nil && u.Profile.Object != nil && u.Profile.Object.Text != nil {
+		f.Readme = capped(*u.Profile.Object.Text, readmeMax)
+	}
+
 	for _, week := range u.Contributions.Calendar.Weeks {
 		for _, d := range week.Days {
 			f.Year.Days = append(f.Year.Days, Day{Date: when(d.Date), Count: d.Count})
@@ -140,6 +163,7 @@ func (u *user) facts() Facts {
 		if r.License != nil {
 			out.License = r.License.Key
 		}
+		out.Readme = hasReadme(r)
 
 		var all, mine []Commit
 		if r.DefaultBranchRef != nil {
@@ -161,6 +185,42 @@ func (u *user) facts() Facts {
 	}
 
 	return f
+}
+
+var readmeName = regexp.MustCompile(`(?i)^readme(\.[a-z0-9]+)?$`)
+
+// hasReadme gives the benefit of the doubt. GitHub shows a README from the top
+// of a repository, from .github or from docs; the last two would need another
+// look to be sure of, so either folder counts as having one.
+func hasReadme(r repo) bool {
+	if r.Root == nil {
+		return false
+	}
+	for _, e := range r.Root.Entries {
+		if e.Type == "blob" && readmeName.MatchString(e.Name) {
+			return true
+		}
+		if e.Type == "tree" && (e.Name == ".github" || strings.EqualFold(e.Name, "docs")) {
+			return true
+		}
+	}
+	return false
+}
+
+// A profile README past this is badges and a GIF. The claims worth reading are
+// near the top.
+const readmeMax = 16 << 10
+
+// capped cuts at a rune boundary, so a README in any script survives the cut.
+func capped(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	cut := max
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return s[:cut]
 }
 
 // when parses either shape GitHub sends. DateTime is normalised to UTC;

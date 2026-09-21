@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -31,9 +32,15 @@ const (
 	timeout = 10 * time.Second
 )
 
-// ErrNoAccount is a handle GitHub has never heard of, which is worth saying in
-// those words rather than as a failure.
-var ErrNoAccount = fmt.Errorf("no such account")
+var (
+	// ErrNoAccount is a handle GitHub has never heard of, which is worth saying
+	// in those words rather than as a failure.
+	ErrNoAccount = errors.New("no such account")
+
+	// ErrBadHandle is text that could never be a handle. Nothing was asked of
+	// GitHub, and the message is written to be shown to whoever typed it.
+	ErrBadHandle = errors.New("is not a GitHub handle")
+)
 
 // handleRule is GitHub's own: letters, digits and single hyphens, never at
 // either end. Checking it here means a typo costs nothing instead of a round
@@ -70,7 +77,19 @@ type Facts struct {
 	// account's own.
 	Commits []Commit
 
+	// Readme is the profile README, the one in the repository named after the
+	// account. It is how someone describes themselves as a developer, which
+	// makes it the best place to find a claim the rest of the account does not
+	// back up. Capped, since a few pages is all anyone reads.
+	Readme string
+
 	Read time.Time
+
+	// Cost and Remaining are not about the account: they are what reading it
+	// cost against GitHub's hourly budget and what is left, reported in the
+	// same response for free. At any volume this is the number to watch.
+	Cost      int
+	Remaining int
 }
 
 // Year is the contribution calendar and its totals, which is the only place
@@ -101,6 +120,11 @@ type Repo struct {
 	Pushed      time.Time
 	OpenIssues  int
 	Commits     []Commit
+
+	// Readme is false only when there is certainly none: no README of any
+	// spelling at the top, and no .github or docs folder GitHub would also look
+	// in. A repository is never accused of lacking one on a guess.
+	Readme bool
 }
 
 type Commit struct {
@@ -115,6 +139,7 @@ type Commit struct {
 
 const query = `
 query($login: String!, $repos: Int!, $commits: Int!) {
+  rateLimit { cost remaining }
   user(login: $login) {
     login
     name
@@ -136,6 +161,9 @@ query($login: String!, $repos: Int!, $commits: Int!) {
       }
     }
     forks: repositories(ownerAffiliations: OWNER, isFork: true) { totalCount }
+    profile: repository(name: $login) {
+      object(expression: "HEAD:README.md") { ... on Blob { text } }
+    }
     repositories(first: $repos, ownerAffiliations: OWNER, isFork: false,
                  orderBy: {field: PUSHED_AT, direction: DESC}) {
       totalCount
@@ -150,6 +178,7 @@ query($login: String!, $repos: Int!, $commits: Int!) {
         primaryLanguage { name }
         licenseInfo { key }
         issues(states: OPEN) { totalCount }
+        root: object(expression: "HEAD:") { ... on Tree { entries { name type } } }
         defaultBranchRef {
           target {
             ... on Commit {
@@ -168,12 +197,17 @@ query($login: String!, $repos: Int!, $commits: Int!) {
   }
 }`
 
+// Valid reports whether text could be a GitHub handle at all.
+func Valid(handle string) bool {
+	return len(handle) <= handleMax && handleRule.MatchString(handle)
+}
+
 // Read fetches the account. The error is worth showing to a visitor as it
 // stands: they are the one who typed the handle.
 func (c Client) Read(ctx context.Context, handle string) (Facts, error) {
 	handle = strings.TrimSpace(handle)
-	if len(handle) > handleMax || !handleRule.MatchString(handle) {
-		return Facts{}, fmt.Errorf("%q is not a GitHub handle", handle)
+	if !Valid(handle) {
+		return Facts{}, fmt.Errorf("%q %w", handle, ErrBadHandle)
 	}
 	if c.Token == "" {
 		return Facts{}, fmt.Errorf("no GitHub token; the GraphQL API refuses anonymous calls")
@@ -233,5 +267,9 @@ func (c Client) Read(ctx context.Context, handle string) (Facts, error) {
 		return Facts{}, fmt.Errorf("%w: @%s", ErrNoAccount, handle)
 	}
 
-	return out.Data.User.facts(), nil
+	f := out.Data.User.facts()
+	if rl := out.Data.RateLimit; rl != nil {
+		f.Cost, f.Remaining = rl.Cost, rl.Remaining
+	}
+	return f, nil
 }
