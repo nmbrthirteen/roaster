@@ -64,9 +64,14 @@ func main() {
 	preview := flag.Bool("preview", false, "open the receipt designer instead of the stand")
 	window := flag.Bool("window", false, "open with a title bar instead of filling the screen")
 	shell := flag.Bool("shell", false, "this is running as the Windows shell, so leaving starts the desktop")
+	watched := flag.Bool("watch", false, "keep the window open: start it again whenever it closes")
 	flag.Parse()
 
 	logTo("kiosk.log")
+	if *watched {
+		watch(withoutWatch(os.Args[1:]))
+		return
+	}
 
 	page, title := "/kiosk", "Roaster"
 	if *preview {
@@ -197,6 +202,45 @@ func supervise(server string, stop <-chan struct{}) {
 		case <-time.After(wait):
 		}
 	}
+}
+
+// watch keeps the stand's window open. A restricted kiosk starts one program
+// at sign-in and never again, so a crash would otherwise leave an empty screen
+// until someone restarts the device. Only a close asked for in the hidden menu
+// ends it.
+func watch(args []string) {
+	self := mustExe()
+	wait := restartDelay
+	for {
+		started := time.Now()
+		if err := exec.Command(self, args...).Run(); err != nil {
+			log.Printf("window: %v", err)
+		}
+		if askedToQuit() {
+			log.Printf("window closed from the menu; not opening it again")
+			return
+		}
+		lasted := time.Since(started)
+		// A window that dies on opening will do it again, so the retry slows
+		// down, but never stops.
+		if lasted < briefRun {
+			wait = min(wait*2, time.Minute)
+		} else {
+			wait = restartDelay
+		}
+		log.Printf("window closed after %s, opening it again in %s", lasted.Round(time.Second), wait)
+		time.Sleep(wait)
+	}
+}
+
+func withoutWatch(args []string) []string {
+	var out []string
+	for _, a := range args {
+		if a != "-watch" && a != "--watch" && a != "-watch=true" && a != "--watch=true" {
+			out = append(out, a)
+		}
+	}
+	return out
 }
 
 func quitPath() string { return state.Path(quitFile) }

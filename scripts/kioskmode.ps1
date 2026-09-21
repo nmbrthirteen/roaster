@@ -39,34 +39,94 @@ $resumeAfterMs = 120000
 # there the power button. Off while the device is a stand, back on after.
 $edgeUI = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\EdgeUI'
 
-# Three- and four-finger swipes switch apps and show the desktop. They are a
-# per-user setting with no policy behind them, and a kiosk account cannot open
-# Settings to change its own, so the value goes into its registry from here:
-# the account's own hive, and the default profile a fresh kiosk account is
-# copied from.
-function Disable-KioskGestures {
-  $targets = @("$env:SystemDrive\Users\Default\NTUSER.DAT")
-  $names = @(Get-LocalUser | Where-Object { $_.Name -like 'kioskUser*' -or $_.FullName -eq 'Upgaming Roaster' -or ($Account -and $_.Name -eq $Account) })
-  foreach ($u in $names) {
-    $loaded = "Registry::HKEY_USERS\$($u.SID.Value)"
-    if (Test-Path $loaded) {
-      Set-ItemProperty -Path "$loaded\Control Panel\Desktop" -Name 'TouchGestureSetting' -Value 0 -Type DWord
+# Windows Update may restart a device with someone signed in, which on a stand
+# is always. With this it waits until nobody is.
+$updates = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU'
+
+# Settings that belong to the kiosk account itself. A kiosk account cannot open
+# Settings to change its own, and some have no policy behind them, so they go
+# into its registry from here: the account's own hive, and the default profile
+# a fresh kiosk account is copied from.
+$kioskUserValues = @(
+  # Three- and four-finger swipes switch apps and show the desktop.
+  @('Control Panel\Desktop', 'TouchGestureSetting', 0),
+  # Notifications would pop up over the stand.
+  @('Software\Microsoft\Windows\CurrentVersion\PushNotifications', 'ToastEnabled', 0),
+  @('Software\Policies\Microsoft\Windows\CurrentVersion\PushNotifications', 'NoToastApplicationNotification', 1),
+  # The "finish setting up your device" screen after an update.
+  @('Software\Microsoft\Windows\CurrentVersion\UserProfileEngagement', 'ScoobeSystemSettingEnabled', 0),
+  # A USB stick plugged in by a visitor would open AutoPlay.
+  @('Software\Microsoft\Windows\CurrentVersion\Explorer\AutoplayHandlers', 'DisableAutoplay', 1)
+)
+
+function Set-KioskUserValues {
+  $roots = @()
+  $unloaded = @("$env:SystemDrive\Users\Default\NTUSER.DAT")
+  $users = @(Get-LocalUser | Where-Object { $_.Name -like 'kioskUser*' -or $_.FullName -eq 'Upgaming Roaster' -or ($Account -and $_.Name -eq $Account) })
+  foreach ($u in $users) {
+    if (Test-Path "Registry::HKEY_USERS\$($u.SID.Value)") {
+      $roots += "HKU\$($u.SID.Value)"
       continue
     }
     $userProfile = Get-CimInstance Win32_UserProfile | Where-Object { $_.SID -eq $u.SID.Value }
-    if ($userProfile) { $targets += Join-Path $userProfile.LocalPath 'NTUSER.DAT' }
+    if ($userProfile) { $unloaded += Join-Path $userProfile.LocalPath 'NTUSER.DAT' }
   }
-  foreach ($hive in $targets) {
+  $write = {
+    param($root)
+    foreach ($v in $kioskUserValues) {
+      reg add "$root\$($v[0])" /v $v[1] /t REG_DWORD /d $v[2] /f | Out-Null
+    }
+  }
+  foreach ($root in $roots) { & $write $root }
+  foreach ($hive in $unloaded) {
     if (-not (Test-Path $hive)) { continue }
     reg load 'HKU\RoasterKiosk' $hive | Out-Null
     if ($LASTEXITCODE -ne 0) { continue }
     try {
-      reg add 'HKU\RoasterKiosk\Control Panel\Desktop' /v TouchGestureSetting /t REG_DWORD /d 0 /f | Out-Null
+      & $write 'HKU\RoasterKiosk'
     } finally {
       [gc]::Collect()
       reg unload 'HKU\RoasterKiosk' | Out-Null
     }
   }
+}
+
+# The stand gets a power plan of its own that never sleeps, never turns the
+# screen off and ignores a closed lid, so the plan in use before comes back
+# untouched when kiosk mode is taken off.
+$powerNote = Join-Path $env:ProgramData 'Roaster\power-plan.txt'
+$guidRule = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
+
+function Set-StandPower {
+  $plans = powercfg /list | Out-String
+  $saved = if (Test-Path $powerNote) { (Get-Content $powerNote -Raw).Trim() -split '\s+' } else { @() }
+  if ($saved.Count -eq 2 -and $plans -match $saved[1]) {
+    $stand = $saved[1]
+  } else {
+    $before = [regex]::Match((powercfg /getactivescheme | Out-String), $guidRule).Value
+    $stand = [regex]::Match((powercfg /duplicatescheme $before | Out-String), $guidRule).Value
+    powercfg /changename $stand 'Roaster stand' | Out-Null
+    New-Item -ItemType Directory -Force -Path (Split-Path $powerNote) | Out-Null
+    Set-Content -Path $powerNote -Value "$before $stand"
+  }
+  powercfg /setactive $stand
+  foreach ($setting in 'monitor-timeout', 'standby-timeout', 'hibernate-timeout') {
+    powercfg /change "$setting-ac" 0
+    powercfg /change "$setting-dc" 0
+  }
+  powercfg /setacvalueindex $stand SUB_BUTTONS LIDACTION 0
+  powercfg /setdcvalueindex $stand SUB_BUTTONS LIDACTION 0
+  powercfg /setactive $stand
+}
+
+function Restore-Power {
+  if (-not (Test-Path $powerNote)) { return }
+  $saved = (Get-Content $powerNote -Raw).Trim() -split '\s+'
+  if ($saved.Count -eq 2) {
+    powercfg /setactive $saved[0]
+    powercfg /delete $saved[1] | Out-Null
+  }
+  Remove-Item $powerNote -ErrorAction SilentlyContinue
 }
 
 function Set-Configuration {
@@ -95,7 +155,7 @@ function Set-Configuration {
     <Profile Id="$profileId">
       <AllAppsList>
         <AllowedApps>
-          <App DesktopAppPath="$kioskPath" rs5:AutoLaunch="true" />
+          <App DesktopAppPath="$kioskPath" rs5:AutoLaunch="true" rs5:AutoLaunchArguments="-watch" />
           <App DesktopAppPath="%ProgramFiles%\Roaster\roaster.exe" />
           <App DesktopAppPath="%ProgramFiles(x86)%\Microsoft\EdgeWebView\Application\*\msedgewebview2.exe" />
           <App DesktopAppPath="%ProgramFiles(x86)%\Microsoft\Edge\Application\*\msedgewebview2.exe" />
@@ -182,6 +242,8 @@ if ($Off) {
   Invoke-AsSystem
   Remove-ItemProperty -Path $logonUI -Name 'IdleTimeOut' -ErrorAction SilentlyContinue
   Remove-ItemProperty -Path $edgeUI -Name 'AllowEdgeSwipe' -ErrorAction SilentlyContinue
+  Remove-ItemProperty -Path $updates -Name 'NoAutoRebootWithLoggedOnUsers' -ErrorAction SilentlyContinue
+  Restore-Power
   Write-Host '    cleared'
   exit 0
 }
@@ -230,11 +292,18 @@ New-ItemProperty -Path $logonUI -Name 'IdleTimeOut' -PropertyType DWord -Value $
 # New-Item -Force would recreate an existing key and lose its other values.
 if (-not (Test-Path $edgeUI)) { New-Item -Path $edgeUI | Out-Null }
 New-ItemProperty -Path $edgeUI -Name 'AllowEdgeSwipe' -PropertyType DWord -Value 0 -Force | Out-Null
-# The lock is already in place, so a failure here is worth a warning, not a stop.
-try {
-  Disable-KioskGestures
-} catch {
-  Write-Host "    could not turn off multi-finger gestures: $($_.Exception.Message)"
+# The lock is already in place, so a failure in any of these is worth a
+# warning, not a stop.
+if (-not (Test-Path $updates)) { New-Item -Path $updates -Force | Out-Null }
+New-ItemProperty -Path $updates -Name 'NoAutoRebootWithLoggedOnUsers' -PropertyType DWord -Value 1 -Force | Out-Null
+foreach ($step in @(
+    @{ What = 'keep the screen on'; Run = { Set-StandPower } },
+    @{ What = 'set the kiosk account up'; Run = { Set-KioskUserValues } })) {
+  try {
+    & $step.Run
+  } catch {
+    Write-Host "    could not $($step.What): $($_.Exception.Message)"
+  }
 }
 Write-Host '    assigned'
 

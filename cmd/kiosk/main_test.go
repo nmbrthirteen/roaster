@@ -18,3 +18,10 @@ func TestAtPinsThePath(t *testing.T) {
 		}
 	}
 }
+
+func TestTheWatchedWindowIsNotAskedToWatchAgain(t *testing.T) {
+	got := withoutWatch([]string{"-watch", "-config", "roaster.json", "--watch=true"})
+	if len(got) != 2 || got[0] != "-config" || got[1] != "roaster.json" {
+		t.Errorf("the window must get every flag but -watch, or it would start watching itself, got %v", got)
+	}
+}
