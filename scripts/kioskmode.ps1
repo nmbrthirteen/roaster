@@ -39,6 +39,36 @@ $resumeAfterMs = 120000
 # there the power button. Off while the device is a stand, back on after.
 $edgeUI = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\EdgeUI'
 
+# Three- and four-finger swipes switch apps and show the desktop. They are a
+# per-user setting with no policy behind them, and a kiosk account cannot open
+# Settings to change its own, so the value goes into its registry from here:
+# the account's own hive, and the default profile a fresh kiosk account is
+# copied from.
+function Disable-KioskGestures {
+  $targets = @("$env:SystemDrive\Users\Default\NTUSER.DAT")
+  $names = @(Get-LocalUser | Where-Object { $_.Name -like 'kioskUser*' -or $_.FullName -eq 'Upgaming Roaster' -or ($Account -and $_.Name -eq $Account) })
+  foreach ($u in $names) {
+    $loaded = "Registry::HKEY_USERS\$($u.SID.Value)"
+    if (Test-Path $loaded) {
+      Set-ItemProperty -Path "$loaded\Control Panel\Desktop" -Name 'TouchGestureSetting' -Value 0 -Type DWord
+      continue
+    }
+    $userProfile = Get-CimInstance Win32_UserProfile | Where-Object { $_.SID -eq $u.SID.Value }
+    if ($userProfile) { $targets += Join-Path $userProfile.LocalPath 'NTUSER.DAT' }
+  }
+  foreach ($hive in $targets) {
+    if (-not (Test-Path $hive)) { continue }
+    reg load 'HKU\RoasterKiosk' $hive | Out-Null
+    if ($LASTEXITCODE -ne 0) { continue }
+    try {
+      reg add 'HKU\RoasterKiosk\Control Panel\Desktop' /v TouchGestureSetting /t REG_DWORD /d 0 /f | Out-Null
+    } finally {
+      [gc]::Collect()
+      reg unload 'HKU\RoasterKiosk' | Out-Null
+    }
+  }
+}
+
 function Set-Configuration {
   $cim = Get-CimInstance -Namespace 'root\cimv2\mdm\dmmap' -ClassName 'MDM_AssignedAccess'
   if ($Off) {
@@ -200,6 +230,12 @@ New-ItemProperty -Path $logonUI -Name 'IdleTimeOut' -PropertyType DWord -Value $
 # New-Item -Force would recreate an existing key and lose its other values.
 if (-not (Test-Path $edgeUI)) { New-Item -Path $edgeUI | Out-Null }
 New-ItemProperty -Path $edgeUI -Name 'AllowEdgeSwipe' -PropertyType DWord -Value 0 -Force | Out-Null
+# The lock is already in place, so a failure here is worth a warning, not a stop.
+try {
+  Disable-KioskGestures
+} catch {
+  Write-Host "    could not turn off multi-finger gestures: $($_.Exception.Message)"
+}
 Write-Host '    assigned'
 
 $packaged = Get-AppxPackage -AllUsers -Name 'Upgaming.Roaster' -ErrorAction SilentlyContinue
