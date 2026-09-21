@@ -50,6 +50,10 @@ func (r Remote) Roast(ctx context.Context, req Request, emit func(Update)) (Roas
 	case http.StatusOK:
 	case http.StatusUnauthorized, http.StatusForbidden:
 		return Roast{}, fmt.Errorf("this terminal's token was rejected; it may have been revoked")
+	case http.StatusTooManyRequests:
+		return Roast{}, fmt.Errorf("this stand is going faster than the roast service allows; try again in a few seconds")
+	case http.StatusServiceUnavailable:
+		return Roast{}, fmt.Errorf("the roast service is busy; try again in a moment")
 	default:
 		return Roast{}, fmt.Errorf("roast service returned %s", res.Status)
 	}

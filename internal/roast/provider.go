@@ -5,10 +5,12 @@ import (
 	"crypto/rand"
 )
 
+// Request is what a stand sends. It crosses the network to the roast service,
+// so its field names are part of that contract.
 type Request struct {
-	Handle string
-	Pack   string
-	Event  string
+	Handle string `json:"handle"`
+	Pack   string `json:"pack,omitempty"`
+	Event  string `json:"event,omitempty"`
 }
 
 // Phase names the stages the kiosk shows while it waits.
