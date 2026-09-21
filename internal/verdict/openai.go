@@ -41,10 +41,20 @@ type openAIRequest struct {
 	Reasoning    struct {
 		Effort string `json:"effort"`
 	} `json:"reasoning"`
+	Text struct {
+		Format openAIFormat `json:"format"`
+	} `json:"text"`
 
 	// Store is always false. What a visitor's account says is not kept on
 	// OpenAI's side past the reply.
 	Store bool `json:"store"`
+}
+
+type openAIFormat struct {
+	Type   string         `json:"type"`
+	Name   string         `json:"name"`
+	Schema map[string]any `json:"schema"`
+	Strict bool           `json:"strict"`
 }
 
 type openAIResponse struct {
@@ -74,9 +84,9 @@ type openAIError struct {
 	} `json:"error"`
 }
 
-func (o OpenAI) Write(ctx context.Context, b Brief) (string, error) {
+func (o OpenAI) Write(ctx context.Context, b Brief) (Page, error) {
 	if o.Key == "" {
-		return "", errors.New("no OpenAI key")
+		return Page{}, errors.New("no OpenAI key")
 	}
 	model := o.Model
 	if model == "" {
@@ -86,19 +96,20 @@ func (o OpenAI) Write(ctx context.Context, b Brief) (string, error) {
 	req := openAIRequest{
 		Model:        model,
 		Instructions: system,
-		Input:        b.Render() + "\nWrite the verdict.",
-		MaxOutput:    4096,
+		Input:        b.Render() + ask,
+		MaxOutput:    8192,
 	}
 	req.Reasoning.Effort = "low"
+	req.Text.Format = openAIFormat{Type: "json_schema", Name: "roast", Schema: schema, Strict: true}
 	body, err := json.Marshal(req)
 	if err != nil {
-		return "", err
+		return Page{}, err
 	}
 
 	started := time.Now()
 	resp, err := o.post(ctx, body)
 	if err != nil {
-		return "", err
+		return Page{}, err
 	}
 
 	slog.Info("verdict",
@@ -121,21 +132,16 @@ func (o OpenAI) Write(ctx context.Context, b Brief) (string, error) {
 		for _, c := range item.Content {
 			switch c.Type {
 			case "refusal":
-				return "", ErrDeclined
+				return Page{}, ErrDeclined
 			case "output_text":
 				text.WriteString(c.Text)
 			}
 		}
 	}
 	if resp.Incomplete != nil && strings.Contains(resp.Incomplete.Reason, "content") {
-		return "", ErrDeclined
+		return Page{}, ErrDeclined
 	}
-
-	out, ok := Clean(text.String())
-	if !ok {
-		return "", ErrUnusable
-	}
-	return out, nil
+	return parse(text.String())
 }
 
 // post sends the request, trying once more on a dropped connection, a rate

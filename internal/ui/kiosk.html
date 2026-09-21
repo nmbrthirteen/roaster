@@ -238,6 +238,7 @@
   .score .of { color: var(--subtle); font-size: clamp(32px, 5vw, 56px); font-weight: 400; margin-left: .15em; }
   .severity { margin: clamp(10px, 1.6vh, 18px) 0 0; font-family: var(--mono); font-size: clamp(20px, 2.6vw, 28px); color: var(--white); }
   .severity b { color: var(--primary); font-weight: 700; }
+  .archetype { margin: clamp(6px, 1vh, 12px) 0 0; font-family: var(--sora); font-size: clamp(22px, 3vw, 32px); font-weight: 700; color: var(--white); }
 
   /* The receipt's QR, on screen too, for anyone who would rather keep a link
      than a slip of paper. */
@@ -377,6 +378,7 @@
   <p class="result-handle" id="resultHandle"></p>
   <div class="score"><span class="num" id="score"></span><span class="of">/100</span></div>
   <p class="severity">Roast severity: <b id="scoreTag"></b></p>
+  <p class="archetype" id="archetype" hidden></p>
   <p class="verdict" id="finalVerdict" style="margin-top:clamp(24px,4vh,40px)"></p>
   <div class="share">
     <img id="shareQr" alt="QR code for your full roast" width="220" height="220">
@@ -846,6 +848,8 @@
     $('resultHandle').textContent = '@' + roast.handle;
     $('score').textContent = String(roast.score).split('/')[0].trim();
     $('scoreTag').textContent = roast.scoreTag;
+    $('archetype').textContent = roast.archetype || '';
+    $('archetype').hidden = !roast.archetype;
     $('finalVerdict').textContent = '“' + roast.verdict + '”';
     $('shareQr').src = '/qr?m=8&d=' + encodeURIComponent(url);
     $('shareUrl').textContent = url.replace(/^https?:\/\//, '');

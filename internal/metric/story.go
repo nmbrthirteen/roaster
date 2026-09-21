@@ -43,7 +43,7 @@ const readmeLines = 5
 func profileReadme(f github.Facts) roast.Section {
 	s := roast.Section{Cmd: "gh api repos/" + f.Handle + "/" + f.Handle + "/readme -H 'Accept: application/vnd.github.raw' | head -" + fmt.Sprint(readmeLines)}
 	if strings.TrimSpace(f.Readme) == "" {
-		s.Lines = []string{"gh: Not Found (HTTP 404)", "# no profile README. a person of few words."}
+		s.Lines = []string{"gh: Not Found (HTTP 404)", "# no profile README. the strong, silent type."}
 		return s
 	}
 	for _, l := range strings.Split(f.Readme, "\n") {
@@ -62,7 +62,7 @@ func profileReadme(f github.Facts) roast.Section {
 		s.Lines = append(s.Lines, "# claims: "+strings.Join(claims, ", "))
 	}
 	if unused := Unused(claims, f.Repos); len(unused) > 0 {
-		s.Lines = append(s.Lines, "# not one repo written in "+strings.Join(unused, " or "))
+		s.Lines = append(s.Lines, "# not one repo written in "+strings.Join(unused, " or ")+". bold claim.")
 	}
 	return s
 }
@@ -72,7 +72,7 @@ const repoLines = 5
 func repos(f github.Facts, now time.Time) roast.Section {
 	s := roast.Section{Cmd: fmt.Sprintf("gh repo list %s --limit %d", f.Handle, repoLines)}
 	if len(f.Repos) == 0 {
-		s.Lines = []string{fmt.Sprintf("no repositories match your search in @%s", f.Handle), "# nothing to see, nothing to judge."}
+		s.Lines = []string{fmt.Sprintf("no repositories match your search in @%s", f.Handle), "# an empty stage. we roast what we can."}
 		return s
 	}
 	shownN := min(repoLines, len(f.Repos))
@@ -99,10 +99,10 @@ func repos(f github.Facts, now time.Time) roast.Section {
 		s.Lines = append(s.Lines, fmt.Sprintf("%-18s %-11s %s", shown(r.Name, 18), shown(lang, 11), updated))
 	}
 	if noDescription > 0 {
-		s.Lines = append(s.Lines, fmt.Sprintf("# %d of %d have no description", noDescription, len(f.Repos)))
+		s.Lines = append(s.Lines, fmt.Sprintf("# %d of %d have no description. guess the plot.", noDescription, len(f.Repos)))
 	}
 	if noReadme > 0 {
-		s.Lines = append(s.Lines, fmt.Sprintf("# %d of %d have no README", noReadme, len(f.Repos)))
+		s.Lines = append(s.Lines, fmt.Sprintf("# %d of %d have no README. good luck, whoever clones these.", noReadme, len(f.Repos)))
 	}
 	return s
 }
@@ -121,7 +121,7 @@ func contributions(f github.Facts) roast.Section {
 		},
 	}
 	if gap := longestGap(f); gap.Value != "unknown" {
-		s.Lines = append(s.Lines, "# longest quiet stretch: "+gap.Value)
+		s.Lines = append(s.Lines, "# longest quiet stretch: "+gap.Value+". we assume a sabbatical.")
 	}
 	return s
 }

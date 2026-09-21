@@ -72,6 +72,7 @@ func (Demo) Roast(ctx context.Context, req Request, emit func(Update)) (Roast, e
 		r.Findings = demoFindings[:2]
 		r.Strengths = []string{"Zero bugs in production. Technically.", "Showed up to a roast stand voluntarily. Brave."}
 		r.Habits = nil
+		r.Archetype = "The Invisible Developer"
 	}
 	for _, s := range r.Story {
 		section := s
@@ -125,14 +126,15 @@ func build(handle string, rng *rand.Rand) Roast {
 	now := time.Now()
 
 	return Roast{
-		Code:     Code(),
-		Handle:   handle,
-		At:       now,
-		Score:    fmt.Sprintf("%d / 100", score),
-		ScoreTag: Severity(score),
-		Metrics:  metrics,
-		Verdict:  pick(rng, verdicts),
-		Actions:  demoActions,
+		Code:      Code(),
+		Handle:    handle,
+		At:        now,
+		Score:     fmt.Sprintf("%d / 100", score),
+		ScoreTag:  Severity(score),
+		Archetype: pick(rng, []string{"The 3am Refactorer", "The One-Word Poet", "The Weekend Warrior", "The Fork Hoarder"}),
+		Metrics:   metrics,
+		Verdict:   pick(rng, verdicts),
+		Actions:   demoActions,
 		Strengths: []string{
 			"1,204 contributions this year. Genuinely impressive. Please sleep.",
 			"62 code reviews this year. Somebody has to read all that code.",
@@ -185,14 +187,14 @@ func demoStory(handle string, empty bool) []Section {
 			Lines: []string{"{", fmt.Sprintf(`  "totalCommitContributions": %d,`, commits),
 				fmt.Sprintf(`  "totalPullRequestContributions": %d,`, prs),
 				fmt.Sprintf(`  "totalPullRequestReviewContributions": %d,`, reviews),
-				fmt.Sprintf(`  "restrictedContributionsCount": %d`, private), "}", "# longest quiet stretch: " + gap},
+				fmt.Sprintf(`  "restrictedContributionsCount": %d`, private), "}", "# longest quiet stretch: " + gap + ". we assume a sabbatical."},
 		}
 	}
 	if empty {
 		return []Section{
 			user("2021-04-11T09:30:12Z", 0, 0, 3),
-			{Cmd: readme, Lines: []string{"gh: Not Found (HTTP 404)", "# no profile README. a person of few words."}},
-			{Cmd: list, Lines: []string{"no repositories match your search in @" + handle, "# nothing to see, nothing to judge."}},
+			{Cmd: readme, Lines: []string{"gh: Not Found (HTTP 404)", "# no profile README. the strong, silent type."}},
+			{Cmd: list, Lines: []string{"no repositories match your search in @" + handle, "# an empty stage. we roast what we can."}},
 			year(0, 0, 0, 0, "365 days"),
 		}
 	}
@@ -204,7 +206,7 @@ func demoStory(handle string, empty bool) []Section {
 			"![Go](https://img.shields.io/badge/Go-00ADD8?logo=go)",
 			"![Rust](https://img.shields.io/badge/Rust-000?logo=rust)",
 			"![TypeScript](https://img.shields.io/badge/TypeScript-3178C6)",
-			"# 14 skill badges", "# claims: Go, Rust, TypeScript", "# not one repo written in Rust"}},
+			"# 14 skill badges", "# claims: Go, Rust, TypeScript", "# not one repo written in Rust. bold claim."}},
 		{Cmd: list, Lines: []string{
 			"Showing 5 of 23 repositories in @" + handle,
 			fmt.Sprintf("%-18s %-11s %s", "NAME", "LANGUAGE", "UPDATED"),
@@ -213,7 +215,7 @@ func demoStory(handle string, empty bool) []Section {
 			fmt.Sprintf("%-18s %-11s %s", "portfolio-v3", "TypeScript", "2mo ago"),
 			fmt.Sprintf("%-18s %-11s %s", "todo-app", "JavaScript", "3y ago"),
 			fmt.Sprintf("%-18s %-11s %s", "rust-learning", "Rust", "4y ago  archived"),
-			"# 11 of 23 have no description", "# 9 of 23 have no README"}},
+			"# 11 of 23 have no description. guess the plot.", "# 9 of 23 have no README. good luck, whoever clones these."}},
 		year(412, 18, 3, 97, "41 days"),
 	}
 }
@@ -252,7 +254,7 @@ var (
 	demoActions = []string{
 		`Learn a second word. "fix" is lonely.`,
 		"Sleep. Commits at 3am are a cry for help.",
-		"Write 7 READMEs. Future you forgot already.",
+		"Write 7 READMEs. You will forget how these work by Tuesday.",
 	}
 	demoFindings = []Finding{
 		{Title: "Time served", Value: "since Mar 2016", Line: "10 years on GitHub and 14 repos to show for it."},

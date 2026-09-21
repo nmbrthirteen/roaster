@@ -23,10 +23,11 @@ import (
 	"github.com/upgaming/roaster/internal/verdict"
 )
 
-// The verdict gets this long before the numbers write it instead. Long enough
-// for a good line on a normal day; short enough that nobody at the stand notices
-// on a bad one.
-const verdictTimeout = 15 * time.Second
+// The written page gets this long before the numbers write it instead. It is
+// a page of short lines, not one, and the reading on screen plays for longer
+// than this anyway. GitHub's ten seconds plus this stays inside the service's
+// forty second budget.
+const verdictTimeout = 25 * time.Second
 
 var (
 	// ErrOptedOut is an account that asked not to be roasted. Said plainly, so
@@ -116,7 +117,8 @@ func (a Audit) Roast(ctx context.Context, req roast.Request, emit func(roast.Upd
 	if a.Memory != nil {
 		b.Avoid = a.Memory.avoid(key(handle))
 	}
-	line := a.verdict(ctx, b)
+	page := a.write(ctx, b)
+	line := page.Verdict
 	if a.Memory != nil {
 		a.Memory.said(key(handle), line)
 	}
@@ -129,12 +131,13 @@ func (a Audit) Roast(ctx context.Context, req roast.Request, emit func(roast.Upd
 		At:        a.now(),
 		Score:     fmt.Sprintf("%d / 100", score),
 		ScoreTag:  roast.Severity(score),
+		Archetype: page.Archetype,
 		Metrics:   metrics,
 		Verdict:   line,
-		Actions:   got.actions,
-		Strengths: got.strengths,
-		Findings:  got.findings,
-		Habits:    got.habits,
+		Actions:   page.Actions,
+		Strengths: page.Strengths,
+		Findings:  lined(got.findings, page.Findings),
+		Habits:    lined(got.habits, page.Habits),
 		Story:     got.story,
 		Exhibit:   got.exhibit,
 		Heat:      got.heat,
@@ -167,7 +170,7 @@ func (a Audit) measure(ctx context.Context, handle string, offset int) (measured
 		}
 
 		metrics := metric.From(facts)
-		return measured{
+		m := measured{
 			handle:    facts.Handle,
 			brief:     verdict.From(facts, metrics, a.now()),
 			story:     metric.Story(facts, a.now()),
@@ -178,7 +181,10 @@ func (a Audit) measure(ctx context.Context, handle string, offset int) (measured
 			feed:      metric.Feed(facts.Commits, metric.FeedMax),
 			exhibit:   metric.Worst(facts.Commits),
 			heat:      metric.Heat(facts.Year.Days, metric.HeatWeeks),
-		}, nil
+		}
+		m.brief.Strengths, m.brief.Actions = m.strengths, m.actions
+		m.brief.Findings, m.brief.Habits = m.findings, m.habits
+		return m, nil
 	}
 
 	if a.Memory == nil {
@@ -188,11 +194,11 @@ func (a Audit) measure(ctx context.Context, handle string, offset int) (measured
 	return a.Memory.measure(fmt.Sprintf("%s@%d", key(handle), offset), read)
 }
 
-// verdict never fails. Whatever goes wrong with the model, the numbers can
-// still say something true.
-func (a Audit) verdict(ctx context.Context, b verdict.Brief) string {
+// write never fails. Whatever goes wrong with the model, the numbers can
+// still say something true, and a line the model got wrong keeps the stock one.
+func (a Audit) write(ctx context.Context, b verdict.Brief) verdict.Page {
 	if a.Writer == nil {
-		return verdict.Fallback(b)
+		return verdict.Written(b)
 	}
 
 	timeout := a.Timeout
@@ -202,12 +208,24 @@ func (a Audit) verdict(ctx context.Context, b verdict.Brief) string {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	line, err := a.Writer.Write(ctx, b)
+	p, err := a.Writer.Write(ctx, b)
 	if err != nil {
-		slog.Warn("verdict fell back to the numbers", "err", err)
-		return verdict.Fallback(b)
+		slog.Warn("page fell back to the numbers", "err", err)
+		return verdict.Written(b)
 	}
-	return line
+	return verdict.Merge(b, p)
+}
+
+// lined puts the written lines under their findings. The findings are shared
+// through Memory, so they are copied rather than written into.
+func lined(fs []roast.Finding, lines []string) []roast.Finding {
+	out := append([]roast.Finding(nil), fs...)
+	for i := range out {
+		if i < len(lines) {
+			out[i].Line = lines[i]
+		}
+	}
+	return out
 }
 
 func (a Audit) now() time.Time {

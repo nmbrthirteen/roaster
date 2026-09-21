@@ -11,20 +11,21 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/option"
 )
 
-// Writer turns a brief into a verdict. Claude is the one that matters; the
-// interface is here so everything around it can be tested without a network.
+// Writer turns a brief into the written page. What comes back is raw: Merge
+// decides which of its lines print. The interface is here so everything
+// around it can be tested without a network.
 type Writer interface {
-	Write(ctx context.Context, b Brief) (string, error)
+	Write(ctx context.Context, b Brief) (Page, error)
 }
 
 var (
 	// ErrDeclined is the model choosing not to write this one. Nothing is
 	// retried against another model: a refusal on a roast is a signal to be
 	// tamer, and Fallback is tamer.
-	ErrDeclined = errors.New("the model declined to write this verdict")
+	ErrDeclined = errors.New("the model declined to write this roast")
 
-	// ErrUnusable is a reply that came back and cannot be printed.
-	ErrUnusable = errors.New("the model's verdict could not be printed")
+	// ErrUnusable is a reply that came back and cannot be read.
+	ErrUnusable = errors.New("the model's reply could not be read")
 )
 
 // ClaudeModel is Claude's default. A roast lives or dies on being specific and
@@ -45,23 +46,26 @@ func NewClaude(opts ...option.RequestOption) Claude {
 	return Claude{client: anthropic.NewClient(opts...), model: ClaudeModel}
 }
 
-func (c Claude) Write(ctx context.Context, b Brief) (string, error) {
+func (c Claude) Write(ctx context.Context, b Brief) (Page, error) {
 	started := time.Now()
 
 	resp, err := c.client.Messages.New(ctx, anthropic.MessageNewParams{
 		Model:     c.model,
-		MaxTokens: 4096,
+		MaxTokens: 8192,
 		System:    []anthropic.TextBlockParam{{Text: system}},
 		Thinking: anthropic.ThinkingConfigParamUnion{
 			OfAdaptive: &anthropic.ThinkingConfigAdaptiveParam{},
 		},
-		OutputConfig: anthropic.OutputConfigParam{Effort: anthropic.OutputConfigEffortLow},
+		OutputConfig: anthropic.OutputConfigParam{
+			Effort: anthropic.OutputConfigEffortLow,
+			Format: anthropic.JSONOutputFormatParam{Schema: schema},
+		},
 		Messages: []anthropic.MessageParam{
-			anthropic.NewUserMessage(anthropic.NewTextBlock(b.Render() + "\nWrite the verdict.")),
+			anthropic.NewUserMessage(anthropic.NewTextBlock(b.Render() + ask)),
 		},
 	})
 	if err != nil {
-		return "", err
+		return Page{}, err
 	}
 
 	slog.Info("verdict",
@@ -73,7 +77,7 @@ func (c Claude) Write(ctx context.Context, b Brief) (string, error) {
 	)
 
 	if resp.StopReason == anthropic.StopReasonRefusal {
-		return "", ErrDeclined
+		return Page{}, ErrDeclined
 	}
 
 	var text strings.Builder
@@ -82,9 +86,5 @@ func (c Claude) Write(ctx context.Context, b Brief) (string, error) {
 			text.WriteString(t.Text)
 		}
 	}
-	out, ok := Clean(text.String())
-	if !ok {
-		return "", ErrUnusable
-	}
-	return out, nil
+	return parse(text.String())
 }

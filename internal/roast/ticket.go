@@ -44,6 +44,9 @@ func (r Roast) Doc(ev event.Event, terminal string) *receipt.Doc {
 	if r.Score != "" {
 		d.Add(brk, receipt.Hero{Caption: "Roast severity: " + r.ScoreTag, Value: r.Score})
 	}
+	if r.Archetype != "" {
+		d.Add(gap, receipt.Text{Value: r.Archetype, Style: receipt.Style{Align: receipt.AlignCenter, Bold: true}})
+	}
 
 	d.Add(
 		brk,

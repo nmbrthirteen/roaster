@@ -22,12 +22,12 @@ type numbered struct {
 	avoids [][]string
 }
 
-func (w *numbered) Write(ctx context.Context, b verdict.Brief) (string, error) {
+func (w *numbered) Write(ctx context.Context, b verdict.Brief) (verdict.Page, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.n++
 	w.avoids = append(w.avoids, b.Avoid)
-	return fmt.Sprintf("Line number %d.", w.n), nil
+	return verdict.Page{Verdict: fmt.Sprintf("Line number %d.", w.n)}, nil
 }
 
 func (w *numbered) lastAvoid() []string {

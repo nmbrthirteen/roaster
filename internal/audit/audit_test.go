@@ -31,16 +31,19 @@ func (r *reader) Read(ctx context.Context, handle string) (github.Facts, error) 
 
 type writer struct {
 	line  string
+	page  verdict.Page // the rest of what it writes; line is its verdict
 	err   error
 	delay time.Duration
 }
 
-func (w writer) Write(ctx context.Context, b verdict.Brief) (string, error) {
+func (w writer) Write(ctx context.Context, b verdict.Brief) (verdict.Page, error) {
+	p := w.page
+	p.Verdict = w.line
 	select {
 	case <-time.After(w.delay):
-		return w.line, w.err
+		return p, w.err
 	case <-ctx.Done():
-		return "", ctx.Err()
+		return verdict.Page{}, ctx.Err()
 	}
 }
 
@@ -116,10 +119,66 @@ func TestTheVerdictAlwaysHasAWayThrough(t *testing.T) {
 			if r.Verdict == "" || r.Verdict == "late" {
 				t.Errorf("want a verdict written from the numbers, got %q", r.Verdict)
 			}
+			if r.Archetype == "" || len(r.Actions) == 0 || len(r.Strengths) == 0 {
+				t.Errorf("the rest of the page should come from the numbers: %+v", r)
+			}
 			if updates[len(updates)-1].Phase != roast.PhaseDone {
 				t.Errorf("the audit should still finish")
 			}
 		})
+	}
+}
+
+// The model words the whole page, a line at a time. A list that came back the
+// wrong length is not trusted to line up with its facts, so it stays stock.
+func TestTheWrittenPageReplacesTheStockLines(t *testing.T) {
+	stock, _, err := run(t, Audit{GitHub: &reader{facts: account()}}, "nmbrthirteen")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	actions := make([]string, len(stock.Actions))
+	for i := range actions {
+		actions[i] = fmt.Sprintf("Do thing %d.", i+1)
+	}
+	habits := make([]string, len(stock.Habits))
+	for i := range habits {
+		habits[i] = fmt.Sprintf("Habit line %d.", i+1)
+	}
+	w := writer{line: "You commit at 3am and it shows.", page: verdict.Page{
+		Archetype: "The 3am Refactorer",
+		Actions:   actions,
+		Habits:    habits,
+		Strengths: append(append([]string(nil), stock.Strengths...), "One more than there were."),
+	}}
+	m := NewMemory(time.Hour, 100)
+	r, _, err := run(t, Audit{GitHub: &reader{facts: account()}, Writer: w, Memory: m}, "nmbrthirteen")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if r.Archetype != "The 3am Refactorer" {
+		t.Errorf("archetype %q", r.Archetype)
+	}
+	if strings.Join(r.Actions, "|") != strings.Join(actions, "|") {
+		t.Errorf("actions %q, want the written ones", r.Actions)
+	}
+	for i, h := range r.Habits {
+		if h.Line != habits[i] || h.Title != stock.Habits[i].Title || h.Value != stock.Habits[i].Value {
+			t.Errorf("habit %d should keep its fact and take the written line: %+v", i, h)
+		}
+	}
+	if strings.Join(r.Strengths, "|") != strings.Join(stock.Strengths, "|") {
+		t.Errorf("strengths of the wrong count should stay stock, got %q", r.Strengths)
+	}
+
+	// Memory shares the stock findings between visitors; writing one page
+	// must not change what the next visitor starts from.
+	again, _, _ := run(t, Audit{GitHub: &reader{facts: account()}, Memory: m}, "nmbrthirteen")
+	for i := range again.Habits {
+		if again.Habits[i].Line != stock.Habits[i].Line {
+			t.Errorf("a written line leaked into the stock ones")
+		}
 	}
 }
 

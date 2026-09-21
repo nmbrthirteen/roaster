@@ -52,7 +52,7 @@ func said(text string) [2]string {
 }
 
 func TestTheOpenAIRequestIsWhatWeMeanToSend(t *testing.T) {
-	o, asked, _ := fakeOpenAI(t, said("You commit at 3am and it shows."))
+	o, asked, _ := fakeOpenAI(t, said(page("You commit at 3am and it shows.")))
 	if _, err := o.Write(context.Background(), brief()); err != nil {
 		t.Fatal(err)
 	}
@@ -63,6 +63,11 @@ func TestTheOpenAIRequestIsWhatWeMeanToSend(t *testing.T) {
 	}
 	if r, _ := req["reasoning"].(map[string]any); r["effort"] != "low" {
 		t.Errorf("a queue is waiting, so effort should be low, got %v", req["reasoning"])
+	}
+	if tx, _ := req["text"].(map[string]any); tx == nil {
+		t.Errorf("the reply should be held to the page's schema")
+	} else if f, _ := tx["format"].(map[string]any); f["type"] != "json_schema" || f["strict"] != true {
+		t.Errorf("want a strict JSON schema, got %v", tx["format"])
 	}
 	if req["store"] != false {
 		t.Errorf("a visitor's account should not be stored on OpenAI's side, got store=%v", req["store"])
@@ -79,19 +84,26 @@ func TestTheOpenAIRequestIsWhatWeMeanToSend(t *testing.T) {
 	}
 }
 
-func TestAnOpenAIReplyComesBackClean(t *testing.T) {
-	o, _, _ := fakeOpenAI(t, said(`"You commit at 3am, and it shows."`))
+func TestAnOpenAIPageComesBackAsWritten(t *testing.T) {
+	o, _, _ := fakeOpenAI(t, said(page("You commit at 3am, and it shows.")))
 	got, err := o.Write(context.Background(), brief())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != "You commit at 3am, and it shows." {
-		t.Errorf("got %q", got)
+	if got.Verdict != "You commit at 3am, and it shows." || got.Archetype != "The 3am Refactorer" {
+		t.Errorf("got %+v", got)
+	}
+}
+
+func TestAnOpenAIReplyThatIsNotAPageIsUnusable(t *testing.T) {
+	o, _, _ := fakeOpenAI(t, said("You commit at 3am and it shows."))
+	if _, err := o.Write(context.Background(), brief()); !errors.Is(err, ErrUnusable) {
+		t.Errorf("want ErrUnusable, got %v", err)
 	}
 }
 
 func TestAnOpenAIModelOverrideIsUsed(t *testing.T) {
-	o, asked, _ := fakeOpenAI(t, said("Fine."))
+	o, asked, _ := fakeOpenAI(t, said(page("Fine.")))
 	o.Model = "gpt-5.6-terra"
 	o.Write(context.Background(), brief())
 	if (*asked)["model"] != "gpt-5.6-terra" {
@@ -121,9 +133,9 @@ func TestAnOpenAIReplyCutShortWithNothingIsUnusable(t *testing.T) {
 
 // One more try covers a blip. It is not a loop.
 func TestAnOpenAIBlipIsTriedOnceMore(t *testing.T) {
-	o, _, calls := fakeOpenAI(t, [2]string{"500", `{"error":{"type":"server_error","message":"blip"}}`}, said("Recovered."))
+	o, _, calls := fakeOpenAI(t, [2]string{"500", `{"error":{"type":"server_error","message":"blip"}}`}, said(page("Recovered.")))
 	got, err := o.Write(context.Background(), brief())
-	if err != nil || got != "Recovered." {
+	if err != nil || got.Verdict != "Recovered." {
 		t.Errorf("got %q, %v", got, err)
 	}
 	if n := calls.Load(); n != 2 {

@@ -47,13 +47,19 @@ func message(stop, text string) string {
 	return string(b)
 }
 
+// page is a reply in the shape the schema asks for.
+func page(verdict string) string {
+	b, _ := json.Marshal(Page{Archetype: "The 3am Refactorer", Verdict: verdict, Strengths: []string{}, Actions: []string{}, Findings: []string{}, Habits: []string{}})
+	return string(b)
+}
+
 func brief() Brief {
 	f := account()
 	return From(f, metric.From(f), now)
 }
 
 func TestTheRequestIsWhatWeMeanToSend(t *testing.T) {
-	c, asked := fakeAPI(t, http.StatusOK, message("end_turn", "You commit at 3am and it shows."))
+	c, asked := fakeAPI(t, http.StatusOK, message("end_turn", page("You commit at 3am and it shows.")))
 	if _, err := c.Write(context.Background(), brief()); err != nil {
 		t.Fatal(err)
 	}
@@ -62,8 +68,12 @@ func TestTheRequestIsWhatWeMeanToSend(t *testing.T) {
 	if req["model"] != ClaudeModel {
 		t.Errorf("model %v, want %s", req["model"], ClaudeModel)
 	}
-	if cfg, _ := req["output_config"].(map[string]any); cfg["effort"] != "low" {
+	cfg, _ := req["output_config"].(map[string]any)
+	if cfg["effort"] != "low" {
 		t.Errorf("a queue is waiting, so effort should be low, got %v", req["output_config"])
+	}
+	if f, _ := cfg["format"].(map[string]any); f["type"] != "json_schema" || f["schema"] == nil {
+		t.Errorf("the reply should be held to the page's schema, got %v", cfg["format"])
 	}
 	if th, _ := req["thinking"].(map[string]any); th["type"] != "adaptive" {
 		t.Errorf("thinking should be adaptive, got %v", req["thinking"])
@@ -79,14 +89,14 @@ func TestTheRequestIsWhatWeMeanToSend(t *testing.T) {
 	}
 }
 
-func TestAGoodReplyComesBackClean(t *testing.T) {
-	c, _ := fakeAPI(t, http.StatusOK, message("end_turn", `"You commit at 3am, and it shows."`))
+func TestAPageComesBackAsWritten(t *testing.T) {
+	c, _ := fakeAPI(t, http.StatusOK, message("end_turn", page("You commit at 3am, and it shows.")))
 	got, err := c.Write(context.Background(), brief())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != "You commit at 3am, and it shows." {
-		t.Errorf("got %q", got)
+	if got.Verdict != "You commit at 3am, and it shows." || got.Archetype != "The 3am Refactorer" {
+		t.Errorf("got %+v", got)
 	}
 }
 
@@ -97,8 +107,8 @@ func TestARefusalIsSaidAsOne(t *testing.T) {
 	}
 }
 
-func TestAnUnprintableReplyIsRefused(t *testing.T) {
-	c, _ := fakeAPI(t, http.StatusOK, message("end_turn", "Go to https://example.com"))
+func TestAReplyThatIsNotAPageIsUnusable(t *testing.T) {
+	c, _ := fakeAPI(t, http.StatusOK, message("end_turn", "You commit at 3am and it shows."))
 	if _, err := c.Write(context.Background(), brief()); !errors.Is(err, ErrUnusable) {
 		t.Errorf("want ErrUnusable, got %v", err)
 	}

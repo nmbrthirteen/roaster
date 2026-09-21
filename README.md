@@ -324,15 +324,18 @@ go run ./cmd/roastd
    account stays under GitHub's ten seconds a request.
 2. **Measures it.** The five gauges, the score and the action items are arithmetic, and
    they reach the screen the moment GitHub answers.
-3. **Asks for the verdict.** A model writes the one line that is not a number,
-   at low effort because a queue is waiting: OpenAI's `gpt-5.6-luna` when
-   `OPENAI_API_KEY` is set, or Claude Opus 5 when only an Anthropic key is. Every
-   OpenAI request goes with `store` off, so a visitor's account is not kept on
-   OpenAI's side past the reply.
-4. **Prints regardless.** A verdict that is slow, refused, unprintable or never
-   asked for is written from the numbers instead, and that line is true because
-   it only says what was measured. The only thing that ends an audit early is
-   GitHub itself, since without the account there is nothing true to print.
+3. **Asks for the words.** A model writes every line that is not a number:
+   the verdict, the archetype under the score, the strengths, the action items
+   and the lines under each finding. It works at low effort because a queue is
+   waiting, and it answers in a fixed JSON shape. It uses OpenAI's
+   `gpt-5.6-luna` when `OPENAI_API_KEY` is set, or Claude Opus 5 when only an
+   Anthropic key is. Every OpenAI request goes with `store` off, so a visitor's
+   account is not kept on OpenAI's side past the reply.
+4. **Prints regardless.** A page that is slow, refused, unreadable or never
+   asked for is written from the numbers instead, and a single bad line keeps
+   its stock one. Those lines are true because they only say what was
+   measured. The only thing that ends an audit early is GitHub itself, since
+   without the account there is nothing true to print.
 
 ### Holding up under a crowd
 

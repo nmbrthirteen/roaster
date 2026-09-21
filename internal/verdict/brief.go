@@ -26,6 +26,7 @@ const (
 	maxRepos      = 15
 	maxCommitText = 72
 	maxRepoText   = 100
+	maxStockText  = 200
 )
 
 // Brief is everything the model is shown, and it is deliberately less than we
@@ -57,6 +58,14 @@ type Brief struct {
 
 	Commits []string
 	Repos   []string
+
+	// The stock lines the numbers wrote for the rest of the page, each earned
+	// by a fact. The model rewrites them; what it cannot improve stays. They
+	// quote repository names, so they are shown as account text.
+	Strengths []string
+	Actions   []string
+	Findings  []roast.Finding
+	Habits    []roast.Finding
 
 	// Avoid is lines already printed: to this account on an earlier visit,
 	// and to whoever was in the queue before. They are the stand's own
@@ -175,6 +184,20 @@ func (b Brief) Render() string {
 			line("- %s", r)
 		}
 	}
+	stock := func(title string, items []string) {
+		if len(items) == 0 {
+			return
+		}
+		line("")
+		line("%s:", title)
+		for i, it := range items {
+			line("%d. %s", i+1, scrub(it, maxStockText))
+		}
+	}
+	stock("Strengths", b.Strengths)
+	stock("Actions", b.Actions)
+	stock("Findings", facts(b.Findings))
+	stock("Habits", facts(b.Habits))
 	line("</account>")
 
 	if len(b.Avoid) > 0 {
@@ -185,6 +208,19 @@ func (b Brief) Render() string {
 		}
 	}
 	return s.String()
+}
+
+// facts is a finding as the model reads it: what was measured, then the
+// stock line under it.
+func facts(fs []roast.Finding) []string {
+	out := make([]string, len(fs))
+	for i, f := range fs {
+		out[i] = f.Title + ": " + f.Value + "."
+		if f.Line != "" {
+			out[i] += " " + f.Line
+		}
+	}
+	return out
 }
 
 // scrub makes a piece of account text safe to put in front of a model: control

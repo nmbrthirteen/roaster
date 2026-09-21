@@ -18,7 +18,7 @@ const noReadme = "Repos with no README"
 var lines = map[string][]string{
 	"Commits after midnight": {
 		"%s of your commits land after midnight. Your rubber duck has filed for overtime.",
-		"%s of your commits ship after midnight. That's not a schedule. That's a haunting.",
+		"%s of your commits ship after midnight. Your code has never once seen daylight.",
 		"%s of your commits happen after midnight. The 3am bugs were written at 2am.",
 	},
 	"Weekends with commits": {
@@ -38,7 +38,7 @@ var lines = map[string][]string{
 	},
 	"One-word commit messages": {
 		"%s of your commit messages are one word long. Your git log reads like a ransom note.",
-		"%s of your commit messages are a single word. Future you will need subtitles.",
+		"%s of your commit messages are a single word. Even git blame just shrugs.",
 		`%s of your commit messages are one word. "fix" what? We will never know.`,
 	},
 	noReadme: {
@@ -67,23 +67,7 @@ func Fallback(b Brief) string {
 		)
 	}
 
-	// The worst of the gauges and the missing READMEs is the one to mention.
-	best, top := "", noteworthy-1
-	value := ""
-	for _, m := range b.Metrics {
-		if m.Percent == nil || *m.Percent <= top {
-			continue
-		}
-		if _, ok := lines[m.Label]; ok {
-			best, top, value = m.Label, *m.Percent, m.Value
-		}
-	}
-	if b.Read > 0 {
-		if n := b.NoReadme * 100 / b.Read; n > top {
-			best, value = noReadme, fmt.Sprintf("%d%%", n)
-		}
-	}
-	if best != "" {
+	if best, value := worst(b); best != "" {
 		return fresh(b.Avoid, value, lines[best]...)
 	}
 
@@ -92,6 +76,53 @@ func Fallback(b Brief) string {
 		"We found nothing public to roast. Stealth genius, or a very long draft.",
 		"Zero public activity. The perfect codebase is the one nobody can see.",
 	)
+}
+
+// worst is the gauge most worth a joke, or the missing READMEs when those
+// beat every gauge, with the value to quote. Empty is an account with nothing
+// noteworthy about it.
+func worst(b Brief) (label, value string) {
+	top := noteworthy - 1
+	for _, m := range b.Metrics {
+		if m.Percent == nil || *m.Percent <= top {
+			continue
+		}
+		if _, ok := lines[m.Label]; ok {
+			label, top, value = m.Label, *m.Percent, m.Value
+		}
+	}
+	if b.Read > 0 {
+		if n := b.NoReadme * 100 / b.Read; n > top {
+			label, value = noReadme, fmt.Sprintf("%d%%", n)
+		}
+	}
+	return label, value
+}
+
+// archetypes name the kind of developer each of those makes. Unused claims
+// and an empty account have their own.
+var archetypes = map[string]string{
+	"Commits after midnight":    "The 3am Deployer",
+	"Weekends with commits":     "The Weekend Warrior",
+	"Days with commits":         "The Commit Machine",
+	"Repos with no description": "The Mystery Box Collector",
+	"One-word commit messages":  "The One-Word Poet",
+	noReadme:                    "The Undocumented Wizard",
+}
+
+// Archetype is the label from the numbers alone, picked the way Fallback
+// picks its line, so the two always agree on what the account is about.
+func Archetype(b Brief) string {
+	switch {
+	case len(b.Unused) > 0:
+		return "The Badge Collector"
+	case b.Read == 0 && b.Year.Commits == 0:
+		return "The Invisible Developer"
+	}
+	if best, _ := worst(b); best != "" {
+		return archetypes[best]
+	}
+	return "The Suspiciously Normal Dev"
 }
 
 // fresh fills the first line not already printed. When every one has been,
