@@ -103,9 +103,8 @@ echo.
 echo   This is the whole of shipping a new build: run it again and the stand
 echo   and the locked-down account both move to it.
 echo.
-echo   Not locked down yet? scripts\kioskmode.bat does that, and use it rather
-echo   than the picker in Settings, which only lists applications the account
-echo   being locked down already has.
+echo   Kiosk mode does not need this package. scripts\kioskmode.bat installs
+echo   kiosk.exe to Program Files and locks the device to it.
 echo.
 echo   To put it on another device with no terminal, copy these two files:
 echo     build\Upgaming.cer            double click, install to

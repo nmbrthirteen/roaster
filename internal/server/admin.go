@@ -1,10 +1,13 @@
 package server
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"time"
 
@@ -12,6 +15,8 @@ import (
 	"github.com/upgaming/roaster/internal/netconf"
 	"github.com/upgaming/roaster/internal/printer"
 	"github.com/upgaming/roaster/internal/state"
+	"github.com/upgaming/roaster/internal/update"
+	"github.com/upgaming/roaster/internal/version"
 )
 
 // quitFile tells the launcher an operator asked to leave, so the supervisor
@@ -35,6 +40,7 @@ type adminState struct {
 	LastError string              `json:"lastError,omitempty"`
 	Reprint   bool                `json:"canReprint"`
 	Platform  string              `json:"platform"`
+	Version   string              `json:"version"`
 }
 
 func (s *Server) adminRoutes(mux *http.ServeMux) {
@@ -47,6 +53,7 @@ func (s *Server) adminRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/admin/quit", s.post(s.adminQuit))
 	mux.HandleFunc("/admin/reboot", s.post(s.adminReboot))
 	mux.HandleFunc("/admin/shutdown", s.post(s.adminShutdown))
+	mux.HandleFunc("/admin/update", s.guard(s.adminUpdate))
 }
 
 func (s *Server) adminState(w http.ResponseWriter, r *http.Request) {
@@ -68,6 +75,7 @@ func (s *Server) adminState(w http.ResponseWriter, r *http.Request) {
 		LastError: lastErr,
 		Reprint:   last != nil,
 		Platform:  runtime.GOOS,
+		Version:   version.Version,
 	})
 }
 
@@ -137,16 +145,101 @@ func (s *Server) adminShutdown(w http.ResponseWriter, r *http.Request) {
 	s.power(w, "/s", "Shutting down.")
 }
 
+var errNotWindows = errors.New("only wired up for Windows")
+
 func (s *Server) power(w http.ResponseWriter, flag, message string) {
-	if runtime.GOOS != "windows" {
-		http.Error(w, "Only wired up for Windows.", http.StatusNotImplemented)
-		return
-	}
-	if err := exec.Command("shutdown", flag, "/t", "0").Start(); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	if err := shutdown(flag); err != nil {
+		if errors.Is(err, errNotWindows) {
+			http.Error(w, "Only wired up for Windows.", http.StatusNotImplemented)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 		return
 	}
 	fmt.Fprint(w, message)
+}
+
+// shutdown is the one place that calls Windows' own shutdown.exe, so a
+// reboot asked for through the Power section and one forced by installing
+// kiosk.exe run the same command.
+func shutdown(flag string) error {
+	if runtime.GOOS != "windows" {
+		return errNotWindows
+	}
+	return exec.Command("shutdown", flag, "/t", "0").Start()
+}
+
+// adminUpdate answers to both a GET, checking for a release, and a POST,
+// installing it. The hidden menu already gates both behind the same code, and
+// a check and an install differ in nothing but whether they touch disk.
+func (s *Server) adminUpdate(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		s.adminUpdateCheck(w, r)
+	case http.MethodPost:
+		s.adminUpdateApply(w, r)
+	default:
+		http.Error(w, "get or post only", http.StatusMethodNotAllowed)
+	}
+}
+
+func (s *Server) adminUpdateCheck(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+
+	rel, err := update.Check(ctx)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	writeJSON(w, struct {
+		Current   string `json:"current"`
+		Latest    string `json:"latest"`
+		Available bool   `json:"available"`
+	}{
+		Current:   version.Version,
+		Latest:    rel.Tag,
+		Available: rel.Newer,
+	})
+}
+
+func (s *Server) adminUpdateApply(w http.ResponseWriter, r *http.Request) {
+	checkCtx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	rel, err := update.Check(checkCtx)
+	cancel()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	if !rel.Newer {
+		fmt.Fprintf(w, "Already on %s.", version.Version)
+		return
+	}
+
+	exe, err := os.Executable()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	applyCtx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
+	defer cancel()
+	res, err := update.Apply(applyCtx, rel, filepath.Dir(exe))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+
+	if res.NeedsReboot {
+		if err := shutdown("/r"); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		fmt.Fprintf(w, "Updated to %s. Rebooting.", res.Version)
+		return
+	}
+	fmt.Fprintf(w, "Updated to %s. Restarting.", res.Version)
+	go exitSoon()
 }
 
 // exitSoon lets the reply reach the browser before the process goes away. The

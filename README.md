@@ -74,63 +74,77 @@ PC437 block glyphs the gauges are drawn from, and the native QR command.
 
 ## Windows kiosk mode
 
-`scripts\lockdown.bat` locks the machine around the stand by replacing the
-shell, which needs no packaging and works on every edition.
+`scripts\kioskmode.bat`, as administrator, locks the device to the stand with
+Windows' own kiosk mode, Assigned Access. It builds both binaries, installs them
+to `%ProgramFiles%\Roaster`, and names `kiosk.exe` in the Assigned Access
+configuration. Restart and the device comes up on the stand, above the lock
+screen, with the Assigned Access lockdown policies on. Windows starts the app
+again whenever it closes.
 
-To pick the app in Settings, Accounts, Set up a kiosk instead, it has to be an
-MSIX. That picker lists Microsoft Edge and installed packaged apps and nothing
-else, so a plain executable can never appear in it. Run `scripts\package.bat` as administrator. If `makeappx` and `signtool` are
-not on the machine it fetches them itself, as a 22MB package rather than a
-multi-gigabyte SDK install.
+| Command | What it locks |
+|---|---|
+| `scripts\kioskmode.bat` | An account Windows makes and signs in by itself after every restart. |
+| `scripts\kioskmode.bat Stand` | The existing standard account `Stand`. Administrators are refused. |
+| `scripts\kioskmode.bat off` | Nothing. The device signs in to Windows again after a restart. |
 
-It builds both binaries, lays out the package, makes a self-signed certificate,
-trusts it on that machine, signs, and installs. "Upgaming Roaster" is then in
-Start, and it launches itself at sign-in. Whether it is also in the kiosk picker
-depends on the account and the edition, which is the section below.
+It needs Windows 11 21H2 or later, on Pro, Enterprise, Education or IoT
+Enterprise. Earlier versions can run only a store app or Edge as the kiosk.
+`scripts\check.bat` names the edition and says whether the configuration is set.
+Ctrl+Alt+Del leaves the kiosk.
 
-Assigned Access needs Windows 11 Pro or Enterprise; check with `winver`.
+Run it again to ship a new build if you have a keyboard and admin rights on the
+device. It stops the running stand, copies the new binaries over the old ones,
+and sets the same configuration again. The hidden menu is the route without
+either; see Updating a locked stand below.
 
-Run it again to ship a new build, and that is the whole of shipping one. Each
-package is stamped with a version of its own, because Windows reads the version
-to decide whether an install is an update and refuses a second package that
-claims the same one. The running app is closed and replaced, and a device that
-is already locked down has its account moved to the new build as well, which it
-picks up at the next sign-in. What the device holds in `%LOCALAPPDATA%\Roaster` is not part of
-the package and survives: its settings, its events, its token. A `roaster.json`
-inside a new package is only copied out to a device that has none, so pushing new
-settings means editing the file on the device or deleting it first.
+The picker in Settings, Accounts, Set up a kiosk never lists this app. It offers
+Edge and store apps, and `Set-AssignedAccess` takes the same two. A desktop
+application counts as neither, even inside an MSIX. The configuration that does
+take one, `KioskModeApp v4:ClassicAppPath`, goes in through the MDM bridge, and
+the bridge answers only to SYSTEM. So `scripts\kioskmode.ps1` runs itself a
+second time as SYSTEM for that step, through a scheduled task it deletes
+afterwards.
 
-Once it is packaged, the log to read is `%LOCALAPPDATA%\Roaster\kiosk.log`, and
-the settings to edit are beside it.
+Settings, events, logs and the terminal token live in `%ProgramFiles%\Roaster`,
+beside the binaries. A standard account cannot normally write to Program
+Files, so the install script grants the kiosk account Modify rights on that
+folder; that is also what lets the hidden menu update the stand in place. The
+log to read is `kiosk.log` in the same folder.
 
-### Setting kiosk mode without the picker
+Do not combine it with `scripts\lockdown.bat`. Both sign an account in by
+itself and both decide what it runs. Run `scripts\unlock.bat` before switching
+to kiosk mode.
 
-`scripts\kioskmode.bat`, as administrator, does the whole thing: puts the app on
-the device for every account, works out the identity kiosk mode wants, and
-assigns it to the account you name. `scripts\kioskmode.bat off` undoes it.
+### Updating a locked stand
 
-Use it rather than Settings. The picker lists applications installed for the
-account being locked down, and `Add-AppxPackage` installs for whoever ran it, so
-an app packaged from your account is missing from the list of an account that
-has never seen it. That is nearly always what an empty picker means.
+Push a tag and `.github/workflows/release.yml` builds and publishes it, in
+about 3 minutes:
 
-An account that has never signed in does not have the app yet either. Sign in as
-it once, sign out, and run the script again.
+```
+git tag v1.4.0
+git push origin v1.4.0
+```
 
-If Windows still refuses, the edition is the reason rather than the package.
-Single app kiosk was built around store apps, and this is a desktop application
-in a package, which is a different thing however installed it looks. The routes
-left are Shell Launcher, on Enterprise, Education and IoT Enterprise, and
-`scripts\lockdown.bat`, which replaces the shell and needs no packaging at all.
+On the stand, open the hidden menu (five taps on the mark, then the code), go
+to Software, and press Check for updates. If a newer build is out, press
+Install. A server-only change restarts the app in seconds; a change to
+`kiosk.exe` reboots the device, since that is the window doing the showing.
 
-`scripts\check.bat` reports where the app is installed and what kiosk mode is
-set to, which is the quickest way to tell those apart.
+If the new `roaster.exe` fails to start three times in a row, the launcher
+puts the previous build back by itself, no operator required.
 
-### Putting it on a device with no terminal
+Local builds report version `dev` and always see a release as newer, since a
+build made straight from source has no version of its own to compare.
 
-Package once on a machine that has Go and the SDK, then copy two files out of
-`build\` to the kiosk. Both install by double clicking, no command line, no Go,
-no SDK:
+### The MSIX
+
+`scripts\package.bat` still builds a signed MSIX, for putting the app in Start
+on a device that is not locked down. Kiosk mode does not use it. If the package
+is installed on a kiosk, remove it, because its startup task races the kiosk for
+the screen. `scripts\kioskmode.bat` warns when it finds one.
+
+To put the MSIX on a device with no terminal, package once on a machine with Go,
+then copy two files out of `build\`. Both install by double clicking:
 
 1. `Upgaming.cer`, install to **Local Machine**, then **Trusted People**.
 2. `UpgamingRoaster.msix`, then Install.

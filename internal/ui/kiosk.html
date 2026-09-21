@@ -595,6 +595,7 @@
         <dt>Roasts</dt><dd>${s.printed}</dd>
         <dt>Running</dt><dd>${mins} min</dd>
         <dt>Roasts from</dt><dd>${esc(s.provider)}</dd>
+        <dt>Version</dt><dd>${esc(s.version)}</dd>
         ${s.lastError ? `<dt>Last error</dt><dd class="warn">${esc(s.lastError)}</dd>` : ''}
       </dl>
 
@@ -634,6 +635,9 @@
 
       <h3>Terminal number</h3>
       <input id="aTerminal" value="${esc(s.terminal)}" maxlength="6" inputmode="numeric">
+
+      <h3>Software</h3>
+      <div class="acts"><button id="aUpdate" class="full">Check for updates</button></div>
 
       <h3>Power</h3>
       <div class="acts">
@@ -706,6 +710,34 @@
 
     on('aTerminal', e => act(async () =>
       await call('/admin/settings', new URLSearchParams({ terminal: e.target.value.trim() || '001' }))), 'change');
+
+    // First tap checks; once a release is offered, the same button installs it.
+    let offer = null;
+    on('aUpdate', async () => {
+      const b = $('aUpdate');
+      if (!offer) {
+        try {
+          const info = JSON.parse(await call('/admin/update'));
+          if (info.available) {
+            offer = info;
+            b.textContent = 'Install ' + info.latest;
+            say(`${info.latest} is out. This is ${info.current}.`);
+          } else {
+            say(`Up to date on ${info.current}.`);
+          }
+        } catch (err) { say(err.message || String(err), true); }
+        return;
+      }
+      b.disabled = true;
+      say('Installing. The stand is down for up to a minute.');
+      try {
+        say(await call('/admin/update', new URLSearchParams()));
+        setTimeout(() => location.reload(), 8000);
+      } catch (err) {
+        b.disabled = false;
+        say(err.message || String(err), true);
+      }
+    });
 
     on('aRestart', () => act(async () => {
       const msg = await call('/admin/restart', new URLSearchParams());

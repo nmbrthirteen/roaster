@@ -24,6 +24,7 @@ import (
 	"github.com/upgaming/roaster/internal/server"
 	"github.com/upgaming/roaster/internal/state"
 	"github.com/upgaming/roaster/internal/ui"
+	"github.com/upgaming/roaster/internal/version"
 )
 
 func main() {
@@ -164,7 +165,7 @@ func startLog() {
 		return
 	}
 	log.SetOutput(io.MultiWriter(os.Stderr, f))
-	log.Printf("--- roaster starting, %s/%s ---", runtime.GOOS, runtime.GOARCH)
+	log.Printf("--- roaster %s starting, %s/%s ---", version.Version, runtime.GOOS, runtime.GOARCH)
 	log.Printf("state: %s", state.Dir())
 }
 

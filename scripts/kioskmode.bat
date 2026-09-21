@@ -1,12 +1,14 @@
 @echo off
-rem Put this device into Windows kiosk mode on the packaged app. Take it out
-rem again with:  kioskmode.bat off
+rem Put this device into Windows kiosk mode on the stand. Take it out again
+rem with:  kioskmode.bat off
 rem
-rem The picker in Settings only lists applications installed for the account
-rem being locked down, and Add-AppxPackage installs for whoever ran it. That is
-rem why doing this by hand so often ends with the app missing from the list.
-rem This puts it on the device for every account, works out the identity kiosk
-rem mode wants, and assigns it.
+rem   kioskmode.bat            Windows makes a kiosk account and signs it in
+rem                            by itself after every restart.
+rem   kioskmode.bat Stand      Locks an existing standard account instead.
+rem
+rem Installs kiosk.exe to Program Files and names it in the Assigned Access
+rem configuration. That runs a desktop application as the kiosk on Windows 11
+rem Pro and up, with no package, which the picker in Settings never offers.
 
 setlocal
 cd /d "%~dp0.."
@@ -20,42 +22,33 @@ if errorlevel 1 (
   exit /b 0
 )
 
-if /i "%~1"=="off" goto :off
-
 echo.
 echo   Kiosk mode
 echo   ----------
 echo.
 
-if not exist "build\UpgamingRoaster.msix" (
-  echo   The package is not built. Run scripts\package.bat first.
-  goto :fail
+if /i "%~1"=="off" goto :off
+
+where go >nul 2>&1
+if errorlevel 1 goto :prebuilt
+echo   Building...
+go build -o roaster.exe .\cmd\roaster || goto :fail
+go build -ldflags="-s -w -H windowsgui" -o kiosk.exe .\cmd\kiosk || goto :fail
+
+:prebuilt
+if not exist "kiosk.exe" goto :nobuild
+if not exist "roaster.exe" goto :nobuild
+
+if "%~1"=="" (
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0kioskmode.ps1" -Source "%CD%"
+) else (
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0kioskmode.ps1" -Source "%CD%" -Account "%~1"
 )
-
-echo   Putting the app on the device for every account...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; Add-AppxProvisionedPackage -Online -PackagePath 'build\UpgamingRoaster.msix' -SkipLicense | Out-Null; Write-Host '    provisioned'"
-if errorlevel 1 goto :fail
-
-set "ACCOUNT=%~1"
-if defined ACCOUNT goto :haveaccount
-
-echo.
-echo   Accounts on this device:
-powershell -NoProfile -Command "Get-LocalUser | Where-Object Enabled | ForEach-Object { Write-Host ('    ' + $_.Name) }"
-echo.
-set /p "ACCOUNT=  Which one is the stand? "
-
-:haveaccount
-if not defined ACCOUNT goto :fail
-
-echo.
-echo   Assigning the stand to %ACCOUNT%...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $p = Get-AppxPackage -AllUsers -Name 'Upgaming.Roaster' | Select-Object -First 1; if (-not $p) { throw 'The package is not installed on this device. Run scripts\package.bat first.' }; $aumid = $p.PackageFamilyName + '!Roaster'; Write-Host ('    identity ' + $aumid); Set-AssignedAccess -AppUserModelId $aumid -UserName '%ACCOUNT%'; Write-Host '    assigned'"
 if errorlevel 1 goto :refused
 
 echo.
-echo   Done. Sign out and sign in as %ACCOUNT% to see it.
-echo   The account signs in to the stand and nothing else.
+echo   Done. Restart the device and it comes up on the stand.
+echo   Ctrl+Alt+Del leaves it, for whoever holds the keyboard.
 echo.
 echo   To undo it:  scripts\kioskmode.bat off
 echo.
@@ -63,34 +56,33 @@ pause
 exit /b 0
 
 :off
-echo.
-echo   Taking this device out of kiosk mode...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; Clear-AssignedAccess; Write-Host '    cleared'"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0kioskmode.ps1" -Off
 if errorlevel 1 goto :fail
 echo.
-echo   Done. The account signs in to Windows again.
+echo   Done. Restart and the device signs in to Windows again.
 echo.
 pause
 exit /b 0
+
+:nobuild
+echo   kiosk.exe and roaster.exe are not built, and Go is not installed to
+echo   build them. Run run.bat first.
+goto :fail
 
 :refused
 echo.
 echo   Windows would not take it. In the order worth checking:
 echo.
-echo     1. The account has never signed in, so the app is not installed for it
-echo        yet. Sign in as %ACCOUNT% once, sign out, and run this again.
-echo     2. The edition has no Assigned Access. Run scripts\check.bat; it says
-echo        so on the first line.
-echo     3. The edition has it but will not take a packaged desktop app, only a
-echo        store app. Then the way to lock this device is
-echo        scripts\lockdown.bat, which replaces the shell and needs no
-echo        packaging at all.
+echo     1. The edition has no Assigned Access. Run scripts\check.bat; it says
+echo        so on the first line. Home cannot do this.
+echo     2. Windows is older than Windows 11 21H2, which cannot run a desktop
+echo        application as the kiosk. scripts\lockdown.bat works on anything.
 echo.
 pause
 exit /b 1
 
 :fail
 echo.
-echo   Kiosk mode was not set. The reason is above.
+echo   Kiosk mode was not changed. The reason is above.
 pause
 exit /b 1

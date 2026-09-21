@@ -28,6 +28,8 @@ import (
 
 	"github.com/upgaming/roaster/internal/config"
 	"github.com/upgaming/roaster/internal/state"
+	"github.com/upgaming/roaster/internal/update"
+	"github.com/upgaming/roaster/internal/version"
 )
 
 const (
@@ -141,10 +143,14 @@ func serve(target string, stop <-chan struct{}) error {
 
 func supervise(server string, stop <-chan struct{}) {
 	name := filepath.Base(server)
+	dir := filepath.Dir(mustExe())
 	brief := 0
 
 	for {
 		log.Printf("starting %s", name)
+		// Read before the run: the run that ends by installing an update lasts
+		// long, and must not vouch for the build it just put in place.
+		trial := update.Pending(dir)
 		started := time.Now()
 		run(server, nil)
 		lasted := time.Since(started)
@@ -155,16 +161,34 @@ func supervise(server string, stop <-chan struct{}) {
 		wait := restartDelay
 		if lasted < briefRun {
 			brief++
-			if brief > 3 {
-				wait = time.Minute
-			}
 		} else {
 			brief = 0
+			if trial {
+				// It ran long enough to trust; the launcher stops watching for
+				// a reason to put the previous build back.
+				update.Settle(dir)
+			}
 		}
 
 		if askedToQuit() {
 			return
 		}
+
+		// Three quick deaths in a row on a build an update just installed means
+		// that build cannot run here. Nobody is standing at a locked stand to
+		// undo it, so the launcher does.
+		if brief >= 3 && trial {
+			log.Printf("%s would not stay up after an update; rolling it back", name)
+			if err := update.Rollback(dir); err != nil {
+				log.Printf("rollback: %v", err)
+			}
+			brief = 0
+			continue
+		}
+		if brief > 3 {
+			wait = time.Minute
+		}
+
 		log.Printf("%s exited after %s, starting it again in %s",
 			name, lasted.Round(time.Second), wait)
 		select {
@@ -273,7 +297,7 @@ func logTo(name string) {
 		return
 	}
 	log.SetOutput(f)
-	log.Printf("--- kiosk starting, %s/%s ---", runtime.GOOS, runtime.GOARCH)
+	log.Printf("--- kiosk %s starting, %s/%s ---", version.Version, runtime.GOOS, runtime.GOARCH)
 	log.Printf("state: %s", state.Dir())
 }
 

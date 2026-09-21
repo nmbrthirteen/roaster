@@ -150,6 +150,14 @@ func TestTheMenuOpensWithTheCode(t *testing.T) {
 	}
 }
 
+func TestCheckingForUpdatesNeedsTheCode(t *testing.T) {
+	h := testServer(t)
+
+	if w := get(t, h, "/admin/update"); w.Code != http.StatusForbidden {
+		t.Errorf("/admin/update without the code should be forbidden, got %d", w.Code)
+	}
+}
+
 // A settings route that only takes POST must say so rather than half-working.
 func TestChangingSettingsIsAPost(t *testing.T) {
 	h := testServer(t)

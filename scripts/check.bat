@@ -35,7 +35,10 @@ powershell -NoProfile -Command "$p = Get-AppxPackage -Name 'Upgaming.Roaster'; i
 
 echo.
 echo   [Kiosk mode]
-powershell -NoProfile -Command "try { $a = Get-AssignedAccess; if ($a) { $a | ForEach-Object { Write-Host ('    ' + $_.UserName + ' runs ' + $_.AppUserModelId) } } else { Write-Host '    not set' } } catch { Write-Host ('    cannot tell: ' + $_.Exception.Message) }"
+if exist "%ProgramFiles%\Roaster\kiosk.exe" (echo     installed to %ProgramFiles%\Roaster) else (echo     not installed to %ProgramFiles%\Roaster)
+rem Get-AssignedAccess only reports store apps, so a kiosk set on kiosk.exe by
+rem path shows up in the registry and nowhere it can see.
+powershell -NoProfile -Command "$k='HKLM:\SOFTWARE\Microsoft\Windows\AssignedAccessConfiguration\Profiles'; if ((Test-Path $k) -and (Get-ChildItem $k -ErrorAction SilentlyContinue)) { Write-Host '    Assigned Access configuration: set' } else { Write-Host '    Assigned Access configuration: not set' }; try { $a = Get-AssignedAccess; if ($a) { $a | ForEach-Object { Write-Host ('    ' + $_.UserName + ' runs the store app ' + $_.AppUserModelId) } } } catch { Write-Host ('    cannot tell: ' + $_.Exception.Message) }"
 
 echo.
 echo   [Certificate trust]
