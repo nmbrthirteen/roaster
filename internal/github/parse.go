@@ -18,6 +18,7 @@ type response struct {
 		User *user `json:"user"`
 	} `json:"data"`
 	Errors []struct {
+		Type    string `json:"type"`
 		Message string `json:"message"`
 	} `json:"errors"`
 }

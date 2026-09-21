@@ -5,8 +5,10 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
 )
 
@@ -182,6 +184,65 @@ func TestAHandleNobodyHasIsSaidPlainly(t *testing.T) {
 	_, err := c.Read(context.Background(), "definitelynotarealaccount")
 	if !errors.Is(err, ErrNoAccount) {
 		t.Errorf("want a no-account error, got %v", err)
+	}
+}
+
+// A spent budget must never read as a missing account or a bad token, and the
+// wait GitHub asks for is kept.
+func TestARateLimitIsSaidAsOne(t *testing.T) {
+	reset := time.Now().Add(20 * time.Minute).Truncate(time.Second)
+	cases := []struct {
+		name   string
+		status int
+		header map[string]string
+		body   string
+		want   time.Duration // roughly how long until reads may resume
+	}{
+		{"hourly budget in GraphQL", http.StatusOK,
+			map[string]string{"X-RateLimit-Remaining": "0", "X-RateLimit-Reset": strconv.FormatInt(reset.Unix(), 10)},
+			`{"data":{"user":null},"errors":[{"type":"RATE_LIMITED","message":"API rate limit exceeded"}]}`,
+			20 * time.Minute},
+		{"secondary limit", http.StatusForbidden, map[string]string{"Retry-After": "90"},
+			`{"message":"You have exceeded a secondary rate limit"}`, 90 * time.Second},
+		{"secondary limit without headers", http.StatusForbidden, nil,
+			`{"message":"You have exceeded a secondary rate limit"}`, time.Minute},
+		{"too many requests", http.StatusTooManyRequests, nil, ``, time.Minute},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				for k, v := range tc.header {
+					w.Header().Set(k, v)
+				}
+				w.WriteHeader(tc.status)
+				w.Write([]byte(tc.body))
+			}))
+			defer srv.Close()
+
+			c := Client{Token: "test-token", URL: srv.URL, HTTP: srv.Client()}
+			_, err := c.Read(context.Background(), "nmbrthirteen")
+			var rl *RateLimited
+			if !errors.As(err, &rl) {
+				t.Fatalf("want a rate limit, got %v", err)
+			}
+			if wait := time.Until(rl.Until); wait < tc.want-5*time.Second || wait > tc.want+time.Second {
+				t.Errorf("want a wait of about %s, got %s", tc.want, wait)
+			}
+		})
+	}
+}
+
+func TestARefusedTokenIsNotARateLimit(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		w.Write([]byte(`{"message":"Resource not accessible by personal access token"}`))
+	}))
+	defer srv.Close()
+
+	c := Client{Token: "test-token", URL: srv.URL, HTTP: srv.Client()}
+	_, err := c.Read(context.Background(), "nmbrthirteen")
+	if err == nil || errors.As(err, new(*RateLimited)) {
+		t.Errorf("want a refused token, got %v", err)
 	}
 }
 

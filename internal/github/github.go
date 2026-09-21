@@ -13,8 +13,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -42,6 +44,21 @@ var (
 	// GitHub, and the message is written to be shown to whoever typed it.
 	ErrBadHandle = errors.New("can't be a GitHub username. Those use only letters, numbers and single hyphens")
 )
+
+// RateLimited is GitHub refusing because the token has spent its budget, the
+// hourly one or the per-minute one. Asking again before Until only earns a
+// longer wait, and GitHub bans tokens that keep at it.
+type RateLimited struct {
+	Until time.Time
+}
+
+func (e *RateLimited) Error() string {
+	return fmt.Sprintf("GitHub rate limit reached until %s", e.Until.Format(time.TimeOnly))
+}
+
+// cooloff is the wait when GitHub refuses without saying for how long, which
+// is the minimum its documentation asks for.
+const cooloff = time.Minute
 
 // handleRule is GitHub's own: letters, digits and single hyphens, never at
 // either end. Checking it here means a typo costs nothing instead of a round
@@ -354,7 +371,18 @@ func (c Client) ask(ctx context.Context, query string, vars map[string]any) (res
 
 	switch res.StatusCode {
 	case http.StatusOK:
-	case http.StatusUnauthorized, http.StatusForbidden:
+	case http.StatusTooManyRequests:
+		return response{}, limited(res.Header)
+	case http.StatusForbidden:
+		// A spent budget and a refused token share this status. Only the
+		// headers or the message tell them apart.
+		msg, _ := io.ReadAll(io.LimitReader(res.Body, 4<<10))
+		if res.Header.Get("Retry-After") != "" || res.Header.Get("X-RateLimit-Remaining") == "0" ||
+			strings.Contains(strings.ToLower(string(msg)), "rate limit") {
+			return response{}, limited(res.Header)
+		}
+		return response{}, fmt.Errorf("GitHub rejected the token")
+	case http.StatusUnauthorized:
 		return response{}, fmt.Errorf("GitHub rejected the token")
 	default:
 		return response{}, fmt.Errorf("GitHub returned %s", res.Status)
@@ -364,5 +392,30 @@ func (c Client) ask(ctx context.Context, query string, vars map[string]any) (res
 	if err := json.NewDecoder(res.Body).Decode(&out); err != nil {
 		return response{}, fmt.Errorf("GitHub sent something unreadable: %w", err)
 	}
+	// A spent hourly budget comes back as a 200 with no user, which would
+	// otherwise read as an account that does not exist.
+	for _, e := range out.Errors {
+		if e.Type == "RATE_LIMITED" {
+			return response{}, limited(res.Header)
+		}
+	}
 	return out, nil
+}
+
+// limited reads how long GitHub wants left alone: Retry-After for the
+// per-minute limit, the reset time for the hourly one, a minute when neither
+// is there.
+func limited(h http.Header) *RateLimited {
+	now := time.Now()
+	if s, err := strconv.Atoi(h.Get("Retry-After")); err == nil && s > 0 {
+		return &RateLimited{Until: now.Add(time.Duration(s) * time.Second)}
+	}
+	if h.Get("X-RateLimit-Remaining") == "0" {
+		if s, err := strconv.ParseInt(h.Get("X-RateLimit-Reset"), 10, 64); err == nil {
+			if at := time.Unix(s, 0); at.After(now) {
+				return &RateLimited{Until: at}
+			}
+		}
+	}
+	return &RateLimited{Until: now.Add(cooloff)}
 }

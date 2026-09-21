@@ -36,7 +36,15 @@ var (
 	// ErrGitHub is GitHub not answering. The detail goes to the log; the
 	// visitor gets something they can act on.
 	ErrGitHub = errors.New("GitHub is not answering right now; try again in a moment")
+
+	// ErrGitHubBusy is GitHub's rate limit. It clears on its own, usually
+	// within minutes.
+	ErrGitHubBusy = errors.New("GitHub is too busy to read accounts right now; try again in a few minutes")
 )
+
+// lowBudget is how many GitHub points left in the hour is worth a warning. A
+// fresh read costs about four, so this is roughly a hundred roasts of notice.
+const lowBudget = 400
 
 // Reader is where the account comes from. github.Client is the real one.
 type Reader interface {
@@ -83,6 +91,9 @@ func (a Audit) Roast(ctx context.Context, req roast.Request, emit func(roast.Upd
 		return roast.Roast{}, fmt.Errorf("no GitHub account called @%s", handle)
 	case errors.Is(err, github.ErrBadHandle):
 		return roast.Roast{}, err
+	case errors.As(err, new(*github.RateLimited)):
+		slog.Warn("github", "handle", handle, "err", err)
+		return roast.Roast{}, ErrGitHubBusy
 	case ctx.Err() != nil:
 		return roast.Roast{}, ctx.Err()
 	default:
@@ -146,6 +157,9 @@ func (a Audit) measure(ctx context.Context, handle string, offset int) (measured
 		}
 		slog.Info("github", "handle", handle, "cost", facts.Cost, "remaining", facts.Remaining,
 			"ms", time.Since(started).Milliseconds())
+		if facts.Cost > 0 && facts.Remaining < lowBudget {
+			slog.Warn("github budget low", "remaining", facts.Remaining)
+		}
 
 		zone := time.FixedZone("stand", offset)
 		for i := range facts.Commits {

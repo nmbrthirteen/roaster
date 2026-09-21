@@ -2,12 +2,14 @@ package audit
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/upgaming/roaster/internal/github"
 	"github.com/upgaming/roaster/internal/roast"
 	"github.com/upgaming/roaster/internal/verdict"
 )
@@ -127,6 +129,37 @@ func TestAFailureIsNotKept(t *testing.T) {
 	run(t, a, "flaky")
 	if n := r.asked.Load(); n != 2 {
 		t.Errorf("a failed read was remembered: GitHub asked %d times", n)
+	}
+}
+
+// A rate limit stops every read until GitHub's time is up, while accounts
+// already in memory are still served.
+func TestARateLimitHoldsReadsBackUntilItLifts(t *testing.T) {
+	now := time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)
+	m := NewMemory(time.Hour, 100)
+	m.now = func() time.Time { return now }
+
+	r := &reader{facts: account()}
+	a := Audit{GitHub: r, Memory: m}
+	run(t, a, "nmbrthirteen")
+
+	r.err = &github.RateLimited{Until: now.Add(time.Minute)}
+	run(t, a, "first")
+	_, _, err := run(t, a, "second")
+	if !errors.Is(err, ErrGitHubBusy) {
+		t.Errorf("want the busy error, got %v", err)
+	}
+	if n := r.asked.Load(); n != 2 {
+		t.Errorf("GitHub was asked %d times, want no read while limited", n)
+	}
+	if _, _, err := run(t, a, "nmbrthirteen"); err != nil {
+		t.Errorf("an account already read should still roast, got %v", err)
+	}
+
+	r.err = nil
+	now = now.Add(time.Minute)
+	if _, _, err := run(t, a, "second"); err != nil {
+		t.Errorf("reads should resume once the limit lifts, got %v", err)
 	}
 }
 
