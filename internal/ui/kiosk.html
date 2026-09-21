@@ -556,10 +556,10 @@
   }
 
   // Someone who walks away must not hold the terminal.
-  // The result waits five minutes, long enough to read, print and scan, and
+  // The result waits two minutes, long enough to read, print and scan, and
   // says so. Once the receipt is out, one minute is enough to scan the code.
-  const fiveMinutes = 5 * 60 * 1000;
-  let resultWait = fiveMinutes, deadline = 0;
+  const twoMinutes = 2 * 60 * 1000;
+  let resultWait = twoMinutes, deadline = 0;
 
   function resetIdleTimer() {
     clearTimeout(idleTimer);
@@ -853,7 +853,7 @@
     $('print').textContent = 'Print my receipt';
     $('again').textContent = 'Start over';
     $('note').textContent = '';
-    resultWait = fiveMinutes;
+    resultWait = twoMinutes;
     show('result');
   }
 
