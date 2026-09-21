@@ -37,8 +37,6 @@ type Memory struct {
 	flight   singleflight.Group
 	now      func() time.Time
 
-	// paused is when GitHub will take reads again after refusing one. Until
-	// then only accounts already in memory are served.
 	paused time.Time
 }
 
@@ -70,8 +68,6 @@ func NewMemory(ttl time.Duration, max int) *Memory {
 
 // measure returns the account read and briefed: from memory while it is fresh,
 // otherwise from read, run once however many stands ask at the same moment. A
-// failure is never kept, so the next attempt tries again, except a rate limit,
-// which holds every read back until GitHub said to return.
 func (m *Memory) measure(key string, read func() (measured, error)) (measured, error) {
 	m.mu.Lock()
 	if k, ok := m.accounts[key]; ok && m.now().Before(k.expires) {

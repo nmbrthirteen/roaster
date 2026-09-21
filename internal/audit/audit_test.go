@@ -31,7 +31,7 @@ func (r *reader) Read(ctx context.Context, handle string) (github.Facts, error) 
 
 type writer struct {
 	line  string
-	page  verdict.Page // the rest of what it writes; line is its verdict
+	page  verdict.Page
 	err   error
 	delay time.Duration
 }
@@ -129,8 +129,6 @@ func TestTheVerdictAlwaysHasAWayThrough(t *testing.T) {
 	}
 }
 
-// The model words the whole page, a line at a time. A list that came back the
-// wrong length is not trusted to line up with its facts, so it stays stock.
 func TestTheWrittenPageReplacesTheStockLines(t *testing.T) {
 	stock, _, err := run(t, Audit{GitHub: &reader{facts: account()}}, "nmbrthirteen")
 	if err != nil {
@@ -172,8 +170,6 @@ func TestTheWrittenPageReplacesTheStockLines(t *testing.T) {
 		t.Errorf("strengths of the wrong count should stay stock, got %q", r.Strengths)
 	}
 
-	// Memory shares the stock findings between visitors; writing one page
-	// must not change what the next visitor starts from.
 	again, _, _ := run(t, Audit{GitHub: &reader{facts: account()}, Memory: m}, "nmbrthirteen")
 	for i := range again.Habits {
 		if again.Habits[i].Line != stock.Habits[i].Line {

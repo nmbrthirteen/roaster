@@ -45,9 +45,6 @@ var (
 	ErrBadHandle = errors.New("can't be a GitHub username. Those use only letters, numbers and single hyphens")
 )
 
-// RateLimited is GitHub refusing because the token has spent its budget, the
-// hourly one or the per-minute one. Asking again before Until only earns a
-// longer wait, and GitHub bans tokens that keep at it.
 type RateLimited struct {
 	Until time.Time
 }
@@ -56,8 +53,6 @@ func (e *RateLimited) Error() string {
 	return fmt.Sprintf("GitHub rate limit reached until %s", e.Until.Format(time.TimeOnly))
 }
 
-// cooloff is the wait when GitHub refuses without saying for how long, which
-// is the minimum its documentation asks for.
 const cooloff = time.Minute
 
 // handleRule is GitHub's own: letters, digits and single hyphens, never at
@@ -374,8 +369,6 @@ func (c Client) ask(ctx context.Context, query string, vars map[string]any) (res
 	case http.StatusTooManyRequests:
 		return response{}, limited(res.Header)
 	case http.StatusForbidden:
-		// A spent budget and a refused token share this status. Only the
-		// headers or the message tell them apart.
 		msg, _ := io.ReadAll(io.LimitReader(res.Body, 4<<10))
 		if res.Header.Get("Retry-After") != "" || res.Header.Get("X-RateLimit-Remaining") == "0" ||
 			strings.Contains(strings.ToLower(string(msg)), "rate limit") {
@@ -392,8 +385,6 @@ func (c Client) ask(ctx context.Context, query string, vars map[string]any) (res
 	if err := json.NewDecoder(res.Body).Decode(&out); err != nil {
 		return response{}, fmt.Errorf("GitHub sent something unreadable: %w", err)
 	}
-	// A spent hourly budget comes back as a 200 with no user, which would
-	// otherwise read as an account that does not exist.
 	for _, e := range out.Errors {
 		if e.Type == "RATE_LIMITED" {
 			return response{}, limited(res.Header)
@@ -402,9 +393,6 @@ func (c Client) ask(ctx context.Context, query string, vars map[string]any) (res
 	return out, nil
 }
 
-// limited reads how long GitHub wants left alone: Retry-After for the
-// per-minute limit, the reset time for the hourly one, a minute when neither
-// is there.
 func limited(h http.Header) *RateLimited {
 	now := time.Now()
 	if s, err := strconv.Atoi(h.Get("Retry-After")); err == nil && s > 0 {

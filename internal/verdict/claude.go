@@ -11,9 +11,6 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/option"
 )
 
-// Writer turns a brief into the written page. What comes back is raw: Merge
-// decides which of its lines print. The interface is here so everything
-// around it can be tested without a network.
 type Writer interface {
 	Write(ctx context.Context, b Brief) (Page, error)
 }
@@ -24,7 +21,6 @@ var (
 	// tamer, and Fallback is tamer.
 	ErrDeclined = errors.New("the model declined to write this roast")
 
-	// ErrUnusable is a reply that came back and cannot be read.
 	ErrUnusable = errors.New("the model's reply could not be read")
 )
 

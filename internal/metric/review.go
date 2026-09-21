@@ -25,16 +25,16 @@ func Actions(f github.Facts) []string {
 		}
 	}
 
-	noReadme, undescribedN, unlicensed := 0, 0, 0
+	var noReadme, undescribed, unlicensed []string
 	for _, r := range f.Repos {
 		if !r.Readme {
-			noReadme++
+			noReadme = append(noReadme, r.Name)
 		}
 		if strings.TrimSpace(r.Description) == "" {
-			undescribedN++
+			undescribed = append(undescribed, r.Name)
 		}
 		if r.License == "" {
-			unlicensed++
+			unlicensed = append(unlicensed, r.Name)
 		}
 	}
 	gap := quietest(f)
@@ -43,17 +43,27 @@ func Actions(f github.Facts) []string {
 	add(len(f.Repos) > 0 && len(f.Commits) == 0, "Push a commit. Your repos think you died.")
 	add(share(f.Commits, oneWord) >= 33, `Learn a second word. "fix" is lonely.`)
 	add(share(f.Commits, atNight) >= 33, "Sleep. Commits at 3am are a cry for help.")
-	add(noReadme > 0, fmt.Sprintf("Write %s. You will forget how these work by Tuesday.", count(noReadme, "README")))
-	add(undescribedN > 0, fmt.Sprintf("Describe %s. Mystery is not a feature.", count(undescribedN, "repo")))
+	add(len(noReadme) > 0, fmt.Sprintf("Write a README for %s. You will forget how it works by Tuesday.", naming(noReadme)))
+	add(len(undescribed) > 0, fmt.Sprintf("Describe %s. Mystery is not a feature.", naming(undescribed)))
 	add(gap >= 30, fmt.Sprintf("Beat your %d-day disappearing act", gap))
 	add(days(f, func(time.Time) bool { return true }) >= 90, "Take one day off. Just one. We'll wait.")
 	add(days(f, isWeekend) >= 50, "Take one Saturday off. The repo will not notice.")
 	add(strings.TrimSpace(f.Readme) == "", "Write a profile README. Recruiters can't read silence.")
-	add(unlicensed > 0, fmt.Sprintf("License %s before a lawyer finds them", count(unlicensed, "repo")))
+	add(len(unlicensed) > 0, fmt.Sprintf("License %s before a lawyer does", naming(unlicensed)))
 	add(true, "Keep it up. Nobody knows how you do it.")
 	add(true, "Frame this receipt. It won't get better.")
 	add(true, "Mentor someone. Carefully.")
 	return out
+}
+
+func naming(repos []string) string {
+	switch len(repos) {
+	case 0:
+		return ""
+	case 1:
+		return repos[0]
+	}
+	return fmt.Sprintf("%s and %d more", repos[0], len(repos)-1)
 }
 
 // StrengthsMax is how many strengths a review opens with. Two is credit; more
@@ -146,8 +156,10 @@ func Findings(f github.Facts, now time.Time) []roast.Finding {
 		starred.Line = fmt.Sprintf("Zero stars across %s. Not even a pity star from yourself.", count(len(f.Repos), "repo"))
 	case top.Stars*10 >= stars*8 && len(f.Repos) > 1:
 		starred.Line = fmt.Sprintf("%s carries the whole account. The rest are backup dancers.", top.Name)
-	default:
+	case top.Stars*2 > stars:
 		starred.Line = fmt.Sprintf("Most of them on %s. The others are still waiting to be discovered.", top.Name)
+	default:
+		starred.Line = fmt.Sprintf("%s leads with %d. The rest share the crumbs.", top.Name, top.Stars)
 	}
 	out = append(out, starred)
 
@@ -367,6 +379,8 @@ func wordiness(commits []github.Commit) roast.Finding {
 		f.Line = "Hemingway would ask for more."
 	case tenths < 50:
 		f.Line = "Short and sweet. Mostly short."
+	case tenths < 90:
+		f.Line = "A sensible length. Suspiciously professional."
 	default:
 		f.Line = "Writes commit messages like cover letters."
 	}

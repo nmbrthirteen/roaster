@@ -23,10 +23,6 @@ import (
 	"github.com/upgaming/roaster/internal/verdict"
 )
 
-// The written page gets this long before the numbers write it instead. It is
-// a page of short lines, not one, and the reading on screen plays for longer
-// than this anyway. GitHub's ten seconds plus this stays inside the service's
-// forty second budget.
 const verdictTimeout = 25 * time.Second
 
 var (
@@ -38,13 +34,9 @@ var (
 	// visitor gets something they can act on.
 	ErrGitHub = errors.New("GitHub is not answering right now; try again in a moment")
 
-	// ErrGitHubBusy is GitHub's rate limit. It clears on its own, usually
-	// within minutes.
 	ErrGitHubBusy = errors.New("GitHub is too busy to read accounts right now; try again in a few minutes")
 )
 
-// lowBudget is how many GitHub points left in the hour is worth a warning. A
-// fresh read costs about four, so this is roughly a hundred roasts of notice.
 const lowBudget = 400
 
 // Reader is where the account comes from. github.Client is the real one.
@@ -194,8 +186,6 @@ func (a Audit) measure(ctx context.Context, handle string, offset int) (measured
 	return a.Memory.measure(fmt.Sprintf("%s@%d", key(handle), offset), read)
 }
 
-// write never fails. Whatever goes wrong with the model, the numbers can
-// still say something true, and a line the model got wrong keeps the stock one.
 func (a Audit) write(ctx context.Context, b verdict.Brief) verdict.Page {
 	if a.Writer == nil {
 		return verdict.Written(b)
@@ -216,8 +206,6 @@ func (a Audit) write(ctx context.Context, b verdict.Brief) verdict.Page {
 	return verdict.Merge(b, p)
 }
 
-// lined puts the written lines under their findings. The findings are shared
-// through Memory, so they are copied rather than written into.
 func lined(fs []roast.Finding, lines []string) []roast.Finding {
 	out := append([]roast.Finding(nil), fs...)
 	for i := range out {

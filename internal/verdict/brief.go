@@ -59,9 +59,6 @@ type Brief struct {
 	Commits []string
 	Repos   []string
 
-	// The stock lines the numbers wrote for the rest of the page, each earned
-	// by a fact. The model rewrites them; what it cannot improve stays. They
-	// quote repository names, so they are shown as account text.
 	Strengths []string
 	Actions   []string
 	Findings  []roast.Finding
@@ -210,15 +207,10 @@ func (b Brief) Render() string {
 	return s.String()
 }
 
-// facts is a finding as the model reads it: what was measured, then the
-// stock line under it.
 func facts(fs []roast.Finding) []string {
 	out := make([]string, len(fs))
 	for i, f := range fs {
-		out[i] = f.Title + ": " + f.Value + "."
-		if f.Line != "" {
-			out[i] += " " + f.Line
-		}
+		out[i] = "[" + f.Title + ", " + f.Value + "] " + f.Line
 	}
 	return out
 }

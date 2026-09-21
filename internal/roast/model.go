@@ -44,8 +44,6 @@ type Roast struct {
 	Score    string    `json:"score"`    // the one number people photograph
 	ScoreTag string    `json:"scoreTag"` // severity word under it
 
-	// Archetype is the kind of developer the account makes: a short label
-	// under the score. Empty on a roast from a server that predates it.
 	Archetype string   `json:"archetype,omitempty"`
 	Metrics   []Metric `json:"metrics"`
 	Verdict   string   `json:"verdict"`

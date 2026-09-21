@@ -26,7 +26,7 @@ func TestActionsNameTheirNumbers(t *testing.T) {
 		Readme:  "hi",
 	}
 	got := strings.Join(Actions(f), "\n")
-	for _, want := range []string{"second word", "Sleep.", "1 README."} {
+	for _, want := range []string{"second word", "Sleep.", "README for a."} {
 		if !strings.Contains(got, want) {
 			t.Errorf("actions missing %q:\n%s", want, got)
 		}
@@ -140,5 +140,34 @@ func TestThousands(t *testing.T) {
 		if got := thousands(n); got != want {
 			t.Errorf("thousands(%d) = %q, want %q", n, got, want)
 		}
+	}
+}
+
+func TestStarsSayMostOnlyWhenItIs(t *testing.T) {
+	now := time.Date(2026, 9, 21, 0, 0, 0, 0, time.UTC)
+	line := func(stars ...int) string {
+		f := github.Facts{}
+		for i, n := range stars {
+			f.Repos = append(f.Repos, github.Repo{Name: string(rune('a' + i)), Stars: n})
+		}
+		for _, x := range Findings(f, now) {
+			if x.Title == "Stars collected" {
+				return x.Line
+			}
+		}
+		return ""
+	}
+	if got := line(5, 3, 3, 1); strings.HasPrefix(got, "Most") {
+		t.Errorf("5 of 12 is not most: %q", got)
+	}
+	if got := line(7, 3, 2); !strings.HasPrefix(got, "Most of them on a") {
+		t.Errorf("7 of 12 is most: %q", got)
+	}
+}
+
+func TestAnOrdinaryMessageLengthIsNotMocked(t *testing.T) {
+	msg := github.Commit{Message: "add retry to the upload client"}
+	if got := wordiness([]github.Commit{msg, msg}).Line; strings.Contains(got, "cover letters") {
+		t.Errorf("six words got %q", got)
 	}
 }

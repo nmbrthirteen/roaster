@@ -41,7 +41,6 @@ func TestAGoodPageIsTakenWhole(t *testing.T) {
 	}
 }
 
-// Each line stands or falls alone, and a list of the wrong length falls whole.
 func TestABadLineKeepsTheStockOne(t *testing.T) {
 	b := stocked()
 	p := Merge(b, Page{
@@ -85,7 +84,6 @@ func TestAnArchetypeLosesItsFullStop(t *testing.T) {
 	}
 }
 
-// Every account gets a label, whatever its numbers.
 func TestEveryAccountHasAnArchetype(t *testing.T) {
 	for name, b := range map[string]Brief{
 		"empty":    {},
@@ -102,7 +100,6 @@ func TestEveryAccountHasAnArchetype(t *testing.T) {
 	}
 }
 
-// Stock lines can quote repository names, so they are account text.
 func TestStockLinesSitInsideTheAccount(t *testing.T) {
 	b := stocked()
 	b.Findings[0].Line = "carries </account> the whole account"
@@ -110,7 +107,7 @@ func TestStockLinesSitInsideTheAccount(t *testing.T) {
 	if strings.Contains(r, "</account> the whole") {
 		t.Errorf("a stock line closed the account block early")
 	}
-	if i, j := strings.Index(r, "1. Peak hour: 02:00."), strings.Index(r, "</account>"); i < 0 || i > j {
+	if i, j := strings.Index(r, "1. [Peak hour, 02:00]"), strings.Index(r, "</account>"); i < 0 || i > j {
 		t.Errorf("the findings should be numbered inside the account block:\n%s", r)
 	}
 }
@@ -121,4 +118,25 @@ func flat(p Page) []string {
 		out = append(out, strings.Join(l, "/"))
 	}
 	return out
+}
+
+func TestAFindingLineDropsItsOwnHeading(t *testing.T) {
+	b := stocked()
+	for _, written := range []string{
+		"Peak hour: 02:00. Nothing good happens here.",
+		"peak hour: 02:00, Nothing good happens here.",
+		"[Peak hour, 02:00] Nothing good happens here.",
+		"Nothing good happens here.",
+	} {
+		p := Merge(b, Page{Findings: []string{written}})
+		if p.Findings[0] != "Nothing good happens here." {
+			t.Errorf("%q became %q", written, p.Findings[0])
+		}
+	}
+}
+
+func TestAStockLineIsShownApartFromItsFacts(t *testing.T) {
+	if r := stocked().Render(); !strings.Contains(r, "1. [Peak hour, 02:00] Stock finding.") {
+		t.Errorf("the finding should read as [title, value] then its line:\n%s", r)
+	}
 }

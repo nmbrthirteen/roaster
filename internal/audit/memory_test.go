@@ -132,8 +132,6 @@ func TestAFailureIsNotKept(t *testing.T) {
 	}
 }
 
-// A rate limit stops every read until GitHub's time is up, while accounts
-// already in memory are still served.
 func TestARateLimitHoldsReadsBackUntilItLifts(t *testing.T) {
 	now := time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)
 	m := NewMemory(time.Hour, 100)

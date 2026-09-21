@@ -8,26 +8,20 @@ import (
 	"github.com/upgaming/roaster/internal/roast"
 )
 
-// Page is every line of the roast that is written rather than measured. The
-// numbers are never in it: the model only ever words what the audit found.
 type Page struct {
 	Archetype string   `json:"archetype"`
 	Verdict   string   `json:"verdict"`
 	Strengths []string `json:"strengths"`
 	Actions   []string `json:"actions"`
-	Findings  []string `json:"findings"` // a line for each Brief.Findings, in order
-	Habits    []string `json:"habits"`   // a line for each Brief.Habits, in order
+	Findings  []string `json:"findings"`
+	Habits    []string `json:"habits"`
 }
 
-// maxLine is one written line other than the verdict: a receipt line or two.
-// maxArchetype is a label, which has to fit on one line of paper.
 const (
-	maxLine      = 140
+	maxLine      = 100
 	maxArchetype = 32
 )
 
-// schema is the shape both models are held to. Lengths are not in it, since
-// strict schemas cannot say "as many as there were"; Merge checks them.
 var schema = map[string]any{
 	"type": "object",
 	"properties": map[string]any{
@@ -42,8 +36,6 @@ var schema = map[string]any{
 	"additionalProperties": false,
 }
 
-// parse reads what a model sent back. Anything that is not the shape asked
-// for is unusable as a whole; a bad line inside it is Merge's problem.
 func parse(text string) (Page, error) {
 	var p Page
 	if err := json.Unmarshal([]byte(strings.TrimSpace(text)), &p); err != nil {
@@ -52,10 +44,6 @@ func parse(text string) (Page, error) {
 	return p, nil
 }
 
-// Merge lays what the model wrote over what the numbers wrote, a line at a
-// time. A line that is missing, unprintable or too long keeps the stock one,
-// and a list that came back the wrong length is kept whole, because a line
-// out of place would sit under the wrong number.
 func Merge(b Brief, p Page) Page {
 	out := Written(b)
 	if v, ok := Clean(p.Verdict); ok {
@@ -66,13 +54,31 @@ func Merge(b Brief, p Page) Page {
 	}
 	out.Strengths = overlay(out.Strengths, p.Strengths)
 	out.Actions = overlay(out.Actions, p.Actions)
-	out.Findings = overlay(out.Findings, p.Findings)
-	out.Habits = overlay(out.Habits, p.Habits)
+	out.Findings = overlay(out.Findings, unprefixed(b.Findings, p.Findings))
+	out.Habits = overlay(out.Habits, unprefixed(b.Habits, p.Habits))
 	return out
 }
 
-// Written is the page from the numbers alone: what prints when there is no
-// model, or the model had nothing usable to say.
+func unprefixed(fs []roast.Finding, lines []string) []string {
+	if len(lines) != len(fs) {
+		return lines
+	}
+	out := make([]string, len(lines))
+	for i, l := range lines {
+		l = strings.TrimSpace(l)
+		if rest, ok := strings.CutPrefix(l, "["+fs[i].Title+", "+fs[i].Value+"]"); ok {
+			l = rest
+		}
+		if len(l) >= len(fs[i].Title) && strings.EqualFold(l[:len(fs[i].Title)], fs[i].Title) {
+			rest := strings.TrimLeft(l[len(fs[i].Title):], ": ")
+			rest = strings.TrimPrefix(rest, fs[i].Value)
+			l = strings.TrimLeft(rest, ".,: ")
+		}
+		out[i] = strings.TrimSpace(l)
+	}
+	return out
+}
+
 func Written(b Brief) Page {
 	return Page{
 		Archetype: Archetype(b),
@@ -98,8 +104,6 @@ func overlay(stock, written []string) []string {
 	return out
 }
 
-// label is an archetype made printable: short, one line, with no full stop
-// trailing off it.
 func label(s string) (string, bool) {
 	s, ok := Clean(s)
 	s = strings.TrimRight(s, ".!")

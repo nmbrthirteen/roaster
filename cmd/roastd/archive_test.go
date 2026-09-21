@@ -55,3 +55,23 @@ func TestAFailingStrapiNeverCostsTheReceipt(t *testing.T) {
 		t.Errorf("the visitor should still get their roast, got %v", err)
 	}
 }
+
+func TestAnOlderStrapiStillGetsTheRoast(t *testing.T) {
+	var sent []entry
+	strapi := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]entry
+		json.NewDecoder(r.Body).Decode(&body)
+		sent = append(sent, body["data"])
+		if body["data"].Archetype != "" {
+			http.Error(w, `{"error":{"status":400,"name":"ValidationError","message":"Invalid key archetype"}}`, http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusCreated)
+	}))
+	defer strapi.Close()
+
+	archive{url: strapi.URL, token: "t"}.save(entry{Code: "abcde", Handle: "octocat", Archetype: "The Fork Hoarder"})
+	if len(sent) != 2 || sent[0].Archetype == "" || sent[1].Archetype != "" || sent[1].Code != "abcde" {
+		t.Errorf("want one try with the archetype and one without, got %+v", sent)
+	}
+}

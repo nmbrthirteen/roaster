@@ -47,7 +47,6 @@ func message(stop, text string) string {
 	return string(b)
 }
 
-// page is a reply in the shape the schema asks for.
 func page(verdict string) string {
 	b, _ := json.Marshal(Page{Archetype: "The 3am Refactorer", Verdict: verdict, Strengths: []string{}, Actions: []string{}, Findings: []string{}, Habits: []string{}})
 	return string(b)

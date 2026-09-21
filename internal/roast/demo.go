@@ -254,7 +254,7 @@ var (
 	demoActions = []string{
 		`Learn a second word. "fix" is lonely.`,
 		"Sleep. Commits at 3am are a cry for help.",
-		"Write 7 READMEs. You will forget how these work by Tuesday.",
+		"Write a README for roaster and 6 more. You will forget how it works by Tuesday.",
 	}
 	demoFindings = []Finding{
 		{Title: "Time served", Value: "since Mar 2016", Line: "10 years on GitHub and 14 repos to show for it."},

@@ -187,8 +187,6 @@ func TestAHandleNobodyHasIsSaidPlainly(t *testing.T) {
 	}
 }
 
-// A spent budget must never read as a missing account or a bad token, and the
-// wait GitHub asks for is kept.
 func TestARateLimitIsSaidAsOne(t *testing.T) {
 	reset := time.Now().Add(20 * time.Minute).Truncate(time.Second)
 	cases := []struct {
@@ -196,7 +194,7 @@ func TestARateLimitIsSaidAsOne(t *testing.T) {
 		status int
 		header map[string]string
 		body   string
-		want   time.Duration // roughly how long until reads may resume
+		want   time.Duration
 	}{
 		{"hourly budget in GraphQL", http.StatusOK,
 			map[string]string{"X-RateLimit-Remaining": "0", "X-RateLimit-Reset": strconv.FormatInt(reset.Unix(), 10)},

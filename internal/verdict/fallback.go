@@ -78,9 +78,6 @@ func Fallback(b Brief) string {
 	)
 }
 
-// worst is the gauge most worth a joke, or the missing READMEs when those
-// beat every gauge, with the value to quote. Empty is an account with nothing
-// noteworthy about it.
 func worst(b Brief) (label, value string) {
 	top := noteworthy - 1
 	for _, m := range b.Metrics {
@@ -99,8 +96,6 @@ func worst(b Brief) (label, value string) {
 	return label, value
 }
 
-// archetypes name the kind of developer each of those makes. Unused claims
-// and an empty account have their own.
 var archetypes = map[string]string{
 	"Commits after midnight":    "The 3am Deployer",
 	"Weekends with commits":     "The Weekend Warrior",
@@ -110,8 +105,6 @@ var archetypes = map[string]string{
 	noReadme:                    "The Undocumented Wizard",
 }
 
-// Archetype is the label from the numbers alone, picked the way Fallback
-// picks its line, so the two always agree on what the account is about.
 func Archetype(b Brief) string {
 	switch {
 	case len(b.Unused) > 0:
