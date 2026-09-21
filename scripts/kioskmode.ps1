@@ -29,6 +29,12 @@ $kioskPath = '%ProgramFiles%\Roaster\kiosk.exe'
 $profileId = '{6F1C2B7E-3D4A-4E8B-9C21-5A7D0E3F9B14}'
 $taskName = 'Roaster kiosk mode'
 
+# After someone leaves the kiosk, the sign-in screen waits this long before the
+# kiosk signs itself back in. Windows' 30 seconds is too short to tap an
+# administrator's password in on a touch keyboard.
+$logonUI = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Authentication\LogonUI'
+$resumeAfterMs = 120000
+
 function Set-Configuration {
   $cim = Get-CimInstance -Namespace 'root\cimv2\mdm\dmmap' -ClassName 'MDM_AssignedAccess'
   if ($Off) {
@@ -84,12 +90,27 @@ function Invoke-AsSystem {
 
   $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument $arguments
   $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
-  Register-ScheduledTask -TaskName $taskName -Action $action -Principal $principal -Force | Out-Null
+  # A task's defaults refuse to start on battery, which left a laptop stand
+  # waiting on a task that never ran.
+  $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
+    -ExecutionTimeLimit (New-TimeSpan -Minutes 10)
+  Register-ScheduledTask -TaskName $taskName -Action $action -Principal $principal -Settings $settings -Force | Out-Null
   try {
     Start-ScheduledTask -TaskName $taskName
-    $deadline = (Get-Date).AddSeconds(90)
+    # Creating the kiosk account and applying its policies can take Windows a
+    # few minutes, so the wait is long and says it is still going.
+    $started = Get-Date
+    $deadline = $started.AddMinutes(5)
+    $nextNote = $started.AddSeconds(15)
     while (-not (Test-Path $resultFile)) {
-      if ((Get-Date) -gt $deadline) { throw 'Windows took more than 90 seconds to apply it, so it was stopped.' }
+      if ((Get-Date) -gt $deadline) {
+        $state = (Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue).State
+        throw "Windows did not finish within 5 minutes (the task was $state). Run scripts\check.bat to see whether it applied anyway."
+      }
+      if ((Get-Date) -gt $nextNote) {
+        Write-Host ("    still applying, {0} seconds so far..." -f [int]((Get-Date) - $started).TotalSeconds)
+        $nextNote = (Get-Date).AddSeconds(15)
+      }
       Start-Sleep -Milliseconds 500
     }
     # The file can exist a moment before its contents land.
@@ -105,6 +126,7 @@ function Invoke-AsSystem {
 if ($Off) {
   Write-Host '  Taking this device out of kiosk mode...'
   Invoke-AsSystem
+  Remove-ItemProperty -Path $logonUI -Name 'IdleTimeOut' -ErrorAction SilentlyContinue
   Write-Host '    cleared'
   exit 0
 }
@@ -149,6 +171,7 @@ if ($Account) {
   Write-Host '  Locking the device to the stand, on an account Windows signs in by itself...'
 }
 Invoke-AsSystem
+New-ItemProperty -Path $logonUI -Name 'IdleTimeOut' -PropertyType DWord -Value $resumeAfterMs -Force | Out-Null
 Write-Host '    assigned'
 
 $packaged = Get-AppxPackage -AllUsers -Name 'Upgaming.Roaster' -ErrorAction SilentlyContinue

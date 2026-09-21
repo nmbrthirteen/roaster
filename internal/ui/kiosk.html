@@ -920,7 +920,7 @@
 
     confirmed('aSignOut', [
       'Sign out to the Windows sign-in screen?',
-      'Sign in there as an administrator. Restart to bring the stand back. Confirm.',
+      'Sign in as an administrator within 2 minutes, or the stand comes back. Confirm.',
     ], () => call('/admin/signout', new URLSearchParams()));
   }
 
