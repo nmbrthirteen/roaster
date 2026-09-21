@@ -73,7 +73,8 @@ func TestReadsAnAccount(t *testing.T) {
 	if f.Handle != "nmbrthirteen" || f.Followers != 41 || f.Starred != 812 {
 		t.Errorf("the profile did not survive the trip: %+v", f)
 	}
-	if f.Cost != 7 || f.Remaining != 4993 {
+	// The read is four queries, each answered here with the same canned cost.
+	if f.Cost != 4*7 || f.Remaining != 4993 {
 		t.Errorf("what the read cost should come back with it, got cost %d remaining %d", f.Cost, f.Remaining)
 	}
 	if f.Owned != 48 || f.Forked != 17 {
@@ -96,7 +97,7 @@ func TestReadsAnAccount(t *testing.T) {
 	}
 }
 
-func TestTheProfileReadmeComesInTheSameRequest(t *testing.T) {
+func TestTheProfileReadmeIsRead(t *testing.T) {
 	f, err := serve(t, canned).Read(context.Background(), "nmbrthirteen")
 	if err != nil {
 		t.Fatal(err)

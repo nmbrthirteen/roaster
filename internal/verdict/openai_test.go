@@ -92,9 +92,9 @@ func TestAnOpenAIReplyComesBackClean(t *testing.T) {
 
 func TestAnOpenAIModelOverrideIsUsed(t *testing.T) {
 	o, asked, _ := fakeOpenAI(t, said("Fine."))
-	o.Model = "gpt-5.6-luna"
+	o.Model = "gpt-5.6-terra"
 	o.Write(context.Background(), brief())
-	if (*asked)["model"] != "gpt-5.6-luna" {
+	if (*asked)["model"] != "gpt-5.6-terra" {
 		t.Errorf("got %v", (*asked)["model"])
 	}
 }

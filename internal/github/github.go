@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -138,8 +139,13 @@ type Commit struct {
 	At time.Time
 }
 
-const query = `
-query($login: String!, $repos: Int!, $commits: Int!) {
+// GitHub gives one GraphQL request about ten seconds, then answers 502. A
+// busy account read in a single query runs past that, so the read is four
+// queries sent at once, and the stand waits for the slowest one rather than
+// the sum.
+const (
+	accountQuery = `
+query($login: String!) {
   rateLimit { cost remaining }
   user(login: $login) {
     login
@@ -151,6 +157,17 @@ query($login: String!, $repos: Int!, $commits: Int!) {
     following { totalCount }
     gists { totalCount }
     starredRepositories { totalCount }
+    forks: repositories(ownerAffiliations: OWNER, isFork: true) { totalCount }
+    profile: repository(name: $login) {
+      object(expression: "HEAD:README.md") { ... on Blob { text } }
+    }
+  }
+}`
+
+	calendarQuery = `
+query($login: String!) {
+  rateLimit { cost remaining }
+  user(login: $login) {
     contributionsCollection {
       totalCommitContributions
       totalPullRequestContributions
@@ -161,10 +178,13 @@ query($login: String!, $repos: Int!, $commits: Int!) {
         weeks { contributionDays { date contributionCount } }
       }
     }
-    forks: repositories(ownerAffiliations: OWNER, isFork: true) { totalCount }
-    profile: repository(name: $login) {
-      object(expression: "HEAD:README.md") { ... on Blob { text } }
-    }
+  }
+}`
+
+	reposQuery = `
+query($login: String!, $repos: Int!) {
+  rateLimit { cost remaining }
+  user(login: $login) {
     repositories(first: $repos, ownerAffiliations: OWNER, isFork: false,
                  orderBy: {field: PUSHED_AT, direction: DESC}) {
       totalCount
@@ -180,6 +200,19 @@ query($login: String!, $repos: Int!, $commits: Int!) {
         licenseInfo { key }
         issues(states: OPEN) { totalCount }
         root: object(expression: "HEAD:") { ... on Tree { entries { name type } } }
+      }
+    }
+  }
+}`
+
+	historyQuery = `
+query($login: String!, $repos: Int!, $commits: Int!) {
+  rateLimit { cost remaining }
+  user(login: $login) {
+    repositories(first: $repos, ownerAffiliations: OWNER, isFork: false,
+                 orderBy: {field: PUSHED_AT, direction: DESC}) {
+      nodes {
+        name
         defaultBranchRef {
           target {
             ... on Commit {
@@ -198,6 +231,7 @@ query($login: String!, $repos: Int!, $commits: Int!) {
     }
   }
 }`
+)
 
 // Valid reports whether text could be a GitHub handle at all.
 func Valid(handle string) bool {
@@ -215,16 +249,86 @@ func (c Client) Read(ctx context.Context, handle string) (Facts, error) {
 		return Facts{}, fmt.Errorf("no GitHub token; the GraphQL API refuses anonymous calls")
 	}
 
-	body, err := json.Marshal(map[string]any{
-		"query": query,
-		"variables": map[string]any{
-			"login":   handle,
-			"repos":   repoCount,
-			"commits": commitCount,
-		},
-	})
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	login := map[string]any{"login": handle}
+	asks := []struct {
+		query string
+		vars  map[string]any
+	}{
+		{accountQuery, login},
+		{calendarQuery, login},
+		{reposQuery, map[string]any{"login": handle, "repos": repoCount}},
+		{historyQuery, map[string]any{"login": handle, "repos": repoCount, "commits": commitCount}},
+	}
+	outs := make([]response, len(asks))
+	errs := make([]error, len(asks))
+	var wg sync.WaitGroup
+	for i, a := range asks {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if outs[i], errs[i] = c.ask(ctx, a.query, a.vars); errs[i] != nil {
+				cancel() // one part failing sinks the read, so stop the rest
+			}
+		}()
+	}
+	wg.Wait()
+	// The first failure is the cause; later ones are usually the cancel.
+	for i := range asks {
+		if errs[i] != nil && !errors.Is(errs[i], context.Canceled) {
+			return Facts{}, errs[i]
+		}
+	}
+	for _, err := range errs {
+		if err != nil {
+			return Facts{}, err
+		}
+	}
+
+	// A missing account comes back as a 200 with the user null and a note in
+	// errors, so the status code alone never tells you.
+	for _, out := range outs {
+		if out.Data.User == nil {
+			if len(out.Errors) > 0 {
+				return Facts{}, fmt.Errorf("%w: @%s (%s)", ErrNoAccount, handle, out.Errors[0].Message)
+			}
+			return Facts{}, fmt.Errorf("%w: @%s", ErrNoAccount, handle)
+		}
+	}
+
+	u := outs[0].Data.User
+	u.Contributions = outs[1].Data.User.Contributions
+	u.Repositories = outs[2].Data.User.Repositories
+	history := map[string]*repo{}
+	for i := range outs[3].Data.User.Repositories.Nodes {
+		r := &outs[3].Data.User.Repositories.Nodes[i]
+		history[r.Name] = r
+	}
+	for i := range u.Repositories.Nodes {
+		if h, ok := history[u.Repositories.Nodes[i].Name]; ok {
+			u.Repositories.Nodes[i].DefaultBranchRef = h.DefaultBranchRef
+		}
+	}
+
+	f := u.facts()
+	for i, out := range outs {
+		if rl := out.Data.RateLimit; rl != nil {
+			f.Cost += rl.Cost
+			if i == 0 || rl.Remaining < f.Remaining {
+				f.Remaining = rl.Remaining
+			}
+		}
+	}
+	return f, nil
+}
+
+// ask sends one query and decodes the answer.
+func (c Client) ask(ctx context.Context, query string, vars map[string]any) (response, error) {
+	body, err := json.Marshal(map[string]any{"query": query, "variables": vars})
 	if err != nil {
-		return Facts{}, err
+		return response{}, err
 	}
 
 	url := c.URL
@@ -233,7 +337,7 @@ func (c Client) Read(ctx context.Context, handle string) (Facts, error) {
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
-		return Facts{}, err
+		return response{}, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+c.Token)
@@ -244,34 +348,21 @@ func (c Client) Read(ctx context.Context, handle string) (Facts, error) {
 	}
 	res, err := client.Do(req)
 	if err != nil {
-		return Facts{}, fmt.Errorf("could not reach GitHub: %w", err)
+		return response{}, fmt.Errorf("could not reach GitHub: %w", err)
 	}
 	defer res.Body.Close()
 
 	switch res.StatusCode {
 	case http.StatusOK:
 	case http.StatusUnauthorized, http.StatusForbidden:
-		return Facts{}, fmt.Errorf("GitHub rejected the token")
+		return response{}, fmt.Errorf("GitHub rejected the token")
 	default:
-		return Facts{}, fmt.Errorf("GitHub returned %s", res.Status)
+		return response{}, fmt.Errorf("GitHub returned %s", res.Status)
 	}
 
 	var out response
 	if err := json.NewDecoder(res.Body).Decode(&out); err != nil {
-		return Facts{}, fmt.Errorf("GitHub sent something unreadable: %w", err)
+		return response{}, fmt.Errorf("GitHub sent something unreadable: %w", err)
 	}
-	// A missing account comes back as a 200 with the user null and a note in
-	// errors, so the status code alone never tells you.
-	if out.Data.User == nil {
-		if len(out.Errors) > 0 {
-			return Facts{}, fmt.Errorf("%w: @%s (%s)", ErrNoAccount, handle, out.Errors[0].Message)
-		}
-		return Facts{}, fmt.Errorf("%w: @%s", ErrNoAccount, handle)
-	}
-
-	f := out.Data.User.facts()
-	if rl := out.Data.RateLimit; rl != nil {
-		f.Cost, f.Remaining = rl.Cost, rl.Remaining
-	}
-	return f, nil
+	return out, nil
 }

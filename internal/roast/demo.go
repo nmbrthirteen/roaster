@@ -250,17 +250,17 @@ var (
 	}
 	demoFindings = []Finding{
 		{Title: "Time served", Value: "since Mar 2016", Line: "10 years on GitHub and 14 repos to show for it."},
-		{Title: "Social standing", Value: "12 followers, following 87", Line: "Follows more people than follow back. Networking is going great."},
-		{Title: "Stars collected", Value: "9", Line: "dotfiles carries the whole account. The rest are along for the ride."},
-		{Title: "Main language", Value: "TypeScript, 57% of repos", Line: "Dabbles in 3 other languages. Commitment is a work in progress."},
-		{Title: "Teamwork this year", Value: "4 pull requests, 0 reviews", Line: "Opens pull requests, reviews none. Takes, never gives."},
+		{Title: "Social standing", Value: "12 followers, following 87", Line: "Follows 87, followed back by 12. Networking is going great."},
+		{Title: "Stars collected", Value: "9", Line: "dotfiles carries the whole account. The rest are backup dancers."},
+		{Title: "Main language", Value: "TypeScript, 57% of repos", Line: "Plus 3 other languages as side quests."},
+		{Title: "Teamwork this year", Value: "4 pull requests, 0 reviews", Line: "Opens pull requests, never reviews one. Generous to yourself."},
 	}
 	demoHabits = []Finding{
-		{Title: "Favourite first words", Value: "fix ×23, update ×11, wip ×5", Line: "Mostly fixing. Who wrote all these bugs, then?"},
+		{Title: "Favourite first words", Value: "fix ×23, update ×11, wip ×5", Line: "Mostly fixes. Bold of you to write the bugs first."},
 		{Title: "Peak hour", Value: "02:00", Line: "Nothing good was ever committed at this hour."},
 		{Title: "Busiest day", Value: "Friday", Line: "Ships on Fridays. Brave, or unsupervised."},
-		{Title: "Words per message", Value: "1.8", Line: "Hemingway would find this too short."},
-		{Title: "The graveyard", Value: "6 repos untouched for a year", Line: "Not archived, not deleted. Just resting."},
+		{Title: "Words per message", Value: "1.8", Line: "Hemingway would ask for more."},
+		{Title: "The graveyard", Value: "6 repos untouched for a year", Line: "Still public, still untouched. A museum nobody visits."},
 	}
 )
 
@@ -302,12 +302,12 @@ func pick(rng *rand.Rand, from []string) string { return from[rng.Intn(len(from)
 
 // Written to roast the work, never the person.
 var verdicts = []string{
-	"Your repositories have more forks than documentation. Somewhere a stranger maintains your side project better than you do.",
-	"You have written the same utility function in four repositories and named it something different every time.",
-	"Your commit history reads like a hostage note. Half the messages are the word fix and the other half are a full stop.",
-	"You open pull requests the way other people open browser tabs, and you close them about as often.",
-	"Every project starts with a README and a plan. Both are abandoned by the third commit, which is where the real code begins.",
+	"Your repos have more forks than documentation. A stranger maintains your side project better than you do.",
+	"Same utility function, four repos, four different names. Consistency is clearly a later milestone.",
+	"Your commit history reads like a ransom note. Half the messages say fix. The other half are a full stop.",
+	"You open pull requests like browser tabs. You close them about as often.",
+	"Every project starts with a README and a plan. Both are gone by the third commit.",
 	"Your test suite is aspirational. It describes a codebase that would be lovely to have.",
-	"You refactor in production and call it observability. Bold, and we respect it, but bold.",
-	"There is a branch in your account from two years ago called temp-fix-final-2. It is still ahead of main.",
+	"You refactor in production and call it observability. Bold. We respect it. Still bold.",
+	"There's a branch called temp-fix-final-2 from two years ago. It's still ahead of main.",
 }

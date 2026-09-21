@@ -97,3 +97,18 @@ func TestHabits(t *testing.T) {
 		}
 	}
 }
+
+func TestAnEmptyAccountIsUntestedNotPraised(t *testing.T) {
+	for _, m := range From(github.Facts{}) {
+		if m.Percent != nil && m.Tag != "untested" {
+			t.Errorf("%s tagged %q on an account with nothing to measure", m.Label, m.Tag)
+		}
+	}
+}
+
+func TestPunctuationIsNotAWord(t *testing.T) {
+	got := vocabulary([]github.Commit{{Message: "- fix"}, {Message: "fix."}, {Message: "..."}})
+	if got.Value != "fix ×2" {
+		t.Errorf("vocabulary = %q, want fix ×2", got.Value)
+	}
+}

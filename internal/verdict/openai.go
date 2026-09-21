@@ -16,10 +16,11 @@ import (
 const (
 	openAIEndpoint = "https://api.openai.com/v1/responses"
 
-	// OpenAIModel is OpenAI's default: their flagship for professional work,
-	// priced close to Claude Opus 5, at low reasoning effort because a queue is
-	// waiting. gpt-5.6-terra and gpt-5.6-luna are cheaper if the jokes hold up.
-	OpenAIModel = "gpt-5.6-sol"
+	// OpenAIModel is OpenAI's default: the smallest of the family. The verdict
+	// is one short line from a small brief, so the cost per roast is a
+	// fraction of a cent. gpt-5.6-terra or gpt-5.6-sol go in OPENAI_MODEL if
+	// the jokes need more.
+	OpenAIModel = "gpt-5.6-luna"
 )
 
 // OpenAI writes the verdict through the Responses API. It is plain HTTP rather

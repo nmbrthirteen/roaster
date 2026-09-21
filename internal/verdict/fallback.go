@@ -17,29 +17,29 @@ const noReadme = "Repos with no README"
 // Each has a few, because the person behind in the queue has read the last one.
 var lines = map[string][]string{
 	"Commits after midnight": {
-		"%s of your commits land after midnight. The code will be fine; it is the sleep we are worried about.",
-		"%s of your commits happen after midnight. Your best work and your worst decisions keep the same hours.",
-		"%s of your commits arrive after midnight. The bugs you fix at 3am are the ones you wrote at 2.",
+		"%s of your commits land after midnight. Your rubber duck has filed for overtime.",
+		"%s of your commits ship after midnight. That's not a schedule. That's a haunting.",
+		"%s of your commits happen after midnight. The 3am bugs were written at 2am.",
 	},
 	"Commits at the weekend": {
-		"%s of your commits happen at the weekend. Somebody should tell you about Saturdays.",
-		"%s of your commits land on a weekend. Your commit graph has no concept of a day off.",
-		"%s of your commits are made at the weekend. The build never rests, and apparently neither do you.",
+		"%s of your commits happen at the weekend. Your calendar says Saturday. Your git log says sprint.",
+		"%s of your commits land on weekends. HR would like a word. So would your friends.",
+		"%s of your commits are weekend work. Brunch exists. We checked.",
 	},
 	"Repos with no description": {
-		"%s of your repositories have no description. Each one is a riddle you wrote and then forgot the answer to.",
-		"%s of your repositories have no description. Future you will open them like a stranger's fridge.",
-		"%s of your repositories come with no description. Each one is a surprise, mostly to you.",
+		"%s of your repos have no description. Even you have to open them to find out.",
+		"%s of your repos have no description. Mystery boxes, and all of them free.",
+		"%s of your repos come with no description. Naming things was hard. Describing them was apparently impossible.",
 	},
 	"One-word commit messages": {
-		"%s of your commit messages are one word long. Every one of them was a story you chose not to tell.",
-		"%s of your commit messages are a single word. Git blame is going to be a very short conversation.",
-		"%s of your commit messages are one word. Brevity is a virtue up to about here.",
+		"%s of your commit messages are one word long. Your git log reads like a ransom note.",
+		"%s of your commit messages are a single word. Future you will need subtitles.",
+		`%s of your commit messages are one word. "fix" what? We will never know.`,
 	},
 	noReadme: {
-		"%s of your repositories have no README. Their purpose is known only to you, and possibly not even that.",
-		"%s of your repositories have no README. Installation instructions: guess.",
-		"%s of your repositories have no README. Somewhere a new contributor is still reading the source.",
+		"%s of your repos have no README. Installation instructions: vibes.",
+		"%s of your repos have no README. Onboarding is a treasure hunt with no map.",
+		"%s of your repos have no README. The docs live in your head, and your head isn't on GitHub.",
 	},
 }
 
@@ -52,13 +52,13 @@ func Fallback(b Brief) string {
 	case 0:
 	case 1:
 		return fresh(b.Avoid, b.Unused[0],
-			"Your README claims %s. Not one of your repositories is written in it.",
-			"Your README lists %s. Your repositories have never heard of it.",
+			"Your README claims %s. Your repos have never met it.",
+			"Your README lists %s. Your repos would like to see some ID.",
 		)
 	default:
 		return fresh(b.Avoid, and(b.Unused),
-			"Your README claims %s. Not one of your repositories is written in any of them.",
-			"Your README lists %s. Your repositories disagree on every count.",
+			"Your README claims %s. Your repos can't back up a single one.",
+			"Your README lists %s. Nobody told your code.",
 		)
 	}
 
@@ -83,8 +83,9 @@ func Fallback(b Brief) string {
 	}
 
 	return fresh(b.Avoid, "",
-		"Your public account is so quiet we could hear the fans spin. Whatever you are building, you are building it somewhere else.",
-		"Your public account is mostly silence. Either the real work is private, or so are your plans for it.",
+		"Your public GitHub is so empty it echoes. No commits, no bugs, no evidence.",
+		"We found nothing public to roast. Stealth genius, or a very long draft.",
+		"Zero public activity. The perfect codebase is the one nobody can see.",
 	)
 }
 

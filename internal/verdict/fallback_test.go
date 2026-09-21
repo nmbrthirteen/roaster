@@ -68,7 +68,7 @@ func TestMissingReadmesCanBeTheLine(t *testing.T) {
 		NoReadme: 8,
 		Metrics:  []roast.Metric{gauge("Commits after midnight", 20)},
 	}
-	if got := Fallback(b); !strings.HasPrefix(got, "80% of your repositories have no README") {
+	if got := Fallback(b); !strings.HasPrefix(got, "80% of your repos have no README") {
 		t.Errorf("got %q", got)
 	}
 }

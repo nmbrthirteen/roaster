@@ -320,11 +320,12 @@ go run ./cmd/roastd
 
 ### What it does with a handle
 
-1. **Reads the account** in one GraphQL request, about a second and a half.
-2. **Measures it.** The five gauges, the score and the odds are arithmetic, and
+1. **Reads the account** in four GraphQL requests sent at once, so a busy
+   account stays under GitHub's ten seconds a request.
+2. **Measures it.** The five gauges, the score and the action items are arithmetic, and
    they reach the screen the moment GitHub answers.
 3. **Asks for the verdict.** A model writes the one line that is not a number,
-   at low effort because a queue is waiting: OpenAI's `gpt-5.6-sol` when
+   at low effort because a queue is waiting: OpenAI's `gpt-5.6-luna` when
    `OPENAI_API_KEY` is set, or Claude Opus 5 when only an Anthropic key is. Every
    OpenAI request goes with `store` off, so a visitor's account is not kept on
    OpenAI's side past the reply.

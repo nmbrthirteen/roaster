@@ -41,7 +41,7 @@ var packs = map[string]Pack{
 		Feed:        "git log --graph --oneline",
 		Quiet: [][2]string{
 			{"cmd", "git log --oneline"},
-			{"out", "(no public commits. a clean slate, or a very private person.)"},
+			{"out", "(no public commits. stealth mode, or witness protection.)"},
 			{"cmd", "git shortlog -sn --all"},
 			{"out", "     0  {handle}"},
 			{"cmd", "git blame"},

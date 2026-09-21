@@ -23,7 +23,7 @@ const nightEnds = 6
 // four with bars and one without, in that order. The document was tuned to that
 // shape, so the shape is part of the contract.
 func From(f github.Facts) []roast.Metric {
-	return []roast.Metric{
+	m := []roast.Metric{
 		gauge("Commits after midnight", share(f.Commits, atNight),
 			[3]string{"sleeps", "owl", "vampire"}),
 		gauge("Commits at the weekend", share(f.Commits, atWeekend),
@@ -34,7 +34,18 @@ func From(f github.Facts) []roast.Metric {
 			[3]string{"poet", "brief", "caveman"}),
 		longestGap(f),
 	}
+	// Nothing to measure is not a virtue. "0% poet" on an empty account reads
+	// as praise, so a gauge with no data says so.
+	if len(f.Commits) == 0 {
+		m[0].Tag, m[1].Tag, m[3].Tag = untested, untested, untested
+	}
+	if len(f.Repos) == 0 {
+		m[2].Tag = untested
+	}
+	return m
 }
+
+const untested = "untested"
 
 // Score and its severity band are the roast's own, so the demo and the real
 // audit cannot drift apart on what a number means.
