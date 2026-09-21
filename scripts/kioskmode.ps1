@@ -1,12 +1,12 @@
 <#
   Puts this device into Windows kiosk mode on kiosk.exe, or takes it out.
 
-  Assigned Access runs a desktop application as the kiosk when its
-  configuration names the executable by path, which Windows 11 has accepted
-  since 21H2. Neither the picker in Settings nor Set-AssignedAccess can say
-  that: both take store apps only. The configuration goes in through the MDM
-  bridge instead, and the bridge answers only to SYSTEM, so this runs itself a
-  second time as SYSTEM for that one step.
+  Assigned Access, as a restricted profile that starts kiosk.exe by itself
+  and allows only what the stand runs. Neither the picker in Settings nor
+  Set-AssignedAccess can express that: both take store apps only. The
+  configuration goes in through the MDM bridge instead, and the bridge answers
+  only to SYSTEM, so this runs itself a second time as SYSTEM for that one
+  step. It needs Windows 11 22H2 or later.
 
   Run scripts\kioskmode.bat, which builds, elevates and calls this.
 #>
@@ -45,15 +45,35 @@ function Set-Configuration {
     } else {
       $who = '<AutoLogonAccount rs5:DisplayName="Upgaming Roaster" />'
     }
+    # A restricted profile rather than a single-app kiosk: the single-app kind
+    # runs only the program it names, and the stand is three. kiosk.exe starts
+    # roaster.exe, and its window is WebView2, which runs as msedgewebview2.exe
+    # from a folder named after its version, hence the wildcard. The menu also
+    # runs netsh for Wi-Fi, shutdown for power, and PowerShell to list printers.
+    # This kind also logs what it blocks, under AppLocker in Event Viewer.
     $xml = @"
 <?xml version="1.0" encoding="utf-8"?>
 <AssignedAccessConfiguration
     xmlns="http://schemas.microsoft.com/AssignedAccess/2017/config"
     xmlns:rs5="http://schemas.microsoft.com/AssignedAccess/201810/config"
-    xmlns:v4="http://schemas.microsoft.com/AssignedAccess/2021/config">
+    xmlns:v5="http://schemas.microsoft.com/AssignedAccess/2022/config">
   <Profiles>
     <Profile Id="$profileId">
-      <KioskModeApp v4:ClassicAppPath="$kioskPath" />
+      <AllAppsList>
+        <AllowedApps>
+          <App DesktopAppPath="$kioskPath" rs5:AutoLaunch="true" />
+          <App DesktopAppPath="%ProgramFiles%\Roaster\roaster.exe" />
+          <App DesktopAppPath="%ProgramFiles(x86)%\Microsoft\EdgeWebView\Application\*\msedgewebview2.exe" />
+          <App DesktopAppPath="%ProgramFiles(x86)%\Microsoft\Edge\Application\*\msedgewebview2.exe" />
+          <App DesktopAppPath="%windir%\System32\netsh.exe" />
+          <App DesktopAppPath="%windir%\System32\shutdown.exe" />
+          <App DesktopAppPath="%windir%\System32\WindowsPowerShell\v1.0\powershell.exe" />
+        </AllowedApps>
+      </AllAppsList>
+      <rs5:FileExplorerNamespaceRestrictions>
+      </rs5:FileExplorerNamespaceRestrictions>
+      <v5:StartPins><![CDATA[{ "pinnedList": [] }]]></v5:StartPins>
+      <Taskbar ShowTaskbar="false" />
     </Profile>
   </Profiles>
   <Configs>
