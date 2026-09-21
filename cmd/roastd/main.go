@@ -36,7 +36,9 @@ const minTokenLength = 24
 type settings struct {
 	addr     string
 	github   string
-	model    bool // ANTHROPIC_API_KEY is set; the SDK reads it itself
+	writer   string // "openai", "anthropic", or empty for the numbers alone
+	openAI   string // OPENAI_API_KEY
+	model    string // OPENAI_MODEL
 	tokens   []string
 	optOut   map[string]bool
 	parallel int
@@ -58,10 +60,13 @@ func main() {
 		// thousand briefs is a few megabytes.
 		Memory: audit.NewMemory(10*time.Minute, 1000),
 	}
-	if cfg.model {
+	switch cfg.writer {
+	case "openai":
+		provider.Writer = verdict.OpenAI{Key: cfg.openAI, Model: cfg.model}
+	case "anthropic":
 		provider.Writer = verdict.NewClaude()
-	} else {
-		slog.Warn("ANTHROPIC_API_KEY is not set; verdicts will be written from the numbers alone")
+	default:
+		slog.Warn("no model key is set; verdicts will be written from the numbers alone")
 	}
 
 	svc := newService(roast.Router{roast.GitHub: provider}, cfg.tokens, limits{
@@ -86,7 +91,7 @@ func main() {
 	defer cancel()
 
 	go func() {
-		slog.Info("listening", "addr", cfg.addr, "terminals", len(cfg.tokens), "slots", cfg.parallel, "model", cfg.model)
+		slog.Info("listening", "addr", cfg.addr, "terminals", len(cfg.tokens), "slots", cfg.parallel, "writer", cfg.writer)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			slog.Error("listen", "err", err)
 			os.Exit(1)
@@ -111,9 +116,18 @@ func fromEnv(env func(string) string) (settings, error) {
 	cfg := settings{
 		addr:     ":8080",
 		github:   env("GITHUB_TOKEN"),
-		model:    env("ANTHROPIC_API_KEY") != "",
+		openAI:   env("OPENAI_API_KEY"),
+		model:    env("OPENAI_MODEL"),
 		optOut:   map[string]bool{},
 		parallel: 16,
+	}
+	// OpenAI when its key is there, Claude when only that one is, and the
+	// numbers alone when neither is. One writer, chosen once, logged at start.
+	switch {
+	case cfg.openAI != "":
+		cfg.writer = "openai"
+	case env("ANTHROPIC_API_KEY") != "":
+		cfg.writer = "anthropic"
 	}
 	if port := env("PORT"); port != "" {
 		cfg.addr = ":" + port

@@ -27,10 +27,10 @@ var (
 	ErrUnusable = errors.New("the model's verdict could not be printed")
 )
 
-// Model is the default. A roast lives or dies on being specific and on timing,
-// which is where the most capable model earns its place; low effort keeps the
-// thinking short, because a queue is waiting.
-const Model = "claude-opus-5"
+// ClaudeModel is Claude's default. A roast lives or dies on being specific and
+// on timing, which is where the most capable model earns its place; low effort
+// keeps the thinking short, because a queue is waiting.
+const ClaudeModel = "claude-opus-5"
 
 type Claude struct {
 	client anthropic.Client
@@ -42,7 +42,7 @@ type Claude struct {
 // is better served by Fallback than by waiting.
 func NewClaude(opts ...option.RequestOption) Claude {
 	opts = append([]option.RequestOption{option.WithMaxRetries(1)}, opts...)
-	return Claude{client: anthropic.NewClient(opts...), model: Model}
+	return Claude{client: anthropic.NewClient(opts...), model: ClaudeModel}
 }
 
 func (c Claude) Write(ctx context.Context, b Brief) (string, error) {

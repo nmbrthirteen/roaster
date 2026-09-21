@@ -35,7 +35,7 @@ func TestSettingsReadTheEnvironment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.addr != ":9000" || cfg.parallel != 4 || !cfg.model {
+	if cfg.addr != ":9000" || cfg.parallel != 4 || cfg.writer != "anthropic" {
 		t.Errorf("got %+v", cfg)
 	}
 	if len(cfg.tokens) != 2 || strings.HasPrefix(cfg.tokens[0], " ") {
@@ -51,7 +51,37 @@ func TestNoModelKeyStillRuns(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.model {
-		t.Errorf("with no key the verdict should come from the numbers")
+	if cfg.writer != "" {
+		t.Errorf("with no key the verdict should come from the numbers, got %q", cfg.writer)
+	}
+}
+
+func TestOpenAIIsUsedWhenItsKeyIsThere(t *testing.T) {
+	base := map[string]string{"GITHUB_TOKEN": "x", "TERMINAL_TOKENS": "a-terminal-token-long-enough-1"}
+
+	with := func(extra map[string]string) settings {
+		t.Helper()
+		vars := map[string]string{}
+		for k, v := range base {
+			vars[k] = v
+		}
+		for k, v := range extra {
+			vars[k] = v
+		}
+		cfg, err := fromEnv(env(vars))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return cfg
+	}
+
+	if cfg := with(map[string]string{"OPENAI_API_KEY": "k"}); cfg.writer != "openai" {
+		t.Errorf("OpenAI key alone: got %q", cfg.writer)
+	}
+	if cfg := with(map[string]string{"OPENAI_API_KEY": "k", "ANTHROPIC_API_KEY": "a"}); cfg.writer != "openai" {
+		t.Errorf("both keys: OpenAI should win, got %q", cfg.writer)
+	}
+	if cfg := with(map[string]string{"OPENAI_API_KEY": "k", "OPENAI_MODEL": "gpt-5.6-luna"}); cfg.model != "gpt-5.6-luna" {
+		t.Errorf("the model override should be read, got %q", cfg.model)
 	}
 }

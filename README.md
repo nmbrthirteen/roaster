@@ -323,8 +323,11 @@ go run ./cmd/roastd
 1. **Reads the account** in one GraphQL request, about a second and a half.
 2. **Measures it.** The five gauges, the score and the odds are arithmetic, and
    they reach the screen the moment GitHub answers.
-3. **Asks for the verdict.** Claude Opus 5 writes the one line that is not a
-   number, at low effort because a queue is waiting.
+3. **Asks for the verdict.** A model writes the one line that is not a number,
+   at low effort because a queue is waiting: OpenAI's `gpt-5.6-sol` when
+   `OPENAI_API_KEY` is set, or Claude Opus 5 when only an Anthropic key is. Every
+   OpenAI request goes with `store` off, so a visitor's account is not kept on
+   OpenAI's side past the reply.
 4. **Prints regardless.** A verdict that is slow, refused, unprintable or never
    asked for is written from the numbers instead, and that line is true because
    it only says what was measured. The only thing that ends an audit early is
@@ -378,9 +381,9 @@ go run ./cmd/roastd
 ## Credentials
 
 No model key ever goes on a kiosk device. With `"provider": "remote"` the
-device posts a handle to `remoteUrl` and relays what comes back. The Anthropic
-and GitHub keys live on `roastd`, read from its environment. See
-`.env.example`.
+device posts a handle to `remoteUrl` and relays what comes back. The model key
+and the GitHub token live on `roastd`, read from its environment, and on no
+machine a visitor can touch. See `.env.example`.
 
 The device carries one credential: a terminal token, stored in `terminal.token`
 in the folder above and encrypted with Windows DPAPI so the file is useless on

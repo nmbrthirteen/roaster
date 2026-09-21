@@ -38,7 +38,7 @@ func fakeAPI(t *testing.T, status int, reply string) (Claude, *map[string]any) {
 
 func message(stop, text string) string {
 	b, _ := json.Marshal(map[string]any{
-		"id": "msg_test", "type": "message", "role": "assistant", "model": Model,
+		"id": "msg_test", "type": "message", "role": "assistant", "model": ClaudeModel,
 		"content":       []map[string]any{{"type": "text", "text": text}},
 		"stop_reason":   stop,
 		"stop_sequence": nil,
@@ -59,8 +59,8 @@ func TestTheRequestIsWhatWeMeanToSend(t *testing.T) {
 	}
 	req := *asked
 
-	if req["model"] != Model {
-		t.Errorf("model %v, want %s", req["model"], Model)
+	if req["model"] != ClaudeModel {
+		t.Errorf("model %v, want %s", req["model"], ClaudeModel)
 	}
 	if cfg, _ := req["output_config"].(map[string]any); cfg["effort"] != "low" {
 		t.Errorf("a queue is waiting, so effort should be low, got %v", req["output_config"])
