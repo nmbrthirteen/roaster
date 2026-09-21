@@ -56,7 +56,11 @@ $kioskUserValues = @(
   # The "finish setting up your device" screen after an update.
   @('Software\Microsoft\Windows\CurrentVersion\UserProfileEngagement', 'ScoobeSystemSettingEnabled', 0),
   # A USB stick plugged in by a visitor would open AutoPlay.
-  @('Software\Microsoft\Windows\CurrentVersion\Explorer\AutoplayHandlers', 'DisableAutoplay', 1)
+  @('Software\Microsoft\Windows\CurrentVersion\Explorer\AutoplayHandlers', 'DisableAutoplay', 1),
+  # A keyboard plugged in by a visitor: no Windows-key shortcuts, which is
+  # also voice typing and the emoji panel, and no Task Manager.
+  @('Software\Microsoft\Windows\CurrentVersion\Policies\Explorer', 'NoWinKeys', 1),
+  @('Software\Microsoft\Windows\CurrentVersion\Policies\System', 'DisableTaskMgr', 1)
 )
 
 function Set-KioskUserValues {
@@ -129,6 +133,34 @@ function Restore-Power {
   Remove-Item $powerNote -ErrorAction SilentlyContinue
 }
 
+# The touch keyboard still opens in the hidden menu's fields. These take its
+# dictation, emoji, handwriting and split modes away while the device is a
+# stand. They are device policies, so they go in through the same bridge.
+function Set-TextInput {
+  $namespace = 'root\cimv2\mdm\dmmap'
+  $class = 'MDM_Policy_Config01_TextInput02'
+  $filter = "ParentID='./Vendor/MSFT/Policy/Config' and InstanceID='TextInput'"
+  $existing = Get-CimInstance -Namespace $namespace -ClassName $class -Filter $filter -ErrorAction SilentlyContinue
+  if ($Off) {
+    if ($existing) { Remove-CimInstance -CimInstance $existing }
+    return
+  }
+  $values = @{
+    TouchKeyboardDictationButtonAvailability = 2
+    TouchKeyboardEmojiButtonAvailability     = 2
+    TouchKeyboardHandwritingModeAvailability = 2
+    TouchKeyboardSplitModeAvailability       = 2
+  }
+  if ($existing) {
+    foreach ($name in $values.Keys) { $existing.$name = $values[$name] }
+    Set-CimInstance -CimInstance $existing
+  } else {
+    $values.ParentID = './Vendor/MSFT/Policy/Config'
+    $values.InstanceID = 'TextInput'
+    New-CimInstance -Namespace $namespace -ClassName $class -Property $values | Out-Null
+  }
+}
+
 function Set-Configuration {
   $cim = Get-CimInstance -Namespace 'root\cimv2\mdm\dmmap' -ClassName 'MDM_AssignedAccess'
   if ($Off) {
@@ -186,7 +218,14 @@ function Set-Configuration {
 if ($Result) {
   try {
     Set-Configuration
-    Set-Content -Path $Result -Value 'ok'
+    # The lock is in place by now, so this one is worth a warning, not a stop.
+    $note = 'ok'
+    try {
+      Set-TextInput
+    } catch {
+      $note += "`ncould not trim the touch keyboard: $($_.Exception.Message)"
+    }
+    Set-Content -Path $Result -Value $note
   } catch {
     Set-Content -Path $Result -Value $_.Exception.Message
   }
@@ -234,7 +273,9 @@ function Invoke-AsSystem {
     Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
     Remove-Item $resultFile -ErrorAction SilentlyContinue
   }
-  if ($answer -ne 'ok') { throw $answer }
+  $lines = @($answer -split "`r?`n")
+  if ($lines[0] -ne 'ok') { throw $answer }
+  $lines | Select-Object -Skip 1 | ForEach-Object { Write-Host "    $_" }
 }
 
 if ($Off) {

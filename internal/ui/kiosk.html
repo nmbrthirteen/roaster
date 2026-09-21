@@ -105,6 +105,21 @@
   button:hover:not(:disabled) { font-style: normal; }
   button:disabled { background: var(--elevated); color: var(--subtle); cursor: not-allowed; }
   button:active:not(:disabled) { opacity: .8; }
+  /* The stand's own keyboard. Windows' touch keyboard never opens on the
+     visitor screen, so its dictation, emoji and settings are never in reach. */
+  .keys {
+    display: grid; grid-template-columns: repeat(10, 1fr); gap: clamp(6px, 1vw, 10px);
+    margin-top: clamp(24px, 4vh, 40px);
+  }
+  .keys button {
+    min-height: clamp(64px, 7.5vh, 92px); padding: 0; border-radius: 14px;
+    font-family: var(--mono); font-size: clamp(22px, 3.2vw, 34px); font-weight: 400; font-style: normal;
+    background: var(--elevated); color: var(--white); border: 1px solid var(--border);
+    touch-action: manipulation; user-select: none;
+  }
+  .keys button:active:not(:disabled) { background: var(--border); opacity: 1; }
+  .keys .erase { font-size: clamp(18px, 2.4vw, 24px); color: var(--muted); }
+
   #go { min-width: 120px; font-size: clamp(34px, 5vw, 50px); font-style: normal; border-radius: 999px; padding: 0 clamp(30px, 4vw, 44px); }
   .wide { width: 100%; min-height: 96px; font-size: clamp(26px, 3.6vw, 36px); border-radius: 999px; padding: clamp(24px, 3.6vh, 34px); }
   .quiet {
@@ -269,9 +284,10 @@
   <p class="lede">{{.Kiosk.Subhead}}</p>
   <form id="form">
     <input id="handle" autocomplete="off" autocapitalize="off"
-           spellcheck="false" enterkeyhint="go" autofocus>
+           spellcheck="false" enterkeyhint="go" inputmode="none" autofocus>
     <button type="submit" id="go" disabled aria-label="Start">&rarr;</button>
   </form>
+  <div class="keys" id="keys" role="group" aria-label="Keyboard"></div>
 </section>
 
 <section class="screen" id="audit">
@@ -313,6 +329,38 @@
   const handleRule = new RegExp('[^' + pack.handleChars + ']', 'g');
   $('handle').placeholder = pack.placeholder;
   $('handle').maxLength = pack.handleMax;
+
+  // Only characters a handle can hold. Anything the pack allows beyond letters,
+  // digits and a hyphen gets a key of its own on the last row.
+  function buildKeys() {
+    const extras = ['.', '_'].filter(c => c.replace(handleRule, '') === c);
+    const rows = ['1234567890', 'qwertyuiop', 'asdfghjkl-', 'zxcvbnm' + extras.join('')];
+    const box = $('keys');
+    rows.forEach((row, i) => {
+      for (const ch of row) box.append(key(ch, ch));
+      if (i === rows.length - 1) {
+        const erase = key('Delete', null);
+        erase.classList.add('erase');
+        erase.style.gridColumn = `span ${10 - row.length}`;
+        box.append(erase);
+      }
+    });
+  }
+
+  function key(label, ch) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = label;
+    // Keeps focus, and the caret, in the field while a key is pressed.
+    b.addEventListener('pointerdown', e => e.preventDefault());
+    b.addEventListener('click', () => {
+      const input = $('handle');
+      input.value = ch ? (input.value + ch).slice(0, input.maxLength) : input.value.slice(0, -1);
+      input.dispatchEvent(new Event('input'));
+    });
+    return b;
+  }
+  buildKeys();
   let current = 'entry', idleTimer = null, roast = null;
 
   function show(name) {
