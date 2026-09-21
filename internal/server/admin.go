@@ -14,6 +14,7 @@ import (
 	"github.com/upgaming/roaster/internal/event"
 	"github.com/upgaming/roaster/internal/netconf"
 	"github.com/upgaming/roaster/internal/printer"
+	"github.com/upgaming/roaster/internal/roast"
 	"github.com/upgaming/roaster/internal/state"
 	"github.com/upgaming/roaster/internal/update"
 	"github.com/upgaming/roaster/internal/version"
@@ -29,6 +30,8 @@ const quitFile = ".quit"
 
 type adminState struct {
 	Terminal  string              `json:"terminal"`
+	Pack      string              `json:"pack"`
+	Packs     []roast.Pack        `json:"packs"`
 	EventCode string              `json:"event"`
 	Events    []event.Event       `json:"events"`
 	Printer   string              `json:"printer"`
@@ -64,6 +67,8 @@ func (s *Server) adminState(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, adminState{
 		Terminal:  cfg.Terminal,
+		Pack:      roast.PackFor(cfg.Pack).Key,
+		Packs:     roast.All(),
 		EventCode: s.pick(r).Code,
 		Events:    all(s.st.eventSet()),
 		Printer:   spec,
@@ -83,6 +88,12 @@ func (s *Server) adminSettings(w http.ResponseWriter, r *http.Request) {
 	if v := r.FormValue("terminal"); v != "" {
 		if err := s.st.setTerminal(v); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+	if v := r.FormValue("pack"); v != "" {
+		if err := s.st.setPack(v); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 	}

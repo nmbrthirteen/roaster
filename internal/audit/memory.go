@@ -7,6 +7,7 @@ import (
 
 	"golang.org/x/sync/singleflight"
 
+	"github.com/upgaming/roaster/internal/roast"
 	"github.com/upgaming/roaster/internal/verdict"
 )
 
@@ -36,15 +37,18 @@ type Memory struct {
 }
 
 type known struct {
-	handle  string // as GitHub spells it
-	brief   verdict.Brief
+	measured
 	said    []string // lines printed to this account, newest last
 	expires time.Time
 }
 
 type measured struct {
-	handle string
+	handle string // as GitHub spells it
 	brief  verdict.Brief
+
+	feed    []roast.Item
+	exhibit *roast.Item
+	heat    [][7]int
 }
 
 // NewMemory keeps an account for ttl, and at most max of them. A brief is a few
@@ -60,7 +64,7 @@ func (m *Memory) measure(key string, read func() (measured, error)) (measured, e
 	m.mu.Lock()
 	if k, ok := m.accounts[key]; ok && m.now().Before(k.expires) {
 		m.mu.Unlock()
-		return measured{handle: k.handle, brief: k.brief}, nil
+		return k.measured, nil
 	}
 	m.mu.Unlock()
 
@@ -103,7 +107,7 @@ func (m *Memory) keep(key string, got measured) {
 	if old, ok := m.accounts[key]; ok {
 		said = old.said // an expired read keeps what was already said to them
 	}
-	m.accounts[key] = &known{handle: got.handle, brief: got.brief, said: said, expires: now.Add(m.ttl)}
+	m.accounts[key] = &known{measured: got, said: said, expires: now.Add(m.ttl)}
 }
 
 // avoid is what the next verdict for this account must not repeat: what this

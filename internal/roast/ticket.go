@@ -63,6 +63,10 @@ func (r Roast) Doc(ev event.Event, terminal string) *receipt.Doc {
 		d.Add(receipt.KV{Label: m.Label, Value: v})
 	}
 
+	pack := PackFor(r.Pack)
+	r.heat(d, pack)
+	r.exhibit(d, pack)
+
 	d.Add(
 		brk,
 		receipt.Section{Label: "The verdict"},
@@ -107,6 +111,69 @@ func (r Roast) Doc(ev event.Event, terminal string) *receipt.Doc {
 	}
 	d.Add(receipt.Cut{})
 	return d
+}
+
+// An empty calendar still prints its grid. The page of blank days is the joke.
+func (r Roast) heat(d *receipt.Doc, pack Pack) {
+	if r.Heat == nil {
+		return
+	}
+	total, idle, days := 0, 0, 0
+	for _, w := range r.Heat {
+		for _, n := range w {
+			if n < 0 {
+				continue
+			}
+			days++
+			total += n
+			if n == 0 {
+				idle++
+			}
+		}
+	}
+	d.Add(
+		receipt.Feed{Lines: 2},
+		receipt.Section{Label: pack.Calendar},
+		receipt.Text{Value: fmt.Sprintf("Last %d weeks, a column a week.", len(r.Heat))},
+		receipt.Feed{Lines: 1},
+		receipt.Heatmap{Weeks: r.Heat},
+		receipt.Feed{Lines: 1},
+		receipt.KV{Label: "Contributions", Value: fmt.Sprint(total)},
+		receipt.KV{Label: "Days with none", Value: fmt.Sprintf("%d of %d", idle, days)},
+	)
+	if total == 0 {
+		d.Add(receipt.Feed{Lines: 1}, receipt.Text{Value: pack.Spotless})
+	}
+}
+
+// exhibit prints where and when, so anyone holding the receipt can check it.
+func (r Roast) exhibit(d *receipt.Doc, pack Pack) {
+	d.Add(receipt.Feed{Lines: 2}, receipt.Section{Label: "Exhibit A"})
+	w := r.Exhibit
+	if w == nil {
+		d.Add(
+			receipt.Text{Value: pack.NoExhibit[0]},
+			receipt.Feed{Lines: 1},
+			receipt.Text{Value: pack.NoExhibit[1]},
+		)
+		return
+	}
+	msg := w.Text
+	if msg == "" {
+		msg = "(an empty message)"
+	}
+	where := w.Where
+	if w.Ref != "" {
+		where = w.Ref + " in " + w.Where
+	}
+	d.Add(
+		receipt.Text{Value: pack.Exhibit},
+		receipt.Feed{Lines: 1},
+		receipt.Para{Value: "“" + msg + "”", Indent: 2},
+		receipt.Feed{Lines: 1},
+		receipt.Text{Value: where},
+		receipt.Text{Value: w.At.Format("Mon 2 Jan 2006, 15:04")},
+	)
 }
 
 func trimScheme(u string) string {

@@ -58,6 +58,18 @@ func (s *station) setTerminal(v string) error {
 	return config.Save(path, saved)
 }
 
+// setPack is the hidden menu's choice. Visitors never pick a social.
+func (s *station) setPack(v string) error {
+	if !roast.Known(v) {
+		return fmt.Errorf("no pack called %q in this build", v)
+	}
+	s.mu.Lock()
+	s.cfg.Pack, s.saved.Pack = v, v
+	saved, path := s.saved, s.path
+	s.mu.Unlock()
+	return config.Save(path, saved)
+}
+
 func (s *station) setProvider(v string) error {
 	if v != "demo" && v != "remote" {
 		return fmt.Errorf("provider must be demo or remote")

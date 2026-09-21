@@ -81,7 +81,7 @@ func TestAnAuditArrivesInOrder(t *testing.T) {
 	for _, u := range updates {
 		phases = append(phases, u.Phase)
 	}
-	want := "fetch metric metric metric metric metric verdict verdict done"
+	want := "fetch feed metric metric metric metric metric verdict verdict done"
 	if got := strings.Join(phases, " "); got != want {
 		t.Errorf("phases\n got %s\nwant %s", got, want)
 	}

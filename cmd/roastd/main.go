@@ -25,6 +25,7 @@ import (
 
 	"github.com/upgaming/roaster/internal/audit"
 	"github.com/upgaming/roaster/internal/github"
+	"github.com/upgaming/roaster/internal/roast"
 	"github.com/upgaming/roaster/internal/verdict"
 )
 
@@ -63,7 +64,7 @@ func main() {
 		slog.Warn("ANTHROPIC_API_KEY is not set; verdicts will be written from the numbers alone")
 	}
 
-	svc := newService(provider, cfg.tokens, limits{
+	svc := newService(roast.Router{roast.GitHub: provider}, cfg.tokens, limits{
 		slots:  cfg.parallel,
 		queue:  10 * time.Second,
 		budget: 40 * time.Second,

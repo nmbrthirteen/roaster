@@ -128,6 +128,7 @@ type Repo struct {
 }
 
 type Commit struct {
+	Hash    string // abbreviated, as git log prints it
 	Repo    string
 	Message string
 
@@ -184,6 +185,7 @@ query($login: String!, $repos: Int!, $commits: Int!) {
             ... on Commit {
               history(first: $commits) {
                 nodes {
+                  abbreviatedOid
                   messageHeadline
                   committedDate
                   author { user { login } }

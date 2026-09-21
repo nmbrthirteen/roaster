@@ -11,6 +11,7 @@ import (
 
 	qrcode "github.com/skip2/go-qrcode"
 
+	"github.com/upgaming/roaster/internal/event"
 	"github.com/upgaming/roaster/internal/roast"
 	"github.com/upgaming/roaster/internal/ui"
 )
@@ -42,9 +43,25 @@ func (s *Server) stand(mux *http.ServeMux) {
 	})
 }
 
+type kioskPage struct {
+	event.Event
+	Pack     roast.Pack
+	Headline string
+}
+
+// stockHeadline is the event default. It names GitHub, so a stand set to
+// another social swaps in that pack's headline.
+const stockHeadline = "Roast your GitHub"
+
 func (s *Server) page(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.kiosk.Execute(w, s.pick(r)); err != nil {
+	ev := s.pick(r)
+	pack := roast.PackFor(s.st.config().Pack)
+	headline := ev.Kiosk.Headline
+	if headline == stockHeadline {
+		headline = pack.Headline
+	}
+	if err := s.kiosk.Execute(w, kioskPage{Event: ev, Pack: pack, Headline: headline}); err != nil {
 		log.Printf("kiosk: %v", err)
 	}
 }
@@ -79,6 +96,7 @@ func (s *Server) audit(w http.ResponseWriter, r *http.Request) {
 
 	result, err := s.provider.Roast(r.Context(), roast.Request{
 		Handle: handle,
+		Pack:   roast.PackFor(s.st.config().Pack).Key,
 		Event:  ev.Code,
 	}, emit)
 	if err != nil {

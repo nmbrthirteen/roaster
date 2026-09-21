@@ -17,11 +17,12 @@ type Config struct {
 	// anything reachable there can drive the printer. Widen it only for a
 	// deliberately hosted setup.
 	Addr      string `json:"addr"`
-	Terminal  string `json:"terminal"`  // printed on every receipt, one per stand
-	Printer   string `json:"printer"`   // tcp:host:9100, lp:queue or file:path
-	Event     string `json:"event"`     // event code the kiosk opens on
-	EventsDir string `json:"eventsDir"` // event files that override the built-in ones
-	KioskURL  string `json:"kioskUrl"`  // what the kiosk launcher opens
+	Terminal  string `json:"terminal"`       // printed on every receipt, one per stand
+	Pack      string `json:"pack,omitempty"` // the social this stand roasts; empty is GitHub
+	Printer   string `json:"printer"`        // tcp:host:9100, lp:queue or file:path
+	Event     string `json:"event"`          // event code the kiosk opens on
+	EventsDir string `json:"eventsDir"`      // event files that override the built-in ones
+	KioskURL  string `json:"kioskUrl"`       // what the kiosk launcher opens
 
 	// Provider is "demo" for a rehearsal with no credentials, or "remote" to
 	// call a service that holds them.

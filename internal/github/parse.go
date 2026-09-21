@@ -100,6 +100,7 @@ type repo struct {
 }
 
 type commit struct {
+	Hash    string `json:"abbreviatedOid"`
 	Message string `json:"messageHeadline"`
 	At      string `json:"committedDate"`
 	Author  struct {
@@ -168,7 +169,7 @@ func (u *user) facts() Facts {
 		var all, mine []Commit
 		if r.DefaultBranchRef != nil {
 			for _, c := range r.DefaultBranchRef.Target.History.Nodes {
-				one := Commit{Repo: r.Name, Message: strings.TrimSpace(c.Message), At: when(c.At)}
+				one := Commit{Hash: c.Hash, Repo: r.Name, Message: strings.TrimSpace(c.Message), At: when(c.At)}
 				all = append(all, one)
 				if c.Author.User != nil && strings.EqualFold(c.Author.User.Login, u.Login) {
 					mine = append(mine, one)

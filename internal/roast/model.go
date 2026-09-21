@@ -19,8 +19,17 @@ type Odd struct {
 	Tag   string `json:"tag,omitempty"` // e.g. "lock"
 }
 
+// Item is one thing a person published: a commit, a post, an answer.
+type Item struct {
+	Ref   string    `json:"ref,omitempty"` // a commit hash, a post id
+	Where string    `json:"where"`         // the repository, community or tag
+	Text  string    `json:"text"`
+	At    time.Time `json:"at"`
+}
+
 type Roast struct {
-	Code     string    `json:"code"` // short share code, resolved against the event
+	Code     string    `json:"code"`           // short share code, resolved against the event
+	Pack     string    `json:"pack,omitempty"` // the platform read; empty is GitHub
 	Handle   string    `json:"handle"`
 	At       time.Time `json:"at"`
 	Score    string    `json:"score"`    // the one number people photograph
@@ -28,5 +37,15 @@ type Roast struct {
 	Metrics  []Metric  `json:"metrics"`
 	Verdict  string    `json:"verdict"`
 	Odds     []Odd     `json:"odds"`
-	Hiring   string    `json:"hiring"` // stub line, filled from open vacancies
+
+	// Exhibit is the worst item, quoted on the receipt. Nil is an account with
+	// nothing public.
+	Exhibit *Item `json:"exhibit,omitempty"`
+
+	// Heat is the activity calendar, a week to an entry, Sunday first. -1 is
+	// a day still to come. Nil prints no calendar at all, which is different
+	// from an empty one.
+	Heat [][7]int `json:"heat,omitempty"`
+
+	Hiring string `json:"hiring"` // stub line, filled from open vacancies
 }

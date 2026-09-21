@@ -17,6 +17,7 @@ type Demo struct{}
 const (
 	handleMissing = "notfound" // the account does not exist
 	handleSlow    = "slowpoke" // a sluggish upstream
+	handleEmpty   = "ghost"    // an account with nothing public
 )
 
 func (Demo) Roast(ctx context.Context, req Request, emit func(Update)) (Roast, error) {
@@ -46,6 +47,20 @@ func (Demo) Roast(ctx context.Context, req Request, emit func(Update)) (Roast, e
 	if strings.EqualFold(handle, handleMissing) {
 		return Roast{}, fmt.Errorf("no GitHub account called @%s", handle)
 	}
+	r.Pack = req.Pack
+	var feed []Item
+	if strings.EqualFold(handle, handleEmpty) {
+		r.Exhibit = nil
+		for w := range r.Heat {
+			for d := range r.Heat[w] {
+				r.Heat[w][d] = min(r.Heat[w][d], 0)
+			}
+		}
+	} else {
+		feed = history(rng, r.At)
+		r.Exhibit = &feed[len(feed)/3]
+	}
+	emit(Update{Phase: PhaseFeed, Feed: feed})
 
 	for _, m := range r.Metrics {
 		metric := m
@@ -72,7 +87,11 @@ func seed(handle string) int64 {
 }
 
 func Sample(handle string) Roast {
-	return build(handle, rand.New(rand.NewSource(7)))
+	rng := rand.New(rand.NewSource(7))
+	r := build(handle, rng)
+	feed := history(rng, r.At)
+	r.Exhibit = &feed[len(feed)/3]
+	return r
 }
 
 func build(handle string, rng *rand.Rand) Roast {
@@ -85,17 +104,59 @@ func build(handle string, rng *rand.Rand) Roast {
 	}
 
 	score := Score(metrics)
+	now := time.Now()
 
 	return Roast{
 		Code:     Code(),
 		Handle:   handle,
-		At:       time.Now(),
+		At:       now,
 		Score:    fmt.Sprintf("%d / 100", score),
 		ScoreTag: Severity(score),
 		Metrics:  metrics,
 		Verdict:  pick(rng, verdicts),
 		Odds:     Odds(score),
+		Heat:     calendar(rng, now),
 	}
+}
+
+var (
+	demoRepos    = []string{"dotfiles", "api-server", "portfolio-v3", "todo-app"}
+	demoMessages = []string{
+		"fix", "wip", "asdf", "Add login page", "fix typo", "update", ".",
+		"Refactor the refactor", "please work", "remove console.log", "final",
+		"Bump dependencies", "revert revert", "it works on my machine",
+	}
+)
+
+func history(rng *rand.Rand, now time.Time) []Item {
+	out := make([]Item, 12+rng.Intn(10))
+	at := now
+	for i := range out {
+		at = at.Add(-time.Duration(1+rng.Intn(40)) * time.Hour)
+		out[i] = Item{
+			Ref:   fmt.Sprintf("%07x", rng.Int63n(1<<28)),
+			Where: pick(rng, demoRepos),
+			Text:  pick(rng, demoMessages),
+			At:    at,
+		}
+	}
+	return out
+}
+
+// calendar ends on today's weekday, the way GitHub's does.
+func calendar(rng *rand.Rand, now time.Time) [][7]int {
+	out := make([][7]int, 38)
+	for w := range out {
+		for d := range out[w] {
+			switch {
+			case w == len(out)-1 && d > int(now.Weekday()):
+				out[w][d] = -1
+			case rng.Intn(3) == 0:
+				out[w][d] = 1 + rng.Intn(12)
+			}
+		}
+	}
+	return out
 }
 
 // gauge always carries a tag. Tagging only the bad rows left the column ragged
