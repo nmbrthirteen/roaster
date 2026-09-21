@@ -30,13 +30,13 @@ func find(t *testing.T, metrics []roast.Metric, label string) roast.Metric {
 	return roast.Metric{}
 }
 
-func TestTheReceiptGetsFourGaugesAndOnePlainRow(t *testing.T) {
+func TestTheReceiptGetsFiveGaugesAndOnePlainRow(t *testing.T) {
 	metrics := From(github.Facts{})
 
-	if len(metrics) != 5 {
-		t.Fatalf("the document is laid out for five rows, got %d", len(metrics))
+	if len(metrics) != 6 {
+		t.Fatalf("the document is laid out for six rows, got %d", len(metrics))
 	}
-	for i, m := range metrics[:4] {
+	for i, m := range metrics[:5] {
 		if m.Percent == nil {
 			t.Errorf("row %d should carry a bar", i)
 		}
@@ -44,7 +44,7 @@ func TestTheReceiptGetsFourGaugesAndOnePlainRow(t *testing.T) {
 			t.Errorf("row %d should carry a tag; an untagged row leaves the column ragged", i)
 		}
 	}
-	if metrics[4].Percent != nil {
+	if metrics[5].Percent != nil {
 		t.Errorf("the last row is a plain number, not a gauge")
 	}
 }
@@ -53,7 +53,7 @@ func TestTheReceiptGetsFourGaugesAndOnePlainRow(t *testing.T) {
 func TestAnEmptyAccountStillPrints(t *testing.T) {
 	metrics := From(github.Facts{})
 
-	for _, m := range metrics[:4] {
+	for _, m := range metrics[:5] {
 		if m.Value != "0%" || *m.Percent != 0 {
 			t.Errorf("%s should read as zero, got %q", m.Label, m.Value)
 		}
@@ -65,8 +65,8 @@ func TestAnEmptyAccountStillPrints(t *testing.T) {
 
 func TestTheNumbersAreTheArithmetic(t *testing.T) {
 	// 20:00, 02:00, 03:00, 04:00: three of four after midnight.
-	// The 19th is a Saturday and the 20th a Sunday: two of four at the weekend.
-	// Two of the four headlines are a single word.
+	// The calendar week of the 14th has three active days of seven, and one
+	// of its two weekend days. Two of the four headlines are a single word.
 	f := github.Facts{
 		Commits: []github.Commit{
 			at(18, 20, "Stop the printed receipt reading as random"),
@@ -80,6 +80,9 @@ func TestTheNumbersAreTheArithmetic(t *testing.T) {
 			{Name: "c", Description: "   "},
 		},
 	}
+	for i, n := range []int{1, 0, 0, 1, 0, 1, 0} {
+		f.Year.Days = append(f.Year.Days, github.Day{Date: time.Date(2026, time.September, 14+i, 0, 0, 0, 0, time.UTC), Count: n})
+	}
 
 	metrics := From(f)
 	for _, want := range []struct {
@@ -88,7 +91,8 @@ func TestTheNumbersAreTheArithmetic(t *testing.T) {
 		tag   string
 	}{
 		{"Commits after midnight", "75%", "vampire"},
-		{"Commits at the weekend", "50%", "restless"},
+		{"Weekends with commits", "50%", "restless"},
+		{"Days with commits", "43%", "committed"},
 		{"Repos with no description", "67%", "ghosted"},
 		{"One-word commit messages", "50%", "brief"},
 	} {
@@ -101,12 +105,9 @@ func TestTheNumbersAreTheArithmetic(t *testing.T) {
 		}
 	}
 
-	// The score is the average of the four bars: 75, 50, 67, 50.
-	if got := Score(metrics); got != 60 {
-		t.Errorf("score %d, want 60", got)
-	}
-	if got := roast.Severity(60); got != "serious" {
-		t.Errorf("60 out of 100 should read as serious, got %q", got)
+	// The score is the average of the five bars: 75, 50, 43, 67, 50.
+	if got := Score(metrics); got != 57 {
+		t.Errorf("score %d, want 57", got)
 	}
 }
 

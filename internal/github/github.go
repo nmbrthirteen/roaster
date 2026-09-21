@@ -133,9 +133,9 @@ type Commit struct {
 	Repo    string
 	Message string
 
-	// At keeps the committer's own offset rather than UTC, which is what makes
-	// "half your commits happen after midnight" a fact about them instead of a
-	// fact about a timezone.
+	// At is when the change was written, not when it was rebased or merged.
+	// GitHub hands it over in UTC with the author's offset gone, so the audit
+	// moves it onto the stand's clock before reading the hour.
 	At time.Time
 }
 
@@ -220,7 +220,7 @@ query($login: String!, $repos: Int!, $commits: Int!) {
                 nodes {
                   abbreviatedOid
                   messageHeadline
-                  committedDate
+                  authoredDate
                   author { user { login } }
                 }
               }

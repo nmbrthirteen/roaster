@@ -81,7 +81,7 @@ func TestAnAuditArrivesInOrder(t *testing.T) {
 	for _, u := range updates {
 		phases = append(phases, u.Phase)
 	}
-	want := "fetch section section section section feed metric metric metric metric metric verdict verdict done"
+	want := "fetch section section section section feed metric metric metric metric metric metric verdict verdict done"
 	if got := strings.Join(phases, " "); got != want {
 		t.Errorf("phases\n got %s\nwant %s", got, want)
 	}
@@ -175,5 +175,28 @@ func TestABadHandleIsTurnedAwayBeforeAnythingHappens(t *testing.T) {
 	}
 	if r.asked.Load() != 0 {
 		t.Errorf("GitHub was asked about a handle that cannot exist")
+	}
+}
+
+// GitHub gives commit times in UTC, so the hour is read on the stand's clock.
+func TestCommitHoursAreReadOnTheStandsClock(t *testing.T) {
+	night := func(offset int) string {
+		f := account()
+		for i := range f.Commits {
+			f.Commits[i].At = f.Commits[i].At.UTC()
+		}
+		r, err := Audit{GitHub: &reader{facts: f}}.Roast(context.Background(),
+			roast.Request{Handle: "nmbrthirteen", Offset: offset}, func(roast.Update) {})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return r.Metrics[0].Value
+	}
+	if got := night(4 * 60 * 60); got != "100%" {
+		t.Errorf("at +04:00 all three commits are after midnight, got %s", got)
+	}
+	// 22:00, 23:00 and 00:00 in UTC: one of three.
+	if got := night(0); got != "33%" {
+		t.Errorf("in UTC only the last one is, got %s", got)
 	}
 }

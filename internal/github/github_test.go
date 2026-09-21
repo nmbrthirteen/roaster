@@ -38,15 +38,15 @@ const canned = `{"data":{"rateLimit":{"cost":7,"remaining":4993},"user":{
      "isArchived":false,"createdAt":"2026-09-18T10:00:00Z","pushedAt":"2026-09-20T02:00:00Z",
      "primaryLanguage":{"name":"Go"},"licenseInfo":{"key":"mit"},"issues":{"totalCount":3},
      "defaultBranchRef":{"target":{"history":{"nodes":[
-       {"messageHeadline":"fix","committedDate":"2026-09-20T02:13:00+04:00","author":{"user":{"login":"nmbrthirteen"}}},
-       {"messageHeadline":"Stop the printed receipt reading as random","committedDate":"2026-09-19T14:02:00+04:00","author":{"user":{"login":"NMBRTHIRTEEN"}}},
-       {"messageHeadline":"tidy up the launcher","committedDate":"2026-09-18T11:00:00+04:00","author":{"user":{"login":"someone-else"}}}
+       {"messageHeadline":"fix","authoredDate":"2026-09-20T02:13:00+04:00","author":{"user":{"login":"nmbrthirteen"}}},
+       {"messageHeadline":"Stop the printed receipt reading as random","authoredDate":"2026-09-19T14:02:00+04:00","author":{"user":{"login":"NMBRTHIRTEEN"}}},
+       {"messageHeadline":"tidy up the launcher","authoredDate":"2026-09-18T11:00:00+04:00","author":{"user":{"login":"someone-else"}}}
      ]}}}},
     {"name":"unattributed","description":null,"stargazerCount":0,"forkCount":0,
      "isArchived":false,"createdAt":"2024-01-01T10:00:00Z","pushedAt":"2024-06-01T10:00:00Z",
      "primaryLanguage":null,"licenseInfo":null,"issues":{"totalCount":0},
      "defaultBranchRef":{"target":{"history":{"nodes":[
-       {"messageHeadline":"asdf","committedDate":"2024-06-01T03:30:00+04:00","author":{"user":null}}
+       {"messageHeadline":"asdf","authoredDate":"2024-06-01T03:30:00+04:00","author":{"user":null}}
      ]}}}}
   ]}
 }}}`

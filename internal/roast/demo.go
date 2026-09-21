@@ -70,6 +70,7 @@ func (Demo) Roast(ctx context.Context, req Request, emit func(Update)) (Roast, e
 	if len(feed) == 0 {
 		r.Actions = []string{"Create a repository. Git is free, we checked.", "Write a profile README. Recruiters can't read silence.", "Frame this receipt. It won't get better."}
 		r.Findings = demoFindings[:2]
+		r.Strengths = []string{"Zero bugs in production. Technically.", "Showed up to a roast stand voluntarily. Brave."}
 		r.Habits = nil
 	}
 	for _, s := range r.Story {
@@ -113,7 +114,8 @@ func Sample(handle string) Roast {
 func build(handle string, rng *rand.Rand) Roast {
 	metrics := []Metric{
 		gauge("Commits after midnight", rng, 15, 90, [3]string{"sleeps", "owl", "vampire"}),
-		gauge("Friday deploys", rng, 5, 85, [3]string{"careful", "bold", "chaos"}),
+		gauge("Weekends with commits", rng, 5, 85, [3]string{"rested", "restless", "no brakes"}),
+		gauge("Days with commits", rng, 10, 95, [3]string{"casual", "committed", "no off switch"}),
 		gauge("Repos with no description", rng, 20, 95, [3]string{"clear", "vague", "ghosted"}),
 		gauge("One-word commit messages", rng, 20, 95, [3]string{"poet", "brief", "caveman"}),
 		{Label: "Longest gap between commits", Value: fmt.Sprintf("%d days", 40+rng.Intn(400))},
@@ -131,6 +133,10 @@ func build(handle string, rng *rand.Rand) Roast {
 		Metrics:  metrics,
 		Verdict:  pick(rng, verdicts),
 		Actions:  demoActions,
+		Strengths: []string{
+			"1,204 contributions this year. Genuinely impressive. Please sleep.",
+			"62 code reviews this year. Somebody has to read all that code.",
+		},
 		Findings: demoFindings,
 		Habits:   demoHabits,
 		Heat:     calendar(rng, now),
@@ -282,16 +288,16 @@ func Score(metrics []Metric) int {
 	return total / n
 }
 
-// Severity bands are set against where the average of four gauges actually
-// lands, not against a tidy quartering of nought to a hundred. Bands that never
-// fire are worse than no bands.
+// Severity bands are set against where real accounts land, measured on a
+// spread of them from empty to the busiest on GitHub: most sit between 5 and
+// 50. Bands that never fire are worse than no bands.
 func Severity(score int) string {
 	switch {
-	case score >= 62:
+	case score >= 45:
 		return "critical"
-	case score >= 50:
+	case score >= 30:
 		return "serious"
-	case score >= 38:
+	case score >= 15:
 		return "survivable"
 	default:
 		return "suspiciously tidy"

@@ -20,14 +20,19 @@ import (
 const nightEnds = 6
 
 // From reads the account into the row of gauges the receipt is laid out for:
-// four with bars and one without, in that order. The document was tuned to that
-// shape, so the shape is part of the contract.
+// five with bars and one without, in that order.
+//
+// The two calendar gauges are what make a busy account score as busy: they
+// count days, private work included, where the others count shares of what
+// was read.
 func From(f github.Facts) []roast.Metric {
 	m := []roast.Metric{
 		gauge("Commits after midnight", share(f.Commits, atNight),
 			[3]string{"sleeps", "owl", "vampire"}),
-		gauge("Commits at the weekend", share(f.Commits, atWeekend),
+		gauge("Weekends with commits", days(f, isWeekend),
 			[3]string{"rested", "restless", "no brakes"}),
+		gauge("Days with commits", days(f, func(time.Time) bool { return true }),
+			[3]string{"casual", "committed", "no off switch"}),
 		gauge("Repos with no description", undescribed(f.Repos),
 			[3]string{"clear", "vague", "ghosted"}),
 		gauge("One-word commit messages", share(f.Commits, oneWord),
@@ -37,10 +42,13 @@ func From(f github.Facts) []roast.Metric {
 	// Nothing to measure is not a virtue. "0% poet" on an empty account reads
 	// as praise, so a gauge with no data says so.
 	if len(f.Commits) == 0 {
-		m[0].Tag, m[1].Tag, m[3].Tag = untested, untested, untested
+		m[0].Tag, m[4].Tag = untested, untested
 	}
 	if len(f.Repos) == 0 {
-		m[2].Tag = untested
+		m[3].Tag = untested
+	}
+	if contributed(f) == 0 {
+		m[1].Tag, m[2].Tag = untested, untested
 	}
 	return m
 }
@@ -55,12 +63,38 @@ func atNight(c github.Commit) bool {
 	return c.At.Hour() < nightEnds
 }
 
-func atWeekend(c github.Commit) bool {
-	switch c.At.Weekday() {
+func atWeekend(c github.Commit) bool { return isWeekend(c.At) }
+
+func isWeekend(t time.Time) bool {
+	switch t.Weekday() {
 	case time.Saturday, time.Sunday:
 		return true
 	}
 	return false
+}
+
+// days is the share of calendar days picked by which that have at least one
+// contribution on them.
+func days(f github.Facts, which func(time.Time) bool) int {
+	n, active := 0, 0
+	for _, d := range f.Year.Days {
+		if !which(d.Date) {
+			continue
+		}
+		n++
+		if d.Count > 0 {
+			active++
+		}
+	}
+	return percent(active, n)
+}
+
+func contributed(f github.Facts) int {
+	n := 0
+	for _, d := range f.Year.Days {
+		n += d.Count
+	}
+	return n
 }
 
 // oneWord counts the headline nobody will read twice: "fix", "wip", "asdf",

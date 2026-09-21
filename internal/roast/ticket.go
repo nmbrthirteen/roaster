@@ -74,6 +74,15 @@ func (r Roast) Doc(ev event.Event, terminal string) *receipt.Doc {
 		receipt.Para{Value: "“" + r.Verdict + "”"},
 
 		brk,
+	)
+	if len(r.Strengths) > 0 {
+		d.Add(receipt.Section{Label: "Strengths"}, gap)
+		for _, s := range r.Strengths {
+			d.Add(receipt.Para{Value: s, Mark: "+ "})
+		}
+		d.Add(brk)
+	}
+	d.Add(
 		receipt.Section{Label: "Action items"},
 		receipt.Text{Value: "Agreed in this review. Due by the next one."},
 		gap,

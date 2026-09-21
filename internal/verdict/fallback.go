@@ -21,10 +21,15 @@ var lines = map[string][]string{
 		"%s of your commits ship after midnight. That's not a schedule. That's a haunting.",
 		"%s of your commits happen after midnight. The 3am bugs were written at 2am.",
 	},
-	"Commits at the weekend": {
-		"%s of your commits happen at the weekend. Your calendar says Saturday. Your git log says sprint.",
-		"%s of your commits land on weekends. HR would like a word. So would your friends.",
-		"%s of your commits are weekend work. Brunch exists. We checked.",
+	"Weekends with commits": {
+		"You committed on %s of weekend days this year. Your calendar says Saturday. Your git log says sprint.",
+		"%s of your weekends had commits in them. HR would like a word. So would your friends.",
+		"You coded through %s of your weekends. Brunch exists. We checked.",
+	},
+	"Days with commits": {
+		"You committed on %s of days this year. Impressive stamina. Worrying hobby.",
+		"Commits on %s of days this year. Your laptop has asked for a holiday.",
+		"%s of this year's days have your commits on them. The other days are presumably recovery.",
 	},
 	"Repos with no description": {
 		"%s of your repos have no description. Even you have to open them to find out.",

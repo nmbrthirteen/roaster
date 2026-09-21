@@ -12,6 +12,11 @@ type Request struct {
 	Pack     string `json:"pack,omitempty"`
 	Event    string `json:"event,omitempty"`
 	Terminal string `json:"terminal,omitempty"` // the number printed on the receipt
+
+	// Offset is the stand's UTC offset in seconds. GitHub gives commit times
+	// in UTC only, and the people at a stand nearly always live on its clock,
+	// so this is the best guess at what "after midnight" means for them.
+	Offset int `json:"offset,omitempty"`
 }
 
 // Phase names the stages the kiosk shows while it waits.

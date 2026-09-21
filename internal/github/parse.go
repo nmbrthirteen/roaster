@@ -102,7 +102,7 @@ type repo struct {
 type commit struct {
 	Hash    string `json:"abbreviatedOid"`
 	Message string `json:"messageHeadline"`
-	At      string `json:"committedDate"`
+	At      string `json:"authoredDate"`
 	Author  struct {
 		User *struct {
 			Login string `json:"login"`

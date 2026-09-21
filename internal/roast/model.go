@@ -50,6 +50,10 @@ type Roast struct {
 	// earned by a number above it.
 	Actions []string `json:"actions"`
 
+	// Strengths come first in any review worth the name: real credit, with
+	// the sting left in.
+	Strengths []string `json:"strengths,omitempty"`
+
 	// Findings, Habits and Story are for the share page: more of the roast,
 	// and the terminal reading the stand played.
 	Findings []Finding `json:"findings,omitempty"`

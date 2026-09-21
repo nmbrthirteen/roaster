@@ -46,13 +46,14 @@ type measured struct {
 	handle string // as GitHub spells it
 	brief  verdict.Brief
 
-	story    []roast.Section
-	actions  []string
-	findings []roast.Finding
-	habits   []roast.Finding
-	feed     []roast.Item
-	exhibit  *roast.Item
-	heat     [][7]int
+	story     []roast.Section
+	actions   []string
+	strengths []string
+	findings  []roast.Finding
+	habits    []roast.Finding
+	feed      []roast.Item
+	exhibit   *roast.Item
+	heat      [][7]int
 }
 
 // NewMemory keeps an account for ttl, and at most max of them. A brief is a few

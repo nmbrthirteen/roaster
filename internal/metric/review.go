@@ -46,13 +46,59 @@ func Actions(f github.Facts) []string {
 	add(noReadme > 0, fmt.Sprintf("Write %s. Future you forgot already.", count(noReadme, "README")))
 	add(undescribedN > 0, fmt.Sprintf("Describe %s. Mystery is not a feature.", count(undescribedN, "repo")))
 	add(gap >= 30, fmt.Sprintf("Beat your %d-day disappearing act", gap))
-	add(share(f.Commits, atWeekend) >= 33, "Touch grass on a Saturday. Git will wait.")
+	add(days(f, func(time.Time) bool { return true }) >= 90, "Take one day off. Just one. We'll wait.")
+	add(days(f, isWeekend) >= 50, "Touch grass on a Saturday. Git will wait.")
 	add(strings.TrimSpace(f.Readme) == "", "Write a profile README. Recruiters can't read silence.")
 	add(unlicensed > 0, fmt.Sprintf("License %s before a lawyer finds them", count(unlicensed, "repo")))
 	add(true, "Keep it up. Nobody knows how you do it.")
 	add(true, "Frame this receipt. It won't get better.")
 	add(true, "Mentor someone. Carefully.")
 	return out
+}
+
+// StrengthsMax is how many strengths a review opens with. Two is credit; more
+// would be a compliment, and this is a roast.
+const StrengthsMax = 2
+
+// Strengths is the credit the account has earned, each line with its sting.
+// The strongest evidence goes first; an account with none still gets a line,
+// because every review starts with something nice.
+func Strengths(f github.Facts) []string {
+	var out []string
+	add := func(ok bool, s string) {
+		if ok && len(out) < StrengthsMax {
+			out = append(out, s)
+		}
+	}
+
+	total, stars := contributed(f), 0
+	for _, r := range f.Repos {
+		stars += r.Stars
+	}
+	gap := quietest(f)
+	y := f.Year
+
+	add(total >= 1000, fmt.Sprintf("%s contributions this year. Genuinely impressive. Please sleep.", thousands(total)))
+	add(len(f.Year.Days) > 0 && total > 0 && gap <= 3, fmt.Sprintf("Never more than %s off all year. Admirable. Mildly alarming.", count(gap, "day")))
+	add(stars >= 100, fmt.Sprintf("%s stars. People actually use your stuff, which is brave of them.", thousands(stars)))
+	add(y.Reviews >= 20, fmt.Sprintf("%d code reviews this year. Somebody has to read all that code.", y.Reviews))
+	add(f.Followers >= 100, fmt.Sprintf("%s followers. They want to see what breaks next.", thousands(f.Followers)))
+	add(len(f.Repos) >= 3 && undescribed(f.Repos) == 0, "Every repo has a description. Rare. Almost suspicious.")
+	add(len(f.Commits) >= 20 && share(f.Commits, oneWord) == 0, "Zero one-word commit messages. Your reviewers wept with joy.")
+	add(total > 0 && total < 1000, fmt.Sprintf("%s this year. It counts. We checked.", count(total, "contribution")))
+	add(len(f.Repos) == 0, "Zero bugs in production. Technically.")
+	add(true, "Showed up to a roast stand voluntarily. Brave.")
+	add(true, "Typed the username correctly on the first try. Probably.")
+	return out
+}
+
+// thousands writes 85367 as 85,367, the way a receipt should.
+func thousands(n int) string {
+	s := fmt.Sprint(n)
+	for i := len(s) - 3; i > 0; i -= 3 {
+		s = s[:i] + "," + s[i:]
+	}
+	return s
 }
 
 // Findings are the extra rounds the share page has room for: facts the

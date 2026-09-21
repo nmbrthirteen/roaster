@@ -76,7 +76,7 @@ func (a Audit) Roast(ctx context.Context, req roast.Request, emit func(roast.Upd
 
 	emit(roast.Update{Phase: roast.PhaseFetch, Label: "Reading public commits"})
 
-	got, err := a.measure(ctx, handle)
+	got, err := a.measure(ctx, handle, req.Offset)
 	switch {
 	case err == nil:
 	case errors.Is(err, github.ErrNoAccount):
@@ -112,20 +112,21 @@ func (a Audit) Roast(ctx context.Context, req roast.Request, emit func(roast.Upd
 
 	score := roast.Score(metrics)
 	r := roast.Roast{
-		Code:     roast.Code(),
-		Pack:     roast.GitHub,
-		Handle:   got.handle,
-		At:       a.now(),
-		Score:    fmt.Sprintf("%d / 100", score),
-		ScoreTag: roast.Severity(score),
-		Metrics:  metrics,
-		Verdict:  line,
-		Actions:  got.actions,
-		Findings: got.findings,
-		Habits:   got.habits,
-		Story:    got.story,
-		Exhibit:  got.exhibit,
-		Heat:     got.heat,
+		Code:      roast.Code(),
+		Pack:      roast.GitHub,
+		Handle:    got.handle,
+		At:        a.now(),
+		Score:     fmt.Sprintf("%d / 100", score),
+		ScoreTag:  roast.Severity(score),
+		Metrics:   metrics,
+		Verdict:   line,
+		Actions:   got.actions,
+		Strengths: got.strengths,
+		Findings:  got.findings,
+		Habits:    got.habits,
+		Story:     got.story,
+		Exhibit:   got.exhibit,
+		Heat:      got.heat,
 	}
 
 	emit(roast.Update{Phase: roast.PhaseVerdict, Verdict: line})
@@ -136,7 +137,7 @@ func (a Audit) Roast(ctx context.Context, req roast.Request, emit func(roast.Upd
 // measure reads, measures and briefs the account, through Memory when there is
 // one, so a repeat costs GitHub nothing and a crowd typing one handle costs a
 // single read.
-func (a Audit) measure(ctx context.Context, handle string) (measured, error) {
+func (a Audit) measure(ctx context.Context, handle string, offset int) (measured, error) {
 	read := func() (measured, error) {
 		started := time.Now()
 		facts, err := a.GitHub.Read(ctx, handle)
@@ -146,24 +147,31 @@ func (a Audit) measure(ctx context.Context, handle string) (measured, error) {
 		slog.Info("github", "handle", handle, "cost", facts.Cost, "remaining", facts.Remaining,
 			"ms", time.Since(started).Milliseconds())
 
+		zone := time.FixedZone("stand", offset)
+		for i := range facts.Commits {
+			facts.Commits[i].At = facts.Commits[i].At.In(zone)
+		}
+
 		metrics := metric.From(facts)
 		return measured{
-			handle:   facts.Handle,
-			brief:    verdict.From(facts, metrics, a.now()),
-			story:    metric.Story(facts, a.now()),
-			actions:  metric.Actions(facts),
-			findings: metric.Findings(facts, a.now()),
-			habits:   metric.Habits(facts, a.now()),
-			feed:     metric.Feed(facts.Commits, metric.FeedMax),
-			exhibit:  metric.Worst(facts.Commits),
-			heat:     metric.Heat(facts.Year.Days, metric.HeatWeeks),
+			handle:    facts.Handle,
+			brief:     verdict.From(facts, metrics, a.now()),
+			story:     metric.Story(facts, a.now()),
+			actions:   metric.Actions(facts),
+			strengths: metric.Strengths(facts),
+			findings:  metric.Findings(facts, a.now()),
+			habits:    metric.Habits(facts, a.now()),
+			feed:      metric.Feed(facts.Commits, metric.FeedMax),
+			exhibit:   metric.Worst(facts.Commits),
+			heat:      metric.Heat(facts.Year.Days, metric.HeatWeeks),
 		}, nil
 	}
 
 	if a.Memory == nil {
 		return read()
 	}
-	return a.Memory.measure(key(handle), read)
+	// Hours depend on the clock they are read on, so each offset is its own entry.
+	return a.Memory.measure(fmt.Sprintf("%s@%d", key(handle), offset), read)
 }
 
 // verdict never fails. Whatever goes wrong with the model, the numbers can

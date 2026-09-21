@@ -105,6 +105,7 @@ func (s *Server) audit(w http.ResponseWriter, r *http.Request) {
 		Pack:     roast.PackFor(s.st.config().Pack).Key,
 		Event:    ev.Code,
 		Terminal: s.st.config().Terminal,
+		Offset:   localOffset(),
 	}, emit)
 	if err != nil {
 		s.st.note("Last audit: " + err.Error())
@@ -169,4 +170,9 @@ func qr(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "image/png")
 	w.Header().Set("Cache-Control", "public, max-age=86400")
 	w.Write(png)
+}
+
+func localOffset() int {
+	_, off := time.Now().Zone()
+	return off
 }

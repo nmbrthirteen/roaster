@@ -112,3 +112,33 @@ func TestPunctuationIsNotAWord(t *testing.T) {
 		t.Errorf("vocabulary = %q, want fix ×2", got.Value)
 	}
 }
+
+func TestStrengthsCreditTheWorkOnce(t *testing.T) {
+	f := github.Facts{Year: github.Year{Days: []github.Day{
+		{Date: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC), Count: 900},
+		{Date: time.Date(2026, 9, 2, 0, 0, 0, 0, time.UTC), Count: 1400},
+	}}}
+	got := Strengths(f)
+	if len(got) != StrengthsMax {
+		t.Fatalf("got %d strengths: %v", len(got), got)
+	}
+	if got[0] != "2,300 contributions this year. Genuinely impressive. Please sleep." {
+		t.Errorf("first strength = %q", got[0])
+	}
+	for _, s := range got[1:] {
+		if strings.Contains(s, "contributions this year") {
+			t.Errorf("the count is credited twice: %v", got)
+		}
+	}
+	if empty := Strengths(github.Facts{}); len(empty) != StrengthsMax || empty[0] != "Zero bugs in production. Technically." {
+		t.Errorf("an empty account still gets its strengths, got %v", empty)
+	}
+}
+
+func TestThousands(t *testing.T) {
+	for n, want := range map[int]string{0: "0", 999: "999", 1000: "1,000", 297218: "297,218", 1234567: "1,234,567"} {
+		if got := thousands(n); got != want {
+			t.Errorf("thousands(%d) = %q, want %q", n, got, want)
+		}
+	}
+}
