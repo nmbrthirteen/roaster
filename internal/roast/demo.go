@@ -96,10 +96,10 @@ func Sample(handle string) Roast {
 
 func build(handle string, rng *rand.Rand) Roast {
 	metrics := []Metric{
-		gauge("Commits after midnight", rng, 15, 90, [3]string{"diurnal", "owl", "nocturnal"}),
-		gauge("Friday deploys", rng, 5, 85, [3]string{"careful", "bold", "reckless"}),
-		gauge("Repos with no description", rng, 20, 95, [3]string{"documented", "sparse", "silent"}),
-		gauge("One-word commit messages", rng, 20, 95, [3]string{"wordy", "brief", "terse"}),
+		gauge("Commits after midnight", rng, 15, 90, [3]string{"sleeps", "owl", "vampire"}),
+		gauge("Friday deploys", rng, 5, 85, [3]string{"careful", "bold", "chaos"}),
+		gauge("Repos with no description", rng, 20, 95, [3]string{"clear", "vague", "ghosted"}),
+		gauge("One-word commit messages", rng, 20, 95, [3]string{"poet", "brief", "caveman"}),
 		{Label: "Longest gap between commits", Value: fmt.Sprintf("%d days", 40+rng.Intn(400))},
 	}
 
@@ -177,9 +177,9 @@ func gauge(label string, rng *rand.Rand, lo, hi int, bands [3]string) Metric {
 // worse. Numbers nobody can trace back look invented.
 func Odds(score int) []Odd {
 	return []Odd{
-		{Label: "You survive a prod crash", Price: price(2.0 + float64(score)/12)},
-		{Label: "A Friday ship goes unnoticed", Price: price(3.0 + float64(score)/6)},
-		{Label: "You blame a junior", Price: price(2.2 - float64(score)/120), Tag: "sure thing"},
+		{Label: "You fix prod without the logs", Price: price(2.0 + float64(score)/12)},
+		{Label: "Friday deploy survives Monday", Price: price(3.0 + float64(score)/6)},
+		{Label: "You blame the cache", Price: price(2.2 - float64(score)/120), Tag: "sure thing"},
 	}
 }
 
@@ -232,7 +232,7 @@ func pick(rng *rand.Rand, from []string) string { return from[rng.Intn(len(from)
 
 // Written to roast the work, never the person.
 var verdicts = []string{
-	"Your architecture diagram looks like a bowl of spaghetti dropped on AWS. Upgaming gives you a 12% survival rate in production.",
+	"Your repositories have more forks than documentation. Somewhere a stranger maintains your side project better than you do.",
 	"You have written the same utility function in four repositories and named it something different every time.",
 	"Your commit history reads like a hostage note. Half the messages are the word fix and the other half are a full stop.",
 	"You open pull requests the way other people open browser tabs, and you close them about as often.",

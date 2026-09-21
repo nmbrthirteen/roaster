@@ -1,6 +1,11 @@
 package event
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
 
 func TestNormaliseFillsAnEmptyEvent(t *testing.T) {
 	ev := Event{Code: "bare"}
@@ -52,5 +57,23 @@ func TestSlug(t *testing.T) {
 		if got := Slug(in); got != want {
 			t.Errorf("Slug(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+func TestABrokenEventFileIsSkippedNotFatal(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "broken.json"), []byte("{not json"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	set, err := Load(dir)
+	if err != nil {
+		t.Fatalf("one bad file should not stop the stand, got %v", err)
+	}
+	if len(set.Skipped) != 1 || !strings.HasPrefix(set.Skipped[0], "broken.json") {
+		t.Errorf("the bad file should be named for the menu, got %v", set.Skipped)
+	}
+	if len(set.Codes()) == 0 {
+		t.Errorf("the built-in events should still load")
 	}
 }

@@ -25,13 +25,13 @@ const nightEnds = 6
 func From(f github.Facts) []roast.Metric {
 	return []roast.Metric{
 		gauge("Commits after midnight", share(f.Commits, atNight),
-			[3]string{"diurnal", "owl", "nocturnal"}),
+			[3]string{"sleeps", "owl", "vampire"}),
 		gauge("Commits at the weekend", share(f.Commits, atWeekend),
-			[3]string{"weekends off", "weekends too", "no weekends"}),
+			[3]string{"rested", "restless", "no brakes"}),
 		gauge("Repos with no description", undescribed(f.Repos),
-			[3]string{"documented", "sparse", "silent"}),
+			[3]string{"clear", "vague", "ghosted"}),
 		gauge("One-word commit messages", share(f.Commits, oneWord),
-			[3]string{"wordy", "brief", "terse"}),
+			[3]string{"poet", "brief", "caveman"}),
 		longestGap(f),
 	}
 }

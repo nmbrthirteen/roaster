@@ -27,7 +27,7 @@ var lines = map[string][]string{
 		"%s of your commits are made at the weekend. The build never rests, and apparently neither do you.",
 	},
 	"Repos with no description": {
-		"%s of your repositories have no description. They are not mysterious, just unexplained.",
+		"%s of your repositories have no description. Each one is a riddle you wrote and then forgot the answer to.",
 		"%s of your repositories have no description. Future you will open them like a stranger's fridge.",
 		"%s of your repositories come with no description. Each one is a surprise, mostly to you.",
 	},
@@ -37,7 +37,7 @@ var lines = map[string][]string{
 		"%s of your commit messages are one word. Brevity is a virtue up to about here.",
 	},
 	noReadme: {
-		"%s of your repositories have no README. Not even you know what they do.",
+		"%s of your repositories have no README. Their purpose is known only to you, and possibly not even that.",
 		"%s of your repositories have no README. Installation instructions: guess.",
 		"%s of your repositories have no README. Somewhere a new contributor is still reading the source.",
 	},

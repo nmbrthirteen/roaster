@@ -16,7 +16,7 @@
   },
   "kiosk": {
     "headline": "Roast your GitHub",
-    "subhead": "Good code deserves a good roast",
+    "subhead": "Type your handle. We have already judged it.",
     "accent": "#1de9b6",
     "surface": "#0a0a0f"
   }

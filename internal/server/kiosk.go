@@ -94,12 +94,19 @@ func (s *Server) audit(w http.ResponseWriter, r *http.Request) {
 		flusher.Flush()
 	}
 
-	result, err := s.provider.Roast(r.Context(), roast.Request{
+	provider, err := s.source()
+	if err != nil {
+		s.st.note("Roast source: " + err.Error())
+		emit(roast.Update{Phase: roast.PhaseError, Error: errNotSetUp.Error()})
+		return
+	}
+	result, err := provider.Roast(r.Context(), roast.Request{
 		Handle: handle,
 		Pack:   roast.PackFor(s.st.config().Pack).Key,
 		Event:  ev.Code,
 	}, emit)
 	if err != nil {
+		s.st.note("Last audit: " + err.Error())
 		emit(roast.Update{Phase: roast.PhaseError, Error: err.Error()})
 		return
 	}

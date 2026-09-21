@@ -25,10 +25,10 @@ import (
 
 // Options is what a server cannot work out for itself.
 type Options struct {
-	Config   config.Config // what is running, flags included
-	Saved    config.Config // what the settings file says, which is what gets saved back
-	Path     string        // the settings file
-	Provider roast.Provider
+	Config   config.Config  // what is running, flags included
+	Saved    config.Config  // what the settings file says, which is what gets saved back
+	Path     string         // the settings file
+	Provider roast.Provider // set by tests; a stand builds its own from the settings
 	Assets   receipt.Assets
 }
 

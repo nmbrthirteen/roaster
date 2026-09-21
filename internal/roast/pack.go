@@ -20,8 +20,8 @@ type Pack struct {
 	HandleMax   int    `json:"handleMax"`
 
 	Feed string `json:"feed"` // the command typed before the feed plays
-	// Quiet plays for an account with nothing public, as (kind, text) pairs.
-	// It must read as a joke, never as the audit failing.
+	// Quiet plays for an account with nothing public, as (kind, text) pairs,
+	// with {handle} filled in. It must read as a joke, never as a failure.
 	Quiet [][2]string `json:"quiet"`
 
 	Calendar  string    `json:"-"` // section label over the heatmap
@@ -40,14 +40,16 @@ var packs = map[string]Pack{
 		HandleMax:   39,
 		Feed:        "git log --graph --oneline",
 		Quiet: [][2]string{
-			{"cmd", "git log --graph --oneline"},
-			{"out", "(empty. not one commit to judge.)"},
+			{"cmd", "git log --oneline"},
+			{"out", "(no public commits. a clean slate, or a very private person.)"},
+			{"cmd", "git shortlog -sn --all"},
+			{"out", "     0  {handle}"},
+			{"cmd", "git blame"},
+			{"out", "nobody to blame, which is a first for this stand."},
 			{"cmd", "git status"},
 			{"out", "nothing to commit, working tree clean"},
-			{"cmd", "git blame"},
-			{"out", "nobody to blame. a spotless record."},
-			{"cmd", "git log --all --since=forever"},
-			{"out", "still nothing. a true minimalist."},
+			{"cmd", "echo \"we respect the mystery\""},
+			{"out", "we respect the mystery"},
 		},
 		Calendar: "Contribution calendar",
 		Spotless: "A spotless calendar. Nothing here can be used against you.",

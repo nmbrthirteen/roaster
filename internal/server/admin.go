@@ -9,12 +9,14 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/upgaming/roaster/internal/event"
 	"github.com/upgaming/roaster/internal/netconf"
 	"github.com/upgaming/roaster/internal/printer"
 	"github.com/upgaming/roaster/internal/roast"
+	"github.com/upgaming/roaster/internal/secret"
 	"github.com/upgaming/roaster/internal/state"
 	"github.com/upgaming/roaster/internal/update"
 	"github.com/upgaming/roaster/internal/version"
@@ -37,6 +39,9 @@ type adminState struct {
 	Printer   string              `json:"printer"`
 	Printers  []printer.Candidate `json:"printers"`
 	Provider  string              `json:"provider"`
+	RemoteURL string              `json:"remoteUrl"`
+	TokenSet  bool                `json:"tokenSet"`
+	Problems  []string            `json:"problems"`
 	Wifi      netconf.Status      `json:"wifi"`
 	Uptime    int                 `json:"uptimeSeconds"`
 	Printed   int                 `json:"printed"`
@@ -49,6 +54,7 @@ type adminState struct {
 func (s *Server) adminRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/admin/state", s.guard(s.adminState))
 	mux.HandleFunc("/admin/settings", s.post(s.adminSettings))
+	mux.HandleFunc("/admin/service", s.guard(s.adminService))
 	mux.HandleFunc("/admin/reprint", s.post(s.adminReprint))
 	mux.HandleFunc("/admin/wifi/scan", s.guard(s.wifiScan))
 	mux.HandleFunc("/admin/wifi/connect", s.post(s.wifiConnect))
@@ -74,6 +80,9 @@ func (s *Server) adminState(w http.ResponseWriter, r *http.Request) {
 		Printer:   spec,
 		Printers:  printer.Discover(),
 		Provider:  cfg.Provider,
+		RemoteURL: cfg.RemoteURL,
+		TokenSet:  tokenSet(),
+		Problems:  s.problemList(),
 		Wifi:      wifi,
 		Uptime:    int(time.Since(s.started).Seconds()),
 		Printed:   printed,
@@ -97,6 +106,24 @@ func (s *Server) adminSettings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if v := r.FormValue("remoteUrl"); v != "" {
+		if err := s.st.setRemoteURL(strings.TrimSpace(v)); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+	if v := r.FormValue("token"); v != "" {
+		if err := secret.Store(v); err != nil {
+			http.Error(w, "Could not store the token: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+	if v := r.FormValue("adminPin"); v != "" {
+		if err := s.st.setPIN(v); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
 	if v := r.FormValue("provider"); v != "" {
 		if err := s.st.setProvider(v); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -104,6 +131,37 @@ func (s *Server) adminSettings(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	fmt.Fprint(w, "Saved.")
+}
+
+// adminService tests the roast source as the settings stand now.
+func (s *Server) adminService(w http.ResponseWriter, r *http.Request) {
+	msg, err := s.checkService(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	fmt.Fprint(w, msg)
+}
+
+// problemList is checked fresh each time the menu opens, so a fix clears its
+// warning without a restart.
+func (s *Server) problemList() []string {
+	var out []string
+	if !s.st.settingsReadable() {
+		out = append(out, "The settings file is damaged, so the stand is running on defaults. Saving any setting here rewrites it.")
+	}
+	for _, f := range s.st.eventSet().Skipped {
+		out = append(out, "Event file skipped: "+f)
+	}
+	if _, err := s.source(); err != nil {
+		out = append(out, err.Error())
+	}
+	return out
+}
+
+func tokenSet() bool {
+	t, err := secret.Load()
+	return err == nil && t != ""
 }
 
 // reprint matters more than it sounds. Paper jams, and the person whose roast

@@ -55,9 +55,12 @@ func main() {
 	state.Seed("roaster.json")
 	*configPath = state.Resolve(*configPath)
 
+	// A damaged settings file must not leave a dead stand. It starts on the
+	// defaults, and the first setting saved from the hidden menu rewrites it.
 	saved, err := config.Load(*configPath)
 	if err != nil {
-		log.Fatalf("config: %v", err)
+		log.Printf("config: %v (starting on defaults)", err)
+		saved = config.Defaults()
 	}
 	cfg := saved
 	config.ApplyFlags(&cfg, flag.CommandLine)
@@ -66,10 +69,6 @@ func main() {
 	cfg.EventsDir = state.Resolve(cfg.EventsDir)
 	saved.EventsDir = state.Resolve(saved.EventsDir)
 
-	provider, err := pickProvider(cfg)
-	if err != nil {
-		log.Fatalf("provider: %v", err)
-	}
 	log.Printf("roasts: %s", cfg.Provider)
 
 	assets, err := receipt.LoadAssets(ui.FS, "assets")
@@ -78,11 +77,10 @@ func main() {
 	}
 
 	srv, err := server.New(server.Options{
-		Config:   cfg,
-		Saved:    saved,
-		Path:     *configPath,
-		Provider: provider,
-		Assets:   assets,
+		Config: cfg,
+		Saved:  saved,
+		Path:   *configPath,
+		Assets: assets,
 	})
 	if err != nil {
 		log.Fatal(err)
@@ -90,27 +88,6 @@ func main() {
 
 	log.Printf("roaster listening on %s, terminal #%s", cfg.Addr, srv.Terminal())
 	log.Fatal(http.ListenAndServe(cfg.Addr, srv.Handler()))
-}
-
-func pickProvider(cfg config.Config) (roast.Provider, error) {
-	switch cfg.Provider {
-	case "", "demo":
-		return roast.Demo{}, nil
-	case "remote":
-		if cfg.RemoteURL == "" {
-			return nil, fmt.Errorf("provider is remote but remoteUrl is empty")
-		}
-		token, err := secret.Load()
-		if err != nil {
-			return nil, err
-		}
-		if token == "" {
-			return nil, fmt.Errorf("no terminal token stored; run roaster -set-token")
-		}
-		return roast.Remote{URL: cfg.RemoteURL, Token: token}, nil
-	default:
-		return nil, fmt.Errorf("unknown provider %q, want demo or remote", cfg.Provider)
-	}
 }
 
 // readFacts is how to see a real audit without a model, a printer or a stand.

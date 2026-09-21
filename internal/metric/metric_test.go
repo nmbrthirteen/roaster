@@ -87,9 +87,9 @@ func TestTheNumbersAreTheArithmetic(t *testing.T) {
 		value string
 		tag   string
 	}{
-		{"Commits after midnight", "75%", "nocturnal"},
-		{"Commits at the weekend", "50%", "weekends too"},
-		{"Repos with no description", "67%", "silent"},
+		{"Commits after midnight", "75%", "vampire"},
+		{"Commits at the weekend", "50%", "restless"},
+		{"Repos with no description", "67%", "ghosted"},
 		{"One-word commit messages", "50%", "brief"},
 	} {
 		got := find(t, metrics, want.label)

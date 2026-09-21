@@ -101,6 +101,10 @@ func (e Event) ShareURL(code string) string {
 type Set struct {
 	byCode map[string]Event
 	order  []string
+
+	// Skipped names the files that would not parse. One bad file must not take
+	// the stand down, so it is left out and shown in the hidden menu instead.
+	Skipped []string
 }
 
 // Load reads every event file in dir, falling back to the events compiled into
@@ -136,11 +140,13 @@ func (s *Set) read(fsys fs.FS, dir string) error {
 		}
 		raw, err := fs.ReadFile(fsys, path.Join(dir, e.Name()))
 		if err != nil {
-			return err
+			s.Skipped = append(s.Skipped, fmt.Sprintf("%s: %v", e.Name(), err))
+			continue
 		}
 		var ev Event
 		if err := json.Unmarshal(raw, &ev); err != nil {
-			return fmt.Errorf("%s: %w", e.Name(), err)
+			s.Skipped = append(s.Skipped, fmt.Sprintf("%s: %v", e.Name(), err))
+			continue
 		}
 		if ev.Code == "" {
 			ev.Code = strings.TrimSuffix(e.Name(), ".json")

@@ -48,7 +48,7 @@ func (r Roast) Doc(ev event.Event, terminal string) *receipt.Doc {
 	d.Add(
 		brk,
 		receipt.Section{Label: "Damage report"},
-		receipt.Text{Value: "Longer bar, bigger problem."},
+		receipt.Text{Value: "Read straight off your account. Sorry."},
 		gap,
 	)
 	for _, m := range r.Metrics {
@@ -75,7 +75,7 @@ func (r Roast) Doc(ev event.Event, terminal string) *receipt.Doc {
 
 		brk,
 		receipt.Section{Label: "Bet slip"},
-		receipt.Text{Value: "Bigger number, longer shot."},
+		receipt.Text{Value: "Odds set by people who read your code."},
 		gap,
 	)
 	for _, o := range r.Odds {
@@ -134,7 +134,7 @@ func (r Roast) heat(d *receipt.Doc, pack Pack) {
 	d.Add(
 		receipt.Feed{Lines: 2},
 		receipt.Section{Label: pack.Calendar},
-		receipt.Text{Value: fmt.Sprintf("Last %d weeks, a column a week.", len(r.Heat))},
+		receipt.Text{Value: fmt.Sprintf("%d weeks, a column each. Dark is busy.", len(r.Heat))},
 		receipt.Feed{Lines: 1},
 		receipt.Heatmap{Weeks: r.Heat},
 		receipt.Feed{Lines: 1},

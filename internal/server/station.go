@@ -2,6 +2,8 @@ package server
 
 import (
 	"fmt"
+	"net/url"
+	"regexp"
 	"sync"
 
 	"github.com/upgaming/roaster/internal/config"
@@ -69,6 +71,42 @@ func (s *station) setPack(v string) error {
 	s.mu.Unlock()
 	return config.Save(path, saved)
 }
+
+// settingsReadable is false for a file that exists and will not parse. A
+// missing file is fine: the stand runs on defaults until something is saved.
+func (s *station) settingsReadable() bool {
+	s.mu.RLock()
+	path := s.path
+	s.mu.RUnlock()
+	_, err := config.Load(path)
+	return err == nil
+}
+
+func (s *station) setRemoteURL(v string) error {
+	u, err := url.Parse(v)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return fmt.Errorf("The service address must start with https://")
+	}
+	s.mu.Lock()
+	s.cfg.RemoteURL, s.saved.RemoteURL = v, v
+	saved, path := s.saved, s.path
+	s.mu.Unlock()
+	return config.Save(path, saved)
+}
+
+// setPIN keeps to what the entry screen can type and still recognise as a code.
+func (s *station) setPIN(v string) error {
+	if !pinRule.MatchString(v) {
+		return fmt.Errorf("The code must be 4 to 8 digits.")
+	}
+	s.mu.Lock()
+	s.cfg.AdminPIN, s.saved.AdminPIN = v, v
+	saved, path := s.saved, s.path
+	s.mu.Unlock()
+	return config.Save(path, saved)
+}
+
+var pinRule = regexp.MustCompile(`^\d{4,8}$`)
 
 func (s *station) setProvider(v string) error {
 	if v != "demo" && v != "remote" {
