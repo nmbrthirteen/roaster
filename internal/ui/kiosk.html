@@ -778,6 +778,7 @@
         <button id="aQuit" class="danger">Exit kiosk</button>
         <button id="aReboot" class="danger">Reboot device</button>
         <button id="aOff" class="danger">Shut down</button>
+        <button id="aSignOut" class="danger full">Sign out to Windows</button>
         <button id="aClose" class="full go2">Back to the kiosk</button>
       </div>`;
 
@@ -916,6 +917,11 @@
       'Shut the device down?',
       'Someone has to press the power button to bring it back. Confirm.',
     ], () => call('/admin/shutdown', new URLSearchParams()));
+
+    confirmed('aSignOut', [
+      'Sign out to the Windows sign-in screen?',
+      'Sign in there as an administrator. Restart to bring the stand back. Confirm.',
+    ], () => call('/admin/signout', new URLSearchParams()));
   }
 
   function renderNetworks(nets) {

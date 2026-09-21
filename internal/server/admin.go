@@ -62,6 +62,7 @@ func (s *Server) adminRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/admin/quit", s.post(s.adminQuit))
 	mux.HandleFunc("/admin/reboot", s.post(s.adminReboot))
 	mux.HandleFunc("/admin/shutdown", s.post(s.adminShutdown))
+	mux.HandleFunc("/admin/signout", s.post(s.adminSignOut))
 	mux.HandleFunc("/admin/update", s.guard(s.adminUpdate))
 }
 
@@ -212,6 +213,24 @@ func (s *Server) adminReboot(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) adminShutdown(w http.ResponseWriter, r *http.Request) {
 	s.power(w, "/s", "Shutting down.")
+}
+
+// adminSignOut ends the kiosk account's session, which leaves the device on
+// the Windows sign-in screen. An administrator signs in there with no keyboard
+// shortcut, and a restart brings the stand back.
+func (s *Server) adminSignOut(w http.ResponseWriter, r *http.Request) {
+	if runtime.GOOS != "windows" {
+		http.Error(w, "Only wired up for Windows.", http.StatusNotImplemented)
+		return
+	}
+	// shutdown /l takes no delay, so the reply goes first.
+	fmt.Fprint(w, "Signing out.")
+	go func() {
+		time.Sleep(400 * time.Millisecond)
+		if err := exec.Command("shutdown", "/l").Run(); err != nil {
+			s.st.note("Sign out: " + err.Error())
+		}
+	}()
 }
 
 var errNotWindows = errors.New("only wired up for Windows")
