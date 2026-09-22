@@ -230,6 +230,11 @@ if ($Result) {
     } catch {
       $note += "`ncould not trim the touch keyboard: $($_.Exception.Message)"
     }
+    try {
+      if ($Off) { Set-LocationPolicy 1 } else { Set-LocationPolicy }
+    } catch {
+      $note += "`ncould not force location on: $($_.Exception.Message)"
+    }
     Set-Content -Path $Result -Value $note
   } catch {
     Set-Content -Path $Result -Value $_.Exception.Message

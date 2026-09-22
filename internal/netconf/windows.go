@@ -35,7 +35,7 @@ func Scan() ([]Network, error) {
 	rescan()
 	out, err := netsh("wlan", "show", "networks", "mode=bssid")
 	if strings.Contains(strings.ToLower(out), "location") {
-		return nil, locationError()
+		return nil, locationError(strings.TrimSpace(out))
 	}
 	if err != nil {
 		return nil, fmt.Errorf("could not scan: %s", strings.TrimSpace(out))

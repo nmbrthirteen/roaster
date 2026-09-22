@@ -36,11 +36,17 @@ func locationBlocker() string {
 	if v, ok := dword(`SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors`, "DisableLocation"); ok && v == 1 {
 		return "a Windows policy turns location off"
 	}
+	if v, ok := dword(`SOFTWARE\Microsoft\PolicyManager\current\device\System`, "AllowLocation"); ok && v == 0 {
+		return "a device policy forces location off"
+	}
 	if v, ok := dword(`SOFTWARE\Policies\Microsoft\Windows\AppPrivacy`, "LetAppsAccessLocation"); ok && v == 2 {
 		return "a Windows policy denies apps location"
 	}
 	if v, ok := dword(`SYSTEM\CurrentControlSet\Services\lfsvc`, "Start"); ok && v == 4 {
 		return "the Windows location service is disabled"
+	}
+	if v, ok := dword(`SYSTEM\CurrentControlSet\Services\lfsvc\Service\Configuration`, "Status"); ok && v == 0 {
+		return "the location device is switched off"
 	}
 	if text(`SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location`, "Value") == "Deny" {
 		return "location is switched off for this device"
@@ -49,9 +55,15 @@ func locationBlocker() string {
 	if textIn(registry.CURRENT_USER, consent, "Value") == "Deny" || textIn(registry.CURRENT_USER, consent+`\NonPackaged`, "Value") == "Deny" {
 		return "location is switched off for this account"
 	}
-	return "location is off"
+	if v, ok := dword(`SOFTWARE\Microsoft\PolicyManager\current\device\System`, "AllowLocation"); !ok || v != 2 {
+		return "the policy that forces it on is not set"
+	}
+	return ""
 }
 
-func locationError() error {
-	return fmt.Errorf("Windows lists Wi-Fi networks only with location on, and %s. Run scripts\\location.bat as administrator to turn it on", locationBlocker())
+func locationError(said string) error {
+	if why := locationBlocker(); why != "" {
+		return fmt.Errorf("Windows lists Wi-Fi networks only with location on, and %s. Run scripts\\location.bat as administrator to turn it on", why)
+	}
+	return fmt.Errorf("Windows refused the Wi-Fi list although location is forced on: %s", said)
 }

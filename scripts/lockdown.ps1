@@ -152,6 +152,11 @@ Set-Value $reporting 'DontShowUI' 1
 Set-Value $reliability 'ShutdownReasonUI' 0
 
 Enable-Location
+try {
+  Invoke-LocationPolicy
+} catch {
+  Write-Host "  could not force location on: $($_.Exception.Message)"
+}
 Set-Value $userLocation 'Value' 'Allow' 'String'
 Set-Value "$userLocation\NonPackaged" 'Value' 'Allow' 'String'
 
