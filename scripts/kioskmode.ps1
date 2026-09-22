@@ -21,6 +21,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'location.ps1')
 
 # The path has to stay the same across builds, because the configuration names
 # it. A packaged install lives in a folder named after its version.
@@ -60,7 +61,9 @@ $kioskUserValues = @(
   # A keyboard plugged in by a visitor: no Windows-key shortcuts, which is
   # also voice typing and the emoji panel, and no Task Manager.
   @('Software\Microsoft\Windows\CurrentVersion\Policies\Explorer', 'NoWinKeys', 1),
-  @('Software\Microsoft\Windows\CurrentVersion\Policies\System', 'DisableTaskMgr', 1)
+  @('Software\Microsoft\Windows\CurrentVersion\Policies\System', 'DisableTaskMgr', 1),
+  @('Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location', 'Value', 'Allow', 'REG_SZ'),
+  @('Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location\NonPackaged', 'Value', 'Allow', 'REG_SZ')
 )
 
 function Set-KioskUserValues {
@@ -78,7 +81,8 @@ function Set-KioskUserValues {
   $write = {
     param($root)
     foreach ($v in $kioskUserValues) {
-      reg add "$root\$($v[0])" /v $v[1] /t REG_DWORD /d $v[2] /f | Out-Null
+      $kind = if ($v.Count -gt 3) { $v[3] } else { 'REG_DWORD' }
+      reg add "$root\$($v[0])" /v $v[1] /t $kind /d $v[2] /f | Out-Null
     }
   }
   foreach ($root in $roots) { & $write $root }
@@ -339,7 +343,8 @@ if (-not (Test-Path $updates)) { New-Item -Path $updates -Force | Out-Null }
 New-ItemProperty -Path $updates -Name 'NoAutoRebootWithLoggedOnUsers' -PropertyType DWord -Value 1 -Force | Out-Null
 foreach ($step in @(
     @{ What = 'keep the screen on'; Run = { Set-StandPower } },
-    @{ What = 'set the kiosk account up'; Run = { Set-KioskUserValues } })) {
+    @{ What = 'set the kiosk account up'; Run = { Set-KioskUserValues } },
+    @{ What = 'turn location on for Wi-Fi scanning'; Run = { Enable-Location } })) {
   try {
     & $step.Run
   } catch {

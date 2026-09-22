@@ -19,8 +19,6 @@ var (
 	reState   = regexp.MustCompile(`(?m)^\s*State\s*:\s*(.*)$`)
 )
 
-var errLocation = fmt.Errorf("Windows needs location turned on to list Wi-Fi networks. Run scripts\\lockdown.bat again, or turn on Settings > Privacy & security > Location")
-
 func netsh(args ...string) (string, error) {
 	out, err := exec.Command("netsh", args...).CombinedOutput()
 	return string(out), err
@@ -37,7 +35,7 @@ func Scan() ([]Network, error) {
 	rescan()
 	out, err := netsh("wlan", "show", "networks", "mode=bssid")
 	if strings.Contains(strings.ToLower(out), "location") {
-		return nil, errLocation
+		return nil, locationError()
 	}
 	if err != nil {
 		return nil, fmt.Errorf("could not scan: %s", strings.TrimSpace(out))
