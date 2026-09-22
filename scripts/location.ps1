@@ -1,3 +1,5 @@
+param([switch]$Run)
+
 function Enable-Location {
   $policy = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors'
   if (Test-Path $policy) {
@@ -12,4 +14,11 @@ function Enable-Location {
   New-ItemProperty -Path $consent -Name 'Value' -Value 'Allow' -PropertyType String -Force | Out-Null
   $service = Get-Service -Name 'lfsvc' -ErrorAction SilentlyContinue
   if ($service -and $service.StartType -eq 'Disabled') { Set-Service -Name 'lfsvc' -StartupType Manual }
+}
+
+if ($Run) {
+  $ErrorActionPreference = 'Stop'
+  Enable-Location
+  $value = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location').Value
+  Write-Host "  Location for this device: $value"
 }
