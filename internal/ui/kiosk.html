@@ -230,29 +230,61 @@
 
   .caret { color: var(--primary); }
 
-  .verdict { font-family: var(--sora); font-size: clamp(24px, 3.6vw, 38px); line-height: 1.4; margin: 0; }
+  .verdict { font-family: var(--sora); font-size: clamp(22px, min(3.6vw, 4.2vh), 38px); line-height: 1.4; margin: 0; }
 
   .result-handle { font-family: var(--mono); font-size: clamp(20px, 2.6vw, 28px); color: var(--muted); margin: 0; }
   .score { margin: clamp(8px, 1.4vh, 16px) 0 0; font-family: var(--mono); font-weight: 700; line-height: 1; }
-  .score .num { color: var(--primary); font-size: clamp(120px, 24vw, 260px); letter-spacing: -.04em; }
+  .score .num { color: var(--primary); font-size: clamp(110px, min(24vw, 22vh), 260px); letter-spacing: -.04em; }
   .score .of { color: var(--subtle); font-size: clamp(32px, 5vw, 56px); font-weight: 400; margin-left: .15em; }
   .archetype { margin: clamp(6px, 1vh, 12px) 0 0; font-family: var(--sora); font-size: clamp(22px, 3vw, 32px); font-weight: 700; color: var(--white); }
 
   /* The receipt's QR, on screen too, for anyone who would rather keep a link
      than a slip of paper. */
+  #result[data-active] {
+    display: flex; flex-direction: column; align-items: center;
+    min-height: calc(100dvh - 2 * clamp(20px, 3vw, 40px));
+  }
+  #finalVerdict { margin-top: clamp(12px, 3vh, 40px); margin-bottom: clamp(16px, 3.5vh, 48px); }
+  @media (max-height: 860px) {
+    #result .note { margin-top: 6px; }
+    #result .countdown { margin-top: 4px; }
+    #result .score { margin-top: 0; }
+  }
   .take {
-    display: grid; grid-template-columns: auto 1fr; gap: clamp(16px, 2.4vw, 24px);
-    margin-top: clamp(28px, 4.5vh, 48px);
+    display: grid; grid-template-columns: auto 1fr; align-items: center; gap: clamp(28px, 4vw, 56px);
+    width: 100%; margin-top: auto; padding: clamp(18px, min(3vw, 3.4vh), 40px);
+    border: 1px solid var(--border); background: var(--surface); text-align: left;
   }
-  .scan {
-    margin: 0; display: flex; flex-direction: column; align-items: center; gap: clamp(12px, 1.6vh, 18px);
-    padding: clamp(18px, 2.4vw, 28px); border: 1px solid var(--border); background: var(--surface);
+  .qr-frame { position: relative; padding: 14px; }
+  .qr-frame img { display: block; width: clamp(170px, min(26vw, 28vh), 320px); height: auto; background: #fff; padding: 12px; }
+  .qr-frame i {
+    position: absolute; width: 34px; height: 34px; border: 4px solid var(--primary); opacity: .3;
+    animation: qr-corner 2.8s cubic-bezier(0.19, 1, 0.22, 1) infinite;
   }
-  .scan img { display: block; width: clamp(200px, 28vw, 300px); height: auto; background: #fff; padding: 10px; }
-  .scan figcaption { font-family: var(--sora); font-weight: 600; font-size: clamp(20px, 2.6vw, 28px); color: var(--white); }
-  .take-actions { display: flex; flex-direction: column; justify-content: center; gap: 16px; }
-  .take-actions .quiet { margin-top: 0; }
-  @media (max-width: 700px) { .take { grid-template-columns: 1fr; } }
+  .qr-frame i:nth-child(3) { animation-delay: .25s; }
+  .qr-frame i:nth-child(5) { animation-delay: .5s; }
+  .qr-frame i:nth-child(4) { animation-delay: .75s; }
+  @keyframes qr-corner {
+    0%, 40%, 100% { opacity: .3; transform: scale(1); }
+    12% { opacity: 1; transform: scale(1.12); }
+    24% { opacity: 1; transform: scale(1); }
+  }
+  @media (prefers-reduced-motion: reduce) { .qr-frame i { animation: none; opacity: 1; } }
+  .qr-frame i:nth-child(2) { top: 0; left: 0; border-right: 0; border-bottom: 0; transform-origin: top left; }
+  .qr-frame i:nth-child(3) { top: 0; right: 0; border-left: 0; border-bottom: 0; transform-origin: top right; }
+  .qr-frame i:nth-child(4) { bottom: 0; left: 0; border-right: 0; border-top: 0; transform-origin: bottom left; }
+  .qr-frame i:nth-child(5) { bottom: 0; right: 0; border-left: 0; border-top: 0; transform-origin: bottom right; }
+  .take-title { margin: 0; font-family: var(--sora); font-weight: 700; font-size: clamp(28px, min(4vw, 4.6vh), 48px); color: var(--white); }
+  .take-sub { margin: 10px 0 clamp(24px, 3vh, 36px); font-family: var(--sora); font-size: clamp(18px, 2.2vw, 24px); color: var(--muted); }
+  .take-actions { display: flex; gap: 14px; flex-wrap: wrap; }
+  .act { min-height: clamp(60px, 8vh, 76px); padding: 0 clamp(32px, 3.4vw, 48px); font-size: clamp(22px, 2.6vw, 28px); border-radius: 999px; white-space: nowrap; }
+  .act.primary { background: var(--primary); color: var(--black); }
+  .act.ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  .act.ghost:hover:not(:disabled) { color: var(--white); }
+  @media (max-width: 760px) {
+    .take { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+    .take-actions { justify-content: center; }
+  }
   .countdown { font-family: var(--mono); font-size: clamp(18px, 2.4vw, 26px); color: var(--muted); margin: 24px 0 0; font-variant-numeric: tabular-nums; }
   .note { font-family: var(--mono); font-size: clamp(17px, 2vw, 22px); color: var(--subtle); margin: 20px 0 0; min-height: 1.3em; }
 
@@ -380,15 +412,19 @@
   <p class="result-handle" id="resultHandle"></p>
   <div class="score"><span class="num" id="score"></span><span class="of">/100</span></div>
   <p class="archetype" id="archetype" hidden></p>
-  <p class="verdict" id="finalVerdict" style="margin-top:clamp(24px,4vh,40px)"></p>
+  <p class="verdict" id="finalVerdict"></p>
   <div class="take">
-    <figure class="scan">
+    <div class="qr-frame">
       <img id="shareQr" alt="QR code for your full roast" width="220" height="220">
-      <figcaption>Scan to keep it</figcaption>
-    </figure>
-    <div class="take-actions">
-      <button class="wide" id="print">Print my receipt</button>
-      <button class="wide quiet" id="again">Start over</button>
+      <i></i><i></i><i></i><i></i>
+    </div>
+    <div>
+      <p class="take-title">Take it with you</p>
+      <p class="take-sub">Scan for your full roast.</p>
+      <div class="take-actions">
+        <button class="act primary" id="print">Print my receipt</button>
+        <button class="act ghost" id="again">Start over</button>
+      </div>
     </div>
   </div>
   <p class="note" id="note"></p>
