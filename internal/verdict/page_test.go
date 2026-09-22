@@ -49,7 +49,7 @@ func TestABadLineKeepsTheStockOne(t *testing.T) {
 		Verdict:   "Go to https://example.com",
 		Strengths: []string{""},
 		Actions:   []string{"Written action one.", "Read www.example.com"},
-		Findings:  []string{strings.Repeat("far too long ", 20)},
+		Findings:  []string{"This finding line runs well past the length that one small card can hold."},
 		Habits:    []string{"One.", "Two."},
 	})
 	if p.Archetype != Archetype(b) {

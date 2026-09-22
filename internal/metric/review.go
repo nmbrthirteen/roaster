@@ -157,7 +157,7 @@ func Findings(f github.Facts, now time.Time) []roast.Finding {
 	case top.Stars*10 >= stars*8 && len(f.Repos) > 1:
 		starred.Line = fmt.Sprintf("%s carries the whole account. The rest are backup dancers.", top.Name)
 	case top.Stars*2 > stars:
-		starred.Line = fmt.Sprintf("Most of them on %s. The others are still waiting to be discovered.", top.Name)
+		starred.Line = fmt.Sprintf("Most of them on %s. The rest wait in the lobby.", top.Name)
 	default:
 		starred.Line = fmt.Sprintf("%s leads with %d. The rest share the crumbs.", top.Name, top.Stars)
 	}

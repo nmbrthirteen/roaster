@@ -19,6 +19,7 @@ type Page struct {
 
 const (
 	maxLine      = 100
+	maxPunch     = 64
 	maxArchetype = 32
 )
 
@@ -60,10 +61,10 @@ func Merge(b Brief, p Page) Page {
 	if a, ok := label(p.Archetype); ok {
 		out.Archetype = a
 	}
-	out.Strengths = overlay(out.Strengths, p.Strengths)
-	out.Actions = overlay(out.Actions, p.Actions)
-	out.Findings = overlay(out.Findings, unprefixed(b.Findings, p.Findings))
-	out.Habits = overlay(out.Habits, unprefixed(b.Habits, p.Habits))
+	out.Strengths = overlay(out.Strengths, p.Strengths, maxLine)
+	out.Actions = overlay(out.Actions, p.Actions, maxLine)
+	out.Findings = overlay(out.Findings, unprefixed(b.Findings, p.Findings), maxPunch)
+	out.Habits = overlay(out.Habits, unprefixed(b.Habits, p.Habits), maxPunch)
 	return out
 }
 
@@ -98,14 +99,14 @@ func Written(b Brief) Page {
 	}
 }
 
-func overlay(stock, written []string) []string {
+func overlay(stock, written []string, max int) []string {
 	if len(written) != len(stock) {
 		return stock
 	}
 	out := make([]string, len(stock))
 	for i := range stock {
 		out[i] = stock[i]
-		if l, ok := Clean(written[i]); ok && utf8.RuneCountInString(l) <= maxLine {
+		if l, ok := Clean(written[i]); ok && utf8.RuneCountInString(l) <= max {
 			out[i] = l
 		}
 	}

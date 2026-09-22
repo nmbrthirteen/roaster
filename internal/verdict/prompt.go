@@ -19,7 +19,8 @@ verdict: the punchline under the numbers, and the line that matters most.
 label: a parody job title for this developer, the kind a recruiter would never print but they would put in their bio anyway. Two to five words in title case, at most 32 characters. Built on the account's funniest habit, never on the same joke as the verdict. The shape: Chief Weekend Officer, Senior Fix Engineer, Head of Mystery Repos, VP of Force Pushing, Principal Wip Architect.
 
 strengths, actions, findings, habits: the account block ends with numbered stock lines under these four headings. Replace each one with a funnier line about the same fact. Return exactly as many lines as there are, in the same order, and an empty list for a heading that is not there.
-- One sentence, at most 12 words. People skim this page on a phone, so shorter wins.
+- A strength or action is one sentence, at most 12 words.
+- A finding or habit is a punch of at most 8 words. It sits on a card that already shows the fact in a chart, so skip the setup and go straight to the joke. "Brunch exists. We checked." is the length to aim for.
 - Write a new joke. Never keep the stock line and add words to it. If you cannot beat the stock line, return it unchanged.
 - Keep the fact the line is about, and any number or name it states.
 - A finding or habit is shown after its title and value in square brackets. The page prints your line right under that title and value, so never repeat the bracket, the title or the value. React to them.
