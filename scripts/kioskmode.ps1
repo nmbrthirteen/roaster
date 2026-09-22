@@ -16,6 +16,7 @@ param(
   # itself, which is what a stand wants.
   [string]$Account,
   [switch]$Off,
+  [switch]$Download,
   # Set only on the SYSTEM run: where to write what happened.
   [string]$Result
 )
@@ -299,6 +300,36 @@ if ($Account) {
   # By SID, because the group's name is translated on a non-English Windows.
   $admins = Get-LocalGroupMember -SID 'S-1-5-32-544' | Where-Object { $_.SID.Value -eq $user.SID.Value }
   if ($admins) { throw "$Account is an administrator. Kiosk mode takes a standard account only." }
+}
+
+try {
+  if ($Download) {
+    Write-Host '  Downloading the latest release...'
+    $arch = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'arm64' } else { 'amd64' }
+    $base = 'https://github.com/nmbrthirteen/roaster/releases/latest/download'
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    $sums = (Invoke-WebRequest -UseBasicParsing -Uri "$base/SHA256SUMS").Content
+    if ($sums -is [byte[]]) { $sums = [Text.Encoding]::UTF8.GetString($sums) }
+    foreach ($name in 'kiosk', 'roaster') {
+      $asset = "$name-windows-$arch.exe"
+      $target = Join-Path $Source "$name.exe"
+      $temp = "$target.download"
+      Invoke-WebRequest -UseBasicParsing -Uri "$base/$asset" -OutFile $temp
+      $line = $sums -split "`n" | Where-Object { $_ -match "\s\*?$([regex]::Escape($asset))\s*$" } | Select-Object -First 1
+      if (-not $line) { Remove-Item $temp -Force; throw "SHA256SUMS has no entry for $asset." }
+      $want = ($line -split '\s+')[0].ToLowerInvariant()
+      $got = (Get-FileHash -Algorithm SHA256 $temp).Hash.ToLowerInvariant()
+      if ($got -ne $want) { Remove-Item $temp -Force; throw "$asset did not match its checksum." }
+      Move-Item $temp $target -Force
+    }
+    Write-Host "    $arch, checked"
+  }
+  if (-not (Test-Path (Join-Path $Source 'kiosk.exe')) -or -not (Test-Path (Join-Path $Source 'roaster.exe'))) {
+    throw 'kiosk.exe and roaster.exe are missing, and Go is not installed to build them.'
+  }
+} catch {
+  Write-Host "    $($_.Exception.Message)"
+  exit 2
 }
 
 Write-Host "  Installing to $installDir..."

@@ -29,21 +29,23 @@ echo.
 
 if /i "%~1"=="off" goto :off
 
+set "FETCH="
 where go >nul 2>&1
-if errorlevel 1 goto :prebuilt
+if errorlevel 1 (
+  set "FETCH=-Download"
+  goto :install
+)
 echo   Building...
 go build -o roaster.exe .\cmd\roaster || goto :fail
 go build -ldflags="-s -w -H windowsgui" -o kiosk.exe .\cmd\kiosk || goto :fail
 
-:prebuilt
-if not exist "kiosk.exe" goto :nobuild
-if not exist "roaster.exe" goto :nobuild
-
+:install
 if "%~1"=="" (
-  powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0kioskmode.ps1" -Source "%CD%"
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0kioskmode.ps1" -Source "%CD%" %FETCH%
 ) else (
-  powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0kioskmode.ps1" -Source "%CD%" -Account "%~1"
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0kioskmode.ps1" -Source "%CD%" -Account "%~1" %FETCH%
 )
+if errorlevel 2 goto :fail
 if errorlevel 1 goto :refused
 
 echo.
@@ -63,11 +65,6 @@ echo   Done. Restart and the device signs in to Windows again.
 echo.
 pause
 exit /b 0
-
-:nobuild
-echo   kiosk.exe and roaster.exe are not built, and Go is not installed to
-echo   build them. Run run.bat first.
-goto :fail
 
 :refused
 echo.
