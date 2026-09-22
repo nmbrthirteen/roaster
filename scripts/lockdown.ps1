@@ -55,6 +55,8 @@ $lockScreen = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization'
 $update = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU'
 $reporting = 'HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting'
 $reliability = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Reliability'
+$location = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location'
+$userLocation = "HKU:\$Sid\Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location"
 
 if ($Undo) {
   Write-Host ''
@@ -148,6 +150,10 @@ Set-Value $toasts 'ToastEnabled' 0
 Set-Value $update 'NoAutoRebootWithLoggedOnUsers' 1
 Set-Value $reporting 'DontShowUI' 1
 Set-Value $reliability 'ShutdownReasonUI' 0
+
+Set-Value $location 'Value' 'Allow' 'String'
+Set-Value $userLocation 'Value' 'Allow' 'String'
+Set-Value "$userLocation\NonPackaged" 'Value' 'Allow' 'String'
 
 # Never off, never asleep, and the USB port stays powered so the printer does
 # not vanish overnight.

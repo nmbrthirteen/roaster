@@ -112,7 +112,7 @@
      own keyboard never opens on the visitor screen, so its dictation, emoji
      and settings are never in reach. */
   .kb {
-    position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
     background: var(--surface); border-top: 1px solid var(--border);
     padding: clamp(16px, 2.4vh, 28px) clamp(12px, 3vw, 40px) clamp(20px, 3vh, 36px);
     transform: translateY(100%); visibility: hidden;
@@ -340,6 +340,8 @@
   .admin .full { width: 100%; grid-column: 1 / -1; }
   .admin .go2 { background: var(--primary); color: var(--black); border-color: var(--primary); }
 
+  .admin[data-kb] .panel { padding-bottom: 46vh; }
+  .wifi-pass { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 8px; }
   .nets { display: flex; flex-direction: column; gap: 8px; max-height: 280px; overflow-y: auto; }
   .nets button {
     display: flex; justify-content: space-between; gap: 12px; text-align: left;
@@ -472,14 +474,19 @@
   // Only characters a handle can hold, laid out like Windows' own touch
   // keyboard. Anything the pack allows beyond letters, digits and a hyphen
   // gets a key at the end of the bottom row.
-  const shifted = { 1: '!', 2: '@', 3: '#', 4: '$', 5: '%', 6: '^', 7: '&', 8: '*', 9: '(', 0: ')', '-': '_' };
+  const shifted = { 1: '!', 2: '@', 3: '#', 4: '$', 5: '%', 6: '^', 7: '&', 8: '*', 9: '(', 0: ')', '-': '_', '.': ',', '/': '?', ':': ';' };
 
   const kb = {
     el: $('kb'),
     shift: false, // stays on until tapped off
+    full: false,
+    target: null,
+    start: '',
 
-    build() {
-      const extras = ['.', '_'].filter(c => c.replace(handleRule, '') === c);
+    build(full) {
+      this.full = full;
+      $('kbKeys').innerHTML = '';
+      const extras = full ? ['.', '/'] : ['.', '_'].filter(c => c.replace(handleRule, '') === c);
       const row = (cls) => { const r = document.createElement('div'); r.className = 'kb-row ' + cls; $('kbKeys').append(r); return r; };
 
       const digits = row('digits');
@@ -494,7 +501,7 @@
       top.append(erase);
 
       const middle = row('');
-      [...'asdfghjkl'].forEach((ch, i) => {
+      [...'asdfghjkl', ...(full ? [':'] : [])].forEach((ch, i) => {
         const b = this.key(ch, ch);
         if (i === 0) b.classList.add('offset-1');
         middle.append(b);
@@ -513,10 +520,10 @@
       bottom.append(shift);
       const last = [...'zxcvbnm', ...extras];
       last.forEach(ch => bottom.append(this.key(ch, ch)));
-      const enter = this.key('Go', null);
+      const enter = this.key(full ? 'Done' : 'Go', null);
       enter.classList.add('enter');
       enter.id = 'kbGo';
-      enter.disabled = true;
+      enter.disabled = !full;
       enter.style.gridColumn = `span ${23 - 2 - 2 * last.length}`;
       bottom.append(enter);
       this.relabel();
@@ -530,13 +537,15 @@
       // Keeps focus, and the caret, in the field while a key is pressed.
       b.addEventListener('pointerdown', e => e.preventDefault());
       b.addEventListener('click', () => {
-        const input = $('handle');
+        const input = this.target || $('handle');
         if (b.classList.contains('enter')) {
           this.close();
-          $('form').requestSubmit();
+          if (this.full) input.blur();
+          else $('form').requestSubmit();
           return;
         }
-        input.value = ch ? (input.value + this.out(ch)).slice(0, input.maxLength) : input.value.slice(0, -1);
+        const max = input.maxLength > 0 ? input.maxLength : Infinity;
+        input.value = ch ? (input.value + this.out(ch)).slice(0, max) : input.value.slice(0, -1);
         input.dispatchEvent(new Event('input'));
       });
       return b;
@@ -561,9 +570,25 @@
       for (const b of this.el.querySelectorAll('button[data-ch]')) b.textContent = this.out(b.dataset.ch);
     },
 
+    attach(input, full) {
+      if (this.target && this.target !== input) this.close();
+      if (full !== this.full) {
+        this.build(full);
+        if (!full) $('handle').dispatchEvent(new Event('input'));
+      }
+      this.target = input;
+      this.start = input.value;
+      this.open();
+    },
+
     open() {
       if (this.el.hasAttribute('data-open')) return;
       this.el.setAttribute('data-open', '');
+      if (this.full) {
+        $('admin').setAttribute('data-kb', '');
+        requestAnimationFrame(() => this.target.scrollIntoView({ block: 'center' }));
+        return;
+      }
       // On a screen too short for both, the entry screen moves up so the field
       // stays visible above the keys.
       requestAnimationFrame(() => {
@@ -574,17 +599,27 @@
     },
 
     close() {
+      if (!this.el.hasAttribute('data-open')) return;
       this.el.removeAttribute('data-open');
       $('entry').style.transform = '';
+      $('admin').removeAttribute('data-kb');
+      if (this.full && this.target && this.target.value !== this.start) {
+        this.start = this.target.value;
+        this.target.dispatchEvent(new Event('change'));
+      }
     },
   };
-  kb.build();
+  kb.build(false);
 
   // Opens on a tap on the field only: focus alone, as on page load, leaves the
   // screen clear.
-  $('handle').addEventListener('pointerdown', () => kb.open());
+  $('handle').addEventListener('pointerdown', () => kb.attach($('handle'), false));
+  $('admin').addEventListener('pointerdown', e => {
+    const input = e.target.closest('input');
+    if (input) kb.attach(input, true);
+  });
   document.addEventListener('pointerdown', e => {
-    if (!kb.el.contains(e.target) && e.target !== $('handle')) kb.close();
+    if (!kb.el.contains(e.target) && e.target !== kb.target) kb.close();
   });
   let current = 'entry', idleTimer = null, roast = null;
 
@@ -1308,12 +1343,21 @@
     box.innerHTML = nets.map((n, i) =>
       `<button data-i="${i}"><span>${esc(n.ssid)}${n.saved ? ' &check;' : ''}</span><span>${n.signal}%${n.secure ? ' &#128274;' : ''}</span></button>`
     ).join('');
+    const join = (n, password) => act(async () => await call('/admin/wifi/connect', new URLSearchParams({ ssid: n.ssid, password })));
     box.querySelectorAll('[data-i]').forEach(b => b.addEventListener('click', () => {
       const n = nets[Number(b.dataset.i)];
-      // A saved network needs no password; a new secured one does.
-      const pass = n.secure && !n.saved ? prompt('Password for ' + n.ssid) : '';
-      if (pass === null) return;
-      act(async () => await call('/admin/wifi/connect', new URLSearchParams({ ssid: n.ssid, password: pass || '' })));
+      box.querySelector('.wifi-pass')?.remove();
+      if (!n.secure || n.saved) return join(n, '');
+      const form = document.createElement('div');
+      form.className = 'wifi-pass';
+      form.innerHTML = `<input type="password" autocomplete="off" placeholder="Password for ${esc(n.ssid)}"><button class="go2">Join</button>`;
+      b.after(form);
+      const input = form.querySelector('input');
+      form.querySelector('button').addEventListener('click', () => {
+        kb.close();
+        if (input.value) join(n, input.value);
+      });
+      kb.attach(input, true);
     }));
   }
 
