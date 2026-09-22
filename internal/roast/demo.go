@@ -72,7 +72,7 @@ func (Demo) Roast(ctx context.Context, req Request, emit func(Update)) (Roast, e
 		r.Findings = demoFindings[:2]
 		r.Strengths = []string{"Zero bugs in production. Technically.", "Showed up to a roast stand voluntarily. Brave."}
 		r.Habits = nil
-		r.Archetype = "The Invisible Developer"
+		r.Archetype = "Stealth Mode Founder"
 	}
 	for _, s := range r.Story {
 		section := s
@@ -131,7 +131,7 @@ func build(handle string, rng *rand.Rand) Roast {
 		At:        now,
 		Score:     fmt.Sprintf("%d / 100", score),
 		ScoreTag:  Severity(score),
-		Archetype: pick(rng, []string{"The 3am Refactorer", "The One-Word Poet", "The Weekend Warrior", "The Fork Hoarder"}),
+		Archetype: pick(rng, []string{"Head of Night Shifts", "Senior Fix Engineer", "Chief Weekend Officer", "VP of Force Pushing"}),
 		Metrics:   metrics,
 		Verdict:   pick(rng, verdicts),
 		Actions:   demoActions,

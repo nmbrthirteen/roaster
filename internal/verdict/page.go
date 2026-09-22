@@ -9,7 +9,7 @@ import (
 )
 
 type Page struct {
-	Archetype string   `json:"archetype"`
+	Archetype string   `json:"label"`
 	Verdict   string   `json:"verdict"`
 	Strengths []string `json:"strengths"`
 	Actions   []string `json:"actions"`
@@ -22,17 +22,25 @@ const (
 	maxArchetype = 32
 )
 
+var drafts = map[string]any{"type": "array", "items": map[string]any{"type": "string"}}
+
 var schema = map[string]any{
 	"type": "object",
 	"properties": map[string]any{
-		"archetype": map[string]any{"type": "string"},
+		"drafts": map[string]any{
+			"type":                 "object",
+			"properties":           map[string]any{"labels": drafts, "verdicts": drafts},
+			"required":             []string{"labels", "verdicts"},
+			"additionalProperties": false,
+		},
+		"label":     map[string]any{"type": "string"},
 		"verdict":   map[string]any{"type": "string"},
 		"strengths": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 		"actions":   map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 		"findings":  map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 		"habits":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 	},
-	"required":             []string{"archetype", "verdict", "strengths", "actions", "findings", "habits"},
+	"required":             []string{"drafts", "label", "verdict", "strengths", "actions", "findings", "habits"},
 	"additionalProperties": false,
 }
 

@@ -328,7 +328,7 @@ go run ./cmd/roastd
    the verdict, the archetype under the score, the strengths, the action items
    and the lines under each finding. It works at low effort because a queue is
    waiting, and it answers in a fixed JSON shape. It uses OpenAI's
-   `gpt-5.6-luna` when `OPENAI_API_KEY` is set, or Claude Opus 5 when only an
+   `gpt-5.6-terra` when `OPENAI_API_KEY` is set, or Claude Opus 5 when only an
    Anthropic key is. Every OpenAI request goes with `store` off, so a visitor's
    account is not kept on OpenAI's side past the reply.
 4. **Prints regardless.** A page that is slow, refused, unreadable or never

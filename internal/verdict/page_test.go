@@ -1,6 +1,7 @@
 package verdict
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -21,7 +22,7 @@ func stocked() Brief {
 
 func TestAGoodPageIsTakenWhole(t *testing.T) {
 	p := Merge(stocked(), Page{
-		Archetype: "The 3am Refactorer",
+		Archetype: "Head of Night Shifts",
 		Verdict:   `"You commit at 3am and it shows."`,
 		Strengths: []string{"Written strength."},
 		Actions:   []string{"Written action one.", "Written action two."},
@@ -29,7 +30,7 @@ func TestAGoodPageIsTakenWhole(t *testing.T) {
 		Habits:    []string{"Written habit."},
 	})
 	want := Page{
-		Archetype: "The 3am Refactorer",
+		Archetype: "Head of Night Shifts",
 		Verdict:   "You commit at 3am and it shows.",
 		Strengths: []string{"Written strength."},
 		Actions:   []string{"Written action one.", "Written action two."},
@@ -44,7 +45,7 @@ func TestAGoodPageIsTakenWhole(t *testing.T) {
 func TestABadLineKeepsTheStockOne(t *testing.T) {
 	b := stocked()
 	p := Merge(b, Page{
-		Archetype: "The Developer Whose Label Would Not Fit On Paper",
+		Archetype: "Vice President of Labels Too Long For Paper",
 		Verdict:   "Go to https://example.com",
 		Strengths: []string{""},
 		Actions:   []string{"Written action one.", "Read www.example.com"},
@@ -79,7 +80,7 @@ func TestAnEmptyReplyIsTheStockPage(t *testing.T) {
 }
 
 func TestAnArchetypeLosesItsFullStop(t *testing.T) {
-	if p := Merge(stocked(), Page{Archetype: "The Fork Hoarder."}); p.Archetype != "The Fork Hoarder" {
+	if p := Merge(stocked(), Page{Archetype: "Chief Fork Officer."}); p.Archetype != "Chief Fork Officer" {
 		t.Errorf("got %q", p.Archetype)
 	}
 }
@@ -94,7 +95,7 @@ func TestEveryAccountHasAnArchetype(t *testing.T) {
 		"one-word": {Read: 1, Metrics: []roast.Metric{gauge("One-word commit messages", 80)}},
 	} {
 		got := Archetype(b)
-		if !strings.HasPrefix(got, "The ") || len([]rune(got)) > maxArchetype {
+		if got == "" || len([]rune(got)) > maxArchetype {
 			t.Errorf("%s: got %q", name, got)
 		}
 	}
@@ -138,5 +139,17 @@ func TestAFindingLineDropsItsOwnHeading(t *testing.T) {
 func TestAStockLineIsShownApartFromItsFacts(t *testing.T) {
 	if r := stocked().Render(); !strings.Contains(r, "1. [Peak hour, 02:00] Stock finding.") {
 		t.Errorf("the finding should read as [title, value] then its line:\n%s", r)
+	}
+}
+
+func TestDraftsComeBeforeThePicks(t *testing.T) {
+	raw, err := json.Marshal(schema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(raw)
+	d, l, v := strings.Index(s, `"drafts"`), strings.Index(s, `"label"`), strings.Index(s, `"verdict"`)
+	if d < 0 || l < 0 || v < 0 || d > l || d > v {
+		t.Errorf("drafts must be generated before the label and verdict: %s", s)
 	}
 }

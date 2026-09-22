@@ -97,25 +97,25 @@ func worst(b Brief) (label, value string) {
 }
 
 var archetypes = map[string]string{
-	"Commits after midnight":    "The 3am Deployer",
-	"Weekends with commits":     "The Weekend Warrior",
-	"Days with commits":         "The Commit Machine",
-	"Repos with no description": "The Mystery Box Collector",
-	"One-word commit messages":  "The One-Word Poet",
-	noReadme:                    "The Undocumented Wizard",
+	"Commits after midnight":    "Head of Night Shifts",
+	"Weekends with commits":     "Chief Weekend Officer",
+	"Days with commits":         "Senior Always-On Engineer",
+	"Repos with no description": "Director of Mystery Repos",
+	"One-word commit messages":  "Senior Fix Engineer",
+	noReadme:                    "Head of Undocumented Features",
 }
 
 func Archetype(b Brief) string {
 	switch {
 	case len(b.Unused) > 0:
-		return "The Badge Collector"
+		return "Principal Badge Collector"
 	case b.Read == 0 && b.Year.Commits == 0:
-		return "The Invisible Developer"
+		return "Stealth Mode Founder"
 	}
 	if best, _ := worst(b); best != "" {
 		return archetypes[best]
 	}
-	return "The Suspiciously Normal Dev"
+	return "Suspiciously Normal Engineer"
 }
 
 // fresh fills the first line not already printed. When every one has been,
