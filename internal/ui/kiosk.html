@@ -236,8 +236,6 @@
   .score { margin: clamp(8px, 1.4vh, 16px) 0 0; font-family: var(--mono); font-weight: 700; line-height: 1; }
   .score .num { color: var(--primary); font-size: clamp(120px, 24vw, 260px); letter-spacing: -.04em; }
   .score .of { color: var(--subtle); font-size: clamp(32px, 5vw, 56px); font-weight: 400; margin-left: .15em; }
-  .severity { margin: clamp(10px, 1.6vh, 18px) 0 0; font-family: var(--mono); font-size: clamp(20px, 2.6vw, 28px); color: var(--white); }
-  .severity b { color: var(--primary); font-weight: 700; }
   .archetype { margin: clamp(6px, 1vh, 12px) 0 0; font-family: var(--sora); font-size: clamp(22px, 3vw, 32px); font-weight: 700; color: var(--white); }
 
   /* The receipt's QR, on screen too, for anyone who would rather keep a link
@@ -252,15 +250,8 @@
   }
   .scan img { display: block; width: clamp(200px, 28vw, 300px); height: auto; background: #fff; padding: 10px; }
   .scan figcaption { font-family: var(--sora); font-weight: 600; font-size: clamp(20px, 2.6vw, 28px); color: var(--white); }
-  #print {
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: clamp(12px, 1.6vh, 18px);
-    width: 100%; height: 100%; min-height: 96px; font-size: clamp(28px, 4vw, 44px); border-radius: 0;
-  }
-  #print::before {
-    content: ""; width: 1.5em; height: 1.5em; background: currentColor;
-    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9V2h12v7'/%3E%3Cpath d='M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2'/%3E%3Cpath d='M6 14h12v8H6z'/%3E%3C/svg%3E") center / contain no-repeat;
-    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9V2h12v7'/%3E%3Cpath d='M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2'/%3E%3Cpath d='M6 14h12v8H6z'/%3E%3C/svg%3E") center / contain no-repeat;
-  }
+  .take-actions { display: flex; flex-direction: column; justify-content: center; gap: 16px; }
+  .take-actions .quiet { margin-top: 0; }
   @media (max-width: 700px) { .take { grid-template-columns: 1fr; } }
   .countdown { font-family: var(--mono); font-size: clamp(18px, 2.4vw, 26px); color: var(--muted); margin: 24px 0 0; font-variant-numeric: tabular-nums; }
   .note { font-family: var(--mono); font-size: clamp(17px, 2vw, 22px); color: var(--subtle); margin: 20px 0 0; min-height: 1.3em; }
@@ -388,7 +379,6 @@
 <section class="screen" id="result">
   <p class="result-handle" id="resultHandle"></p>
   <div class="score"><span class="num" id="score"></span><span class="of">/100</span></div>
-  <p class="severity">Roast severity: <b id="scoreTag"></b></p>
   <p class="archetype" id="archetype" hidden></p>
   <p class="verdict" id="finalVerdict" style="margin-top:clamp(24px,4vh,40px)"></p>
   <div class="take">
@@ -396,9 +386,11 @@
       <img id="shareQr" alt="QR code for your full roast" width="220" height="220">
       <figcaption>Scan to keep it</figcaption>
     </figure>
-    <button id="print">Print my receipt</button>
+    <div class="take-actions">
+      <button class="wide" id="print">Print my receipt</button>
+      <button class="wide quiet" id="again">Start over</button>
+    </div>
   </div>
-  <button class="wide quiet" id="again">Start over</button>
   <p class="note" id="note"></p>
   <p class="countdown" id="countdown"></p>
 </section>
@@ -856,7 +848,6 @@
     const url = shareBase.replace(/\/$/, '') + '/' + roast.code;
     $('resultHandle').textContent = '@' + roast.handle;
     $('score').textContent = String(roast.score).split('/')[0].trim();
-    $('scoreTag').textContent = roast.scoreTag;
     $('archetype').textContent = roast.archetype || '';
     $('archetype').hidden = !roast.archetype;
     $('finalVerdict').textContent = '“' + roast.verdict + '”';
