@@ -19,7 +19,11 @@ func dword(path, name string) (uint64, bool) {
 }
 
 func text(path, name string) string {
-	k, err := registry.OpenKey(registry.LOCAL_MACHINE, path, registry.QUERY_VALUE)
+	return textIn(registry.LOCAL_MACHINE, path, name)
+}
+
+func textIn(root registry.Key, path, name string) string {
+	k, err := registry.OpenKey(root, path, registry.QUERY_VALUE)
 	if err != nil {
 		return ""
 	}
@@ -41,9 +45,13 @@ func locationBlocker() string {
 	if text(`SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location`, "Value") == "Deny" {
 		return "location is switched off for this device"
 	}
+	const consent = `SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location`
+	if textIn(registry.CURRENT_USER, consent, "Value") == "Deny" || textIn(registry.CURRENT_USER, consent+`\NonPackaged`, "Value") == "Deny" {
+		return "location is switched off for this account"
+	}
 	return "location is off"
 }
 
 func locationError() error {
-	return fmt.Errorf("Windows lists Wi-Fi networks only with location on, and %s. Run scripts\\kioskmode.bat again as administrator to turn it on", locationBlocker())
+	return fmt.Errorf("Windows lists Wi-Fi networks only with location on, and %s. Run scripts\\location.bat as administrator to turn it on", locationBlocker())
 }

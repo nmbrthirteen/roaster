@@ -375,7 +375,7 @@ New-ItemProperty -Path $updates -Name 'NoAutoRebootWithLoggedOnUsers' -PropertyT
 foreach ($step in @(
     @{ What = 'keep the screen on'; Run = { Set-StandPower } },
     @{ What = 'set the kiosk account up'; Run = { Set-KioskUserValues } },
-    @{ What = 'turn location on for Wi-Fi scanning'; Run = { Enable-Location } })) {
+    @{ What = 'turn location on for Wi-Fi scanning'; Run = { Enable-Location; Enable-UserLocation | Out-Null } })) {
   try {
     & $step.Run
   } catch {
