@@ -242,15 +242,26 @@
 
   /* The receipt's QR, on screen too, for anyone who would rather keep a link
      than a slip of paper. */
-  .share {
-    display: grid; grid-template-columns: auto 1fr; gap: clamp(20px, 3vw, 32px); align-items: center;
-    margin-top: clamp(28px, 4.5vh, 48px); padding: clamp(18px, 2.4vw, 28px);
-    border: 1px solid var(--border); background: var(--surface); text-align: left;
+  .take {
+    display: grid; grid-template-columns: auto 1fr; gap: clamp(16px, 2.4vw, 24px);
+    margin-top: clamp(28px, 4.5vh, 48px);
   }
-  .share img { display: block; width: clamp(180px, 30vw, 320px); height: auto; background: #fff; padding: 10px; }
-  .share h3 { margin: 0; font-family: var(--sora); font-weight: 600; font-size: clamp(24px, 3.4vw, 38px); color: var(--white); }
-  .share p { margin: 10px 0 0; font-family: var(--sora); font-size: clamp(18px, 2.5vw, 27px); color: var(--muted); line-height: 1.4; }
-  .share code { display: block; margin-top: 14px; font-family: var(--mono); font-size: clamp(17px, 2.3vw, 25px); color: var(--primary); overflow-wrap: anywhere; }
+  .scan {
+    margin: 0; display: flex; flex-direction: column; align-items: center; gap: clamp(12px, 1.6vh, 18px);
+    padding: clamp(18px, 2.4vw, 28px); border: 1px solid var(--border); background: var(--surface);
+  }
+  .scan img { display: block; width: clamp(200px, 28vw, 300px); height: auto; background: #fff; padding: 10px; }
+  .scan figcaption { font-family: var(--sora); font-weight: 600; font-size: clamp(20px, 2.6vw, 28px); color: var(--white); }
+  #print {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: clamp(12px, 1.6vh, 18px);
+    width: 100%; height: 100%; min-height: 96px; font-size: clamp(28px, 4vw, 44px); border-radius: 0;
+  }
+  #print::before {
+    content: ""; width: 1.5em; height: 1.5em; background: currentColor;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9V2h12v7'/%3E%3Cpath d='M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2'/%3E%3Cpath d='M6 14h12v8H6z'/%3E%3C/svg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9V2h12v7'/%3E%3Cpath d='M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2'/%3E%3Cpath d='M6 14h12v8H6z'/%3E%3C/svg%3E") center / contain no-repeat;
+  }
+  @media (max-width: 700px) { .take { grid-template-columns: 1fr; } }
   .countdown { font-family: var(--mono); font-size: clamp(18px, 2.4vw, 26px); color: var(--muted); margin: 24px 0 0; font-variant-numeric: tabular-nums; }
   .note { font-family: var(--mono); font-size: clamp(17px, 2vw, 22px); color: var(--subtle); margin: 20px 0 0; min-height: 1.3em; }
 
@@ -380,15 +391,13 @@
   <p class="severity">Roast severity: <b id="scoreTag"></b></p>
   <p class="archetype" id="archetype" hidden></p>
   <p class="verdict" id="finalVerdict" style="margin-top:clamp(24px,4vh,40px)"></p>
-  <div class="share">
-    <img id="shareQr" alt="QR code for your full roast" width="220" height="220">
-    <div>
-      <h3>Your full roast</h3>
-      <p>Scan it to open on your phone. The same code is on your receipt.</p>
-      <code id="shareUrl"></code>
-    </div>
+  <div class="take">
+    <figure class="scan">
+      <img id="shareQr" alt="QR code for your full roast" width="220" height="220">
+      <figcaption>Scan to keep it</figcaption>
+    </figure>
+    <button id="print">Print my receipt</button>
   </div>
-  <button class="wide" id="print" style="margin-top:clamp(24px,4vh,40px)">Print my receipt</button>
   <button class="wide quiet" id="again">Start over</button>
   <p class="note" id="note"></p>
   <p class="countdown" id="countdown"></p>
@@ -852,7 +861,6 @@
     $('archetype').hidden = !roast.archetype;
     $('finalVerdict').textContent = '“' + roast.verdict + '”';
     $('shareQr').src = '/qr?m=8&d=' + encodeURIComponent(url);
-    $('shareUrl').textContent = url.replace(/^https?:\/\//, '');
     $('print').disabled = false;
     $('print').textContent = 'Print my receipt';
     $('again').textContent = 'Start over';
