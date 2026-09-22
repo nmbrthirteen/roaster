@@ -449,6 +449,8 @@
   // Set in the hidden menu. Brings the handle rules and the loader's words.
   const pack = {{.Pack}};
   const shareBase = {{.Receipt.ShareBase}};
+  const timeZone = {{.TimeZone}};
+  const clock = (d, opts) => new Intl.DateTimeFormat('en-US', { timeZone, hourCycle: 'h23', ...opts }).format(d);
   const handleRule = new RegExp('[^' + pack.handleChars + ']', 'g');
 
   // Each sentence of the line under the headline starts its own line, so a
@@ -724,11 +726,11 @@
 
   function session(handle) {
     const now = new Date();
-    line('dim', 'Last login: ' + now.toDateString().slice(0, 10) + ' '
-      + now.toTimeString().slice(0, 8) + ' on ttys001');
+    line('dim', 'Last login: ' + clock(now, { weekday: 'short', month: 'short', day: 'numeric' }).replace(',', '') + ' '
+      + clock(now, { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' on ttys001');
     $('tmuxHandle').textContent = $('auditHandle').textContent = '@' + handle;
     stage(null);
-    $('tmuxClock').textContent = now.toTimeString().slice(0, 5);
+    $('tmuxClock').textContent = clock(now, { hour: '2-digit', minute: '2-digit' });
   }
 
   const prompt = '<span class="user">upgaming@roaster</span>:<span class="path">~</span>$ ';

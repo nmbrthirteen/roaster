@@ -47,6 +47,7 @@ type kioskPage struct {
 	event.Event
 	Pack     roast.Pack
 	Headline string
+	TimeZone string
 }
 
 // stockHeadline is the event default. It names GitHub, so a stand set to
@@ -61,7 +62,7 @@ func (s *Server) page(w http.ResponseWriter, r *http.Request) {
 	if headline == stockHeadline {
 		headline = pack.Headline
 	}
-	if err := s.kiosk.Execute(w, kioskPage{Event: ev, Pack: pack, Headline: headline}); err != nil {
+	if err := s.kiosk.Execute(w, kioskPage{Event: ev, Pack: pack, Headline: headline, TimeZone: s.st.config().Zone().String()}); err != nil {
 		log.Printf("kiosk: %v", err)
 	}
 }
@@ -105,7 +106,7 @@ func (s *Server) audit(w http.ResponseWriter, r *http.Request) {
 		Pack:     roast.PackFor(s.st.config().Pack).Key,
 		Event:    ev.Code,
 		Terminal: s.st.config().Terminal,
-		Offset:   localOffset(),
+		Offset:   standOffset(s.st.config().Zone()),
 	}, emit)
 	if err != nil {
 		s.st.note("Last audit: " + err.Error())
@@ -114,7 +115,7 @@ func (s *Server) audit(w http.ResponseWriter, r *http.Request) {
 	}
 	// The stand's own clock, so the receipt prints the time in the room rather
 	// than the roast server's zone.
-	result.At = time.Now()
+	result.At = time.Now().In(s.st.config().Zone())
 	s.st.keep(result)
 }
 
@@ -172,7 +173,7 @@ func qr(w http.ResponseWriter, r *http.Request) {
 	w.Write(png)
 }
 
-func localOffset() int {
-	_, off := time.Now().Zone()
+func standOffset(zone *time.Location) int {
+	_, off := time.Now().In(zone).Zone()
 	return off
 }

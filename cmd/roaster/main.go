@@ -14,6 +14,7 @@ import (
 	"os"
 	"runtime"
 	"time"
+	_ "time/tzdata"
 
 	"github.com/upgaming/roaster/internal/config"
 	"github.com/upgaming/roaster/internal/github"

@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestLoadAddsKioskPath(t *testing.T) {
@@ -36,5 +37,18 @@ func TestLoadMissingFileUsesDefaults(t *testing.T) {
 	}
 	if got.KioskURL != Defaults().KioskURL || got.Provider != "demo" {
 		t.Errorf("got %+v, want the defaults", got)
+	}
+}
+
+func TestTheStandKeepsTbilisiTimeByDefault(t *testing.T) {
+	zone := Defaults().Zone()
+	if zone.String() != "Asia/Tbilisi" {
+		t.Fatalf("zone %q, want Asia/Tbilisi", zone)
+	}
+	if _, off := time.Date(2026, 9, 22, 12, 0, 0, 0, zone).Zone(); off != 4*3600 {
+		t.Errorf("Tbilisi should be UTC+4, got %d seconds", off)
+	}
+	if got := (Config{Timezone: "Europe/Berlin"}).Zone().String(); got != "Europe/Berlin" {
+		t.Errorf("a configured zone should win, got %q", got)
 	}
 }

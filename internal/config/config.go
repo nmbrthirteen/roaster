@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 )
 
 type Config struct {
@@ -36,6 +37,21 @@ type Config struct {
 	// RemoteURL is the roast endpoint. The terminal's token lives beside the
 	// binary rather than in here, so a settings file carries nothing secret.
 	RemoteURL string `json:"remoteUrl"`
+
+	Timezone string `json:"timezone,omitempty"`
+}
+
+const DefaultTimezone = "Asia/Tbilisi"
+
+func (c Config) Zone() *time.Location {
+	name := c.Timezone
+	if name == "" {
+		name = DefaultTimezone
+	}
+	if loc, err := time.LoadLocation(name); err == nil {
+		return loc
+	}
+	return time.Local
 }
 
 func Defaults() Config {
