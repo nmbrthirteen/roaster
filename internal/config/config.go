@@ -36,7 +36,8 @@ type Config struct {
 
 	// RemoteURL is the roast endpoint. The terminal's token lives beside the
 	// binary rather than in here, so a settings file carries nothing secret.
-	RemoteURL string `json:"remoteUrl"`
+	RemoteURL     string `json:"remoteUrl"`
+	ModelProvider string `json:"modelProvider"`
 
 	Timezone string `json:"timezone,omitempty"`
 }
@@ -56,12 +57,13 @@ func (c Config) Zone() *time.Location {
 
 func Defaults() Config {
 	return Config{
-		Addr:      "127.0.0.1:3000",
-		Terminal:  "001",
-		EventsDir: "events",
-		KioskURL:  "http://localhost:3000/kiosk",
-		Provider:  "demo",
-		AdminPIN:  "1379",
+		Addr:          "127.0.0.1:3000",
+		Terminal:      "001",
+		EventsDir:     "events",
+		KioskURL:      "http://localhost:3000/kiosk",
+		Provider:      "demo",
+		ModelProvider: "openai-terra",
+		AdminPIN:      "1379",
 	}
 }
 

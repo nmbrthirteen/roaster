@@ -8,10 +8,11 @@ import (
 // Request is what a stand sends. It crosses the network to the roast service,
 // so its field names are part of that contract.
 type Request struct {
-	Handle   string `json:"handle"`
-	Pack     string `json:"pack,omitempty"`
-	Event    string `json:"event,omitempty"`
-	Terminal string `json:"terminal,omitempty"` // the number printed on the receipt
+	Handle        string `json:"handle"`
+	Pack          string `json:"pack,omitempty"`
+	Event         string `json:"event,omitempty"`
+	Terminal      string `json:"terminal,omitempty"` // the number printed on the receipt
+	ModelProvider string `json:"modelProvider,omitempty"`
 
 	// Offset is the stand's UTC offset in seconds. GitHub gives commit times
 	// in UTC only, and the people at a stand nearly always live on its clock,

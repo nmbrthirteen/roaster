@@ -1216,6 +1216,11 @@
       <input id="aRemote" value="${esc(s.remoteUrl)}" placeholder="https://roast.example.com/roast" inputmode="url" autocomplete="off">
       <input id="aToken" type="password" autocomplete="off"
              placeholder="${s.tokenSet ? 'Token stored. Paste a new one to replace it' : 'Paste the terminal token'}">
+      <select id="aModelProvider" aria-label="Roast model">
+        <option value="openai-terra"${s.modelProvider === 'openai-terra' ? ' selected' : ''}>OpenAI current model</option>
+        <option value="openai-mini"${s.modelProvider === 'openai-mini' ? ' selected' : ''}>OpenAI GPT-5 Mini, cheap test</option>
+        <option value="grok"${s.modelProvider === 'grok' ? ' selected' : ''}>xAI Grok 4.7, roast quality test</option>
+      </select>
       <div class="acts"><button id="aCheck" class="full">Test the connection</button></div>
 
       <h3>Terminal number</h3>
@@ -1329,6 +1334,7 @@
       return msg;
     });
     on('aSource', e => save({ provider: e.target.value }), 'change');
+    on('aModelProvider', e => save({ modelProvider: e.target.value }), 'change');
     on('aColumns', e => save({ columns: e.target.value }, () => say('Saved. Print a test slip to check the edges.')), 'change');
     on('aRemote', e => save({ remoteUrl: e.target.value.trim() }), 'change');
     on('aToken', e => e.target.value.trim() && save({ token: e.target.value.trim() }), 'change');

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -26,10 +25,11 @@ const (
 // than an SDK: the whole exchange is one POST, and the GitHub client in this
 // repository already works the same way.
 type OpenAI struct {
-	Key   string       // from OPENAI_API_KEY; never logged
-	Model string       // empty is OpenAIModel
-	URL   string       // empty is OpenAI; tests set it
-	HTTP  *http.Client // nil is one with no timeout of its own; the caller's context bounds it
+	Key      string       // from OPENAI_API_KEY; never logged
+	Model    string       // empty is OpenAIModel
+	URL      string       // empty is OpenAI; tests set it
+	Provider string       // empty is OpenAI; xAI uses the same Responses API
+	HTTP     *http.Client // nil is one with no timeout of its own; the caller's context bounds it
 }
 
 type openAIRequest struct {
@@ -84,8 +84,9 @@ type openAIError struct {
 }
 
 func (o OpenAI) Write(ctx context.Context, b Brief) (Page, error) {
+	provider := o.providerName()
 	if o.Key == "" {
-		return Page{}, errors.New("no OpenAI key")
+		return Page{}, fmt.Errorf("no %s key", provider)
 	}
 	model := o.Model
 	if model == "" {
@@ -112,7 +113,7 @@ func (o OpenAI) Write(ctx context.Context, b Brief) (Page, error) {
 	}
 
 	slog.Info("verdict",
-		"provider", "openai",
+		"provider", strings.ToLower(provider),
 		"model", resp.Model,
 		"status", resp.Status,
 		"input_tokens", resp.Usage.InputTokens,
@@ -178,7 +179,7 @@ func (o OpenAI) post(ctx context.Context, body []byte) (openAIResponse, error) {
 			if ctx.Err() != nil {
 				return openAIResponse{}, ctx.Err()
 			}
-			last = fmt.Errorf("could not reach OpenAI: %w", err)
+			last = fmt.Errorf("could not reach %s: %w", o.providerName(), err)
 			continue
 		}
 		raw, err := io.ReadAll(io.LimitReader(res.Body, 1<<20))
@@ -191,7 +192,7 @@ func (o OpenAI) post(ctx context.Context, body []byte) (openAIResponse, error) {
 		if res.StatusCode == http.StatusOK {
 			var out openAIResponse
 			if err := json.Unmarshal(raw, &out); err != nil {
-				return openAIResponse{}, fmt.Errorf("OpenAI sent something unreadable: %w", err)
+				return openAIResponse{}, fmt.Errorf("%s sent something unreadable: %w", o.providerName(), err)
 			}
 			return out, nil
 		}
@@ -200,11 +201,18 @@ func (o OpenAI) post(ctx context.Context, body []byte) (openAIResponse, error) {
 		// never goes anywhere but the log.
 		var e openAIError
 		json.Unmarshal(raw, &e)
-		last = fmt.Errorf("OpenAI returned %s: %s %s", res.Status, e.Error.Type, e.Error.Message)
+		last = fmt.Errorf("%s returned %s: %s %s", o.providerName(), res.Status, e.Error.Type, e.Error.Message)
 
 		if res.StatusCode != http.StatusTooManyRequests && res.StatusCode < 500 {
 			return openAIResponse{}, last
 		}
 	}
 	return openAIResponse{}, last
+}
+
+func (o OpenAI) providerName() string {
+	if o.Provider != "" {
+		return o.Provider
+	}
+	return "OpenAI"
 }

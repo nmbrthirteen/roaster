@@ -133,6 +133,17 @@ func (s *station) setProvider(v string) error {
 	return config.Save(path, saved)
 }
 
+func (s *station) setModelProvider(v string) error {
+	if v != "openai-terra" && v != "openai-mini" && v != "grok" {
+		return fmt.Errorf("unknown roast model %q", v)
+	}
+	s.mu.Lock()
+	s.cfg.ModelProvider, s.saved.ModelProvider = v, v
+	saved, path := s.saved, s.path
+	s.mu.Unlock()
+	return config.Save(path, saved)
+}
+
 func (s *station) keep(r roast.Roast) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

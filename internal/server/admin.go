@@ -33,25 +33,26 @@ const quitFile = ".quit"
 // here: the printer, the network, the event, a reprint, a reboot.
 
 type adminState struct {
-	Terminal  string              `json:"terminal"`
-	Pack      string              `json:"pack"`
-	Packs     []roast.Pack        `json:"packs"`
-	EventCode string              `json:"event"`
-	Events    []event.Event       `json:"events"`
-	Printer   string              `json:"printer"`
-	Columns   int                 `json:"columns"`
-	Printers  []printer.Candidate `json:"printers"`
-	Provider  string              `json:"provider"`
-	RemoteURL string              `json:"remoteUrl"`
-	TokenSet  bool                `json:"tokenSet"`
-	Problems  []string            `json:"problems"`
-	Wifi      netconf.Status      `json:"wifi"`
-	Uptime    int                 `json:"uptimeSeconds"`
-	Printed   int                 `json:"printed"`
-	LastError string              `json:"lastError,omitempty"`
-	Reprint   bool                `json:"canReprint"`
-	Platform  string              `json:"platform"`
-	Version   string              `json:"version"`
+	Terminal      string              `json:"terminal"`
+	Pack          string              `json:"pack"`
+	Packs         []roast.Pack        `json:"packs"`
+	EventCode     string              `json:"event"`
+	Events        []event.Event       `json:"events"`
+	Printer       string              `json:"printer"`
+	Columns       int                 `json:"columns"`
+	Printers      []printer.Candidate `json:"printers"`
+	Provider      string              `json:"provider"`
+	RemoteURL     string              `json:"remoteUrl"`
+	ModelProvider string              `json:"modelProvider"`
+	TokenSet      bool                `json:"tokenSet"`
+	Problems      []string            `json:"problems"`
+	Wifi          netconf.Status      `json:"wifi"`
+	Uptime        int                 `json:"uptimeSeconds"`
+	Printed       int                 `json:"printed"`
+	LastError     string              `json:"lastError,omitempty"`
+	Reprint       bool                `json:"canReprint"`
+	Platform      string              `json:"platform"`
+	Version       string              `json:"version"`
 }
 
 func (s *Server) adminRoutes(mux *http.ServeMux) {
@@ -77,25 +78,26 @@ func (s *Server) adminState(w http.ResponseWriter, r *http.Request) {
 	wifi, _ := netconf.Current()
 
 	writeJSON(w, adminState{
-		Terminal:  cfg.Terminal,
-		Pack:      roast.PackFor(cfg.Pack).Key,
-		Packs:     roast.All(),
-		EventCode: s.pick(r).Code,
-		Events:    all(s.st.eventSet()),
-		Printer:   spec,
-		Columns:   receipt.Width(),
-		Printers:  printer.Discover(),
-		Provider:  cfg.Provider,
-		RemoteURL: cfg.RemoteURL,
-		TokenSet:  tokenSet(),
-		Problems:  s.problemList(),
-		Wifi:      wifi,
-		Uptime:    int(time.Since(s.started).Seconds()),
-		Printed:   printed,
-		LastError: lastErr,
-		Reprint:   last != nil,
-		Platform:  runtime.GOOS,
-		Version:   version.Version,
+		Terminal:      cfg.Terminal,
+		Pack:          roast.PackFor(cfg.Pack).Key,
+		Packs:         roast.All(),
+		EventCode:     s.pick(r).Code,
+		Events:        all(s.st.eventSet()),
+		Printer:       spec,
+		Columns:       receipt.Width(),
+		Printers:      printer.Discover(),
+		Provider:      cfg.Provider,
+		RemoteURL:     cfg.RemoteURL,
+		ModelProvider: cfg.ModelProvider,
+		TokenSet:      tokenSet(),
+		Problems:      s.problemList(),
+		Wifi:          wifi,
+		Uptime:        int(time.Since(s.started).Seconds()),
+		Printed:       printed,
+		LastError:     lastErr,
+		Reprint:       last != nil,
+		Platform:      runtime.GOOS,
+		Version:       version.Version,
 	})
 }
 
@@ -139,6 +141,12 @@ func (s *Server) adminSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	if v := r.FormValue("provider"); v != "" {
 		if err := s.st.setProvider(v); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+	if v := r.FormValue("modelProvider"); v != "" {
+		if err := s.st.setModelProvider(v); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}

@@ -1,8 +1,11 @@
 package main
 
 import (
+	"context"
 	"strings"
 	"testing"
+
+	"github.com/upgaming/roaster/internal/roast"
 )
 
 func env(vars map[string]string) func(string) string {
@@ -83,5 +86,27 @@ func TestOpenAIIsUsedWhenItsKeyIsThere(t *testing.T) {
 	}
 	if cfg := with(map[string]string{"OPENAI_API_KEY": "k", "OPENAI_MODEL": "gpt-5.6-luna"}); cfg.model != "gpt-5.6-luna" {
 		t.Errorf("the model override should be read, got %q", cfg.model)
+	}
+}
+
+func TestXAIEnablesGrok(t *testing.T) {
+	cfg, err := fromEnv(env(map[string]string{
+		"GITHUB_TOKEN":    "x",
+		"TERMINAL_TOKENS": "a-terminal-token-long-enough-1",
+		"XAI_API_KEY":     "xai-key",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.writer != "grok" || cfg.grokModel != "grok-4.7" {
+		t.Errorf("got writer %q and model %q", cfg.writer, cfg.grokModel)
+	}
+}
+
+func TestModelRouterRejectsAnUnconfiguredModel(t *testing.T) {
+	r := modelRouter{}
+	_, err := r.Roast(context.Background(), roast.Request{ModelProvider: "grok"}, func(roast.Update) {})
+	if err == nil || !strings.Contains(err.Error(), "not configured") {
+		t.Fatalf("got %v", err)
 	}
 }

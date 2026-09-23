@@ -34,14 +34,16 @@ import (
 const minTokenLength = 24
 
 type settings struct {
-	addr     string
-	github   string
-	writer   string // "openai", "anthropic", or empty for the numbers alone
-	openAI   string // OPENAI_API_KEY
-	model    string // OPENAI_MODEL
-	tokens   []string
-	optOut   map[string]bool
-	parallel int
+	addr      string
+	github    string
+	writer    string // "openai", "anthropic", or empty for the numbers alone
+	openAI    string // OPENAI_API_KEY
+	model     string // OPENAI_MODEL
+	xAI       string // XAI_API_KEY
+	grokModel string // XAI_MODEL
+	tokens    []string
+	optOut    map[string]bool
+	parallel  int
 
 	strapiURL   string // STRAPI_URL; with STRAPI_TOKEN, every roast is saved there
 	strapiToken string // STRAPI_TOKEN, allowed to create roast entries and nothing more
@@ -63,16 +65,22 @@ func main() {
 		// thousand briefs is a few megabytes.
 		Memory: audit.NewMemory(10*time.Minute, 1000),
 	}
-	switch cfg.writer {
-	case "openai":
-		provider.Writer = verdict.OpenAI{Key: cfg.openAI, Model: cfg.model}
-	case "anthropic":
-		provider.Writer = verdict.NewClaude()
-	default:
+	writers := map[string]verdict.Writer{}
+	if cfg.openAI != "" {
+		writers["openai-terra"] = verdict.OpenAI{Key: cfg.openAI, Model: cfg.model}
+		writers["openai-mini"] = verdict.OpenAI{Key: cfg.openAI, Model: "gpt-5-mini"}
+	}
+	if cfg.xAI != "" {
+		writers["grok"] = verdict.OpenAI{Key: cfg.xAI, Model: cfg.grokModel, URL: "https://api.x.ai/v1/responses", Provider: "xAI"}
+	}
+	if cfg.writer == "anthropic" {
+		writers["anthropic"] = verdict.NewClaude()
+	}
+	if len(writers) == 0 {
 		slog.Warn("no model key is set; verdicts will be written from the numbers alone")
 	}
 
-	var router roast.Provider = roast.Router{roast.GitHub: provider}
+	var router roast.Provider = roast.Router{roast.GitHub: modelRouter{audit: provider, writers: writers, fallback: defaultModel(cfg)}}
 	if cfg.strapiURL != "" && cfg.strapiToken != "" {
 		router = archive{next: router, url: cfg.strapiURL, token: cfg.strapiToken}
 	} else {
@@ -101,7 +109,7 @@ func main() {
 	defer cancel()
 
 	go func() {
-		slog.Info("listening", "addr", cfg.addr, "terminals", len(cfg.tokens), "slots", cfg.parallel, "writer", cfg.writer)
+		slog.Info("listening", "addr", cfg.addr, "terminals", len(cfg.tokens), "slots", cfg.parallel, "models", len(writers))
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			slog.Error("listen", "err", err)
 			os.Exit(1)
@@ -124,21 +132,28 @@ func main() {
 // service insecure or useless rather than discovering it on the first request.
 func fromEnv(env func(string) string) (settings, error) {
 	cfg := settings{
-		addr:     ":8080",
-		github:   env("GITHUB_TOKEN"),
-		openAI:   env("OPENAI_API_KEY"),
-		model:    env("OPENAI_MODEL"),
-		optOut:   map[string]bool{},
-		parallel: 16,
+		addr:      ":8080",
+		github:    env("GITHUB_TOKEN"),
+		openAI:    env("OPENAI_API_KEY"),
+		model:     env("OPENAI_MODEL"),
+		xAI:       env("XAI_API_KEY"),
+		grokModel: env("XAI_MODEL"),
+		optOut:    map[string]bool{},
+		parallel:  16,
 
 		strapiURL:   env("STRAPI_URL"),
 		strapiToken: env("STRAPI_TOKEN"),
+	}
+	if cfg.grokModel == "" {
+		cfg.grokModel = "grok-4.7"
 	}
 	// OpenAI when its key is there, Claude when only that one is, and the
 	// numbers alone when neither is. One writer, chosen once, logged at start.
 	switch {
 	case cfg.openAI != "":
 		cfg.writer = "openai"
+	case cfg.xAI != "":
+		cfg.writer = "grok"
 	case env("ANTHROPIC_API_KEY") != "":
 		cfg.writer = "anthropic"
 	}
@@ -178,4 +193,17 @@ func fromEnv(env func(string) string) (settings, error) {
 		cfg.parallel = n
 	}
 	return cfg, nil
+}
+
+func defaultModel(cfg settings) string {
+	switch cfg.writer {
+	case "openai":
+		return "openai-terra"
+	case "grok":
+		return "grok"
+	case "anthropic":
+		return "anthropic"
+	default:
+		return ""
+	}
 }

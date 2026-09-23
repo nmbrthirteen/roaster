@@ -102,11 +102,12 @@ func (s *Server) audit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	result, err := provider.Roast(r.Context(), roast.Request{
-		Handle:   handle,
-		Pack:     roast.PackFor(s.st.config().Pack).Key,
-		Event:    ev.Code,
-		Terminal: s.st.config().Terminal,
-		Offset:   standOffset(s.st.config().Zone()),
+		Handle:        handle,
+		Pack:          roast.PackFor(s.st.config().Pack).Key,
+		Event:         ev.Code,
+		Terminal:      s.st.config().Terminal,
+		Offset:        standOffset(s.st.config().Zone()),
+		ModelProvider: s.st.config().ModelProvider,
 	}, emit)
 	if err != nil {
 		s.st.note("Last audit: " + err.Error())
