@@ -370,8 +370,20 @@
     background: var(--elevated); color: var(--white); border: 1px solid var(--border);
     min-height: 80px; border-radius: 0; padding: 18px 0;
   }
-  .said { font-family: var(--mono); font-size: 17px; color: var(--primary); margin-top: 16px; min-height: 1.4em; }
-  .said.bad { color: #ff6b6b; }
+  /* Over the panel and over the keyboard: the answer lands in one place
+     whatever the panel is scrolled to. */
+  .said {
+    position: fixed; z-index: 70; top: clamp(12px, 3vh, 28px); left: 50%;
+    width: min(620px, calc(100vw - 32px));
+    font-family: var(--mono); font-size: 19px; line-height: 1.35; color: var(--black);
+    background: var(--primary); padding: 18px 20px; margin: 0;
+    box-shadow: 0 18px 40px rgba(7, 7, 7, .65);
+    transform: translate(-50%, -16px); opacity: 0; visibility: hidden;
+    transition: transform .18s ease-out, opacity .18s ease-out, visibility .18s;
+  }
+  .said[data-open] { transform: translate(-50%, 0); opacity: 1; visibility: visible; }
+  .said.bad { background: #ff6b6b; }
+  @media (prefers-reduced-motion: reduce) { .said { transition: none; } }
 
   @media (prefers-reduced-motion: reduce) {
     * { animation: none !important; transition-duration: .01ms !important; }
@@ -441,12 +453,13 @@
 </section>
 
 
+<p class="said" id="said" role="status" aria-live="polite"></p>
+
 <div class="admin" id="admin" hidden>
   <div class="panel">
     <h2 id="adminTitle">Enter code</h2>
     <p id="adminHint">Five taps on the mark opened this.</p>
     <div id="adminBody"></div>
-    <p class="said" id="said"></p>
   </div>
 </div>
 
@@ -578,6 +591,9 @@
     },
 
     attach(input, full) {
+      // Windows raises its own touch keyboard over this one unless the field
+      // says it wants no keyboard from the system.
+      input.setAttribute('inputmode', 'none');
       if (this.target && this.target !== input) this.close();
       if (full !== this.full) {
         this.build(full);
@@ -1008,7 +1024,18 @@
   let nets = [];
 
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const say = (msg, bad) => { admin.said.textContent = msg; admin.said.classList.toggle('bad', !!bad); };
+  // One place for every answer the menu gives back. It waits long enough to
+  // be read, then goes so nothing stale stays up.
+  let sayTimer = null;
+  const say = (msg, bad) => {
+    clearTimeout(sayTimer);
+    if (!msg) return admin.said.removeAttribute('data-open');
+    admin.said.textContent = msg;
+    admin.said.classList.toggle('bad', !!bad);
+    admin.said.setAttribute('data-open', '');
+    sayTimer = setTimeout(() => admin.said.removeAttribute('data-open'), bad ? 20000 : 8000);
+  };
+  $('said').addEventListener('pointerdown', () => say(''));
 
   document.querySelectorAll('.mark').forEach(mark => {
     mark.style.cursor = 'default';
@@ -1209,6 +1236,10 @@
         <button id="aSignOut" class="danger full">Sign out to Windows</button>
         <button id="aClose" class="full go2">Back to the kiosk</button>
       </div>`;
+
+    // Every field here takes the stand's own keyboard, so none of them may ask
+    // Windows for its touch keyboard.
+    admin.body.querySelectorAll('input').forEach(i => i.setAttribute('inputmode', 'none'));
 
     on('aClose', closeAdmin);
 

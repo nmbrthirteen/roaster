@@ -157,6 +157,7 @@ try {
 } catch {
   Write-Host "  could not force location on: $($_.Exception.Message)"
 }
+Set-Value "HKU:\$Sid\Software\Microsoft\TabletTip\1.7" 'EnableDesktopModeAutoInvoke' 0
 Set-Value $userLocation 'Value' 'Allow' 'String'
 Set-Value "$userLocation\NonPackaged" 'Value' 'Allow' 'String'
 

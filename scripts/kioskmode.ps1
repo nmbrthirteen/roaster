@@ -63,6 +63,9 @@ $kioskUserValues = @(
   # also voice typing and the emoji panel, and no Task Manager.
   @('Software\Microsoft\Windows\CurrentVersion\Policies\Explorer', 'NoWinKeys', 1),
   @('Software\Microsoft\Windows\CurrentVersion\Policies\System', 'DisableTaskMgr', 1),
+  # The stand draws its own keyboard, and Windows' touch keyboard would come
+  # up over it.
+  @('Software\Microsoft\TabletTip\1.7', 'EnableDesktopModeAutoInvoke', 0),
   @('Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location', 'Value', 'Allow', 'REG_SZ'),
   @('Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location\NonPackaged', 'Value', 'Allow', 'REG_SZ')
 )
