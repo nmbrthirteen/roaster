@@ -15,9 +15,8 @@ import (
 const (
 	openAIEndpoint = "https://api.openai.com/v1/responses"
 
-	// OpenAIModel is OpenAI's default: the middle of the family, about two
-	// cents a roast. gpt-5.6-luna is cheaper and flatter, gpt-5.6-sol sharper
-	// and dearer; either goes in OPENAI_MODEL.
+	// OpenAIModel is the current quality default. Luna is the low-cost option
+	// in the operator menu.
 	OpenAIModel = "gpt-5.6-terra"
 )
 

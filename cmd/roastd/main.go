@@ -68,7 +68,9 @@ func main() {
 	writers := map[string]verdict.Writer{}
 	if cfg.openAI != "" {
 		writers["openai-terra"] = verdict.OpenAI{Key: cfg.openAI, Model: cfg.model}
-		writers["openai-mini"] = verdict.OpenAI{Key: cfg.openAI, Model: "gpt-5-mini"}
+		writers["openai-luna"] = verdict.OpenAI{Key: cfg.openAI, Model: "gpt-6-luna"}
+		// Existing saved cheap selections move to GPT-6 Luna.
+		writers["openai-mini"] = writers["openai-luna"]
 	}
 	if cfg.xAI != "" {
 		writers["grok"] = verdict.OpenAI{Key: cfg.xAI, Model: cfg.grokModel, URL: "https://api.x.ai/v1/responses", Provider: "xAI"}

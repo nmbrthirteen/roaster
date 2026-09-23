@@ -79,7 +79,7 @@
 
   /* Integral CF, uppercase, 120% leading. */
   h1 {
-    font-family: var(--display); font-weight: 900; text-transform: uppercase;
+    font-family: var(--display); font-weight: 900;
     font-size: clamp(40px, 7vw, 84px); line-height: 1.1; letter-spacing: 0;
     margin: 0; text-wrap: balance;
   }
@@ -88,6 +88,10 @@
     color: var(--white); max-width: 36ch; margin: 22px auto 0; text-wrap: balance;
   }
   .lede .sentence { display: block; }
+  .entry-note {
+    margin: 18px auto 0; font-family: var(--sora); font-size: clamp(16px, 2vw, 22px);
+    line-height: 1.4; color: var(--muted); text-wrap: pretty;
+  }
 
   form { display: flex; gap: 16px; align-items: stretch; margin-top: clamp(40px, 7vh, 72px); }
   input {
@@ -233,16 +237,20 @@
   .verdict { font-family: var(--sora); font-size: clamp(22px, min(3.6vw, 4.2vh), 38px); line-height: 1.4; margin: 0; }
 
   .result-handle { font-family: var(--mono); font-size: clamp(20px, 2.6vw, 28px); color: var(--muted); margin: 0; }
-  .score { margin: clamp(8px, 1.4vh, 16px) 0 0; font-family: var(--mono); font-weight: 700; line-height: 1; }
+  .score { margin: clamp(18px, 2.4vh, 28px) 0 0; font-family: var(--mono); font-weight: 700; line-height: 1; }
   .score .num { color: var(--primary); font-size: clamp(110px, min(24vw, 22vh), 260px); letter-spacing: -.04em; }
   .score .of { color: var(--subtle); font-size: clamp(32px, 5vw, 56px); font-weight: 400; margin-left: .15em; }
+  .score-scale { width: min(100%, 560px); margin: clamp(20px, 3vh, 34px) auto 0; }
+  .score-track { position: relative; height: 8px; border-radius: 999px; background: linear-gradient(to right, var(--subtle) 0 var(--score), var(--primary) var(--score) 100%); }
+  .score-marker { position: absolute; top: -10px; left: var(--score); width: 4px; height: 28px; border-radius: 999px; background: var(--white); box-shadow: 0 0 0 2px var(--black); transform: translateX(-50%); }
+  .score-labels { display: flex; justify-content: space-between; margin-top: 12px; font-family: var(--mono); font-size: clamp(14px, 1.5vw, 18px); color: var(--muted); }
   .archetype { margin: clamp(6px, 1vh, 12px) 0 0; font-family: var(--sora); font-size: clamp(22px, 3vw, 32px); font-weight: 700; color: var(--white); }
 
   /* The receipt's QR, on screen too, for anyone who would rather keep a link
      than a slip of paper. */
   #result[data-active] {
     display: flex; flex-direction: column; align-items: center;
-    min-height: calc(100dvh - 2 * clamp(20px, 3vw, 40px));
+    min-height: calc(100dvh - 2 * clamp(20px, 3vw, 40px)); padding-top: clamp(12px, 2vh, 28px);
   }
   #finalVerdict { margin-top: clamp(12px, 3vh, 40px); margin-bottom: clamp(16px, 3.5vh, 48px); }
   @media (max-height: 860px) {
@@ -402,12 +410,13 @@
 <section class="screen" id="entry" data-active>
   <svg class="mark"><use href="#logo"/></svg>
   <h1>{{.Headline}}</h1>
-  <p class="lede">{{.Kiosk.Subhead}}</p>
+  <p class="lede">Enter your GitHub username</p>
   <form id="form">
     <input id="handle" autocomplete="off" autocapitalize="off"
            spellcheck="false" enterkeyhint="go" inputmode="none" autofocus>
     <button type="submit" id="go" disabled aria-label="Start">&rarr;</button>
   </form>
+  <p class="entry-note">Get your coding insights and a roast receipt</p>
 </section>
 
 <div class="kb" id="kb" role="group" aria-label="Keyboard"><div class="kb-inner" id="kbKeys"></div></div>
@@ -432,6 +441,10 @@
 <section class="screen" id="result">
   <p class="result-handle" id="resultHandle"></p>
   <div class="score"><span class="num" id="score"></span><span class="of">/100</span></div>
+  <div class="score-scale" id="scoreScale" role="meter" aria-label="Roast severity" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+    <div class="score-track"><i class="score-marker"></i></div>
+    <div class="score-labels"><span>Chill</span><span>Burnt</span></div>
+  </div>
   <p class="archetype" id="archetype" hidden></p>
   <p class="verdict" id="finalVerdict"></p>
   <div class="take">
@@ -634,10 +647,10 @@
   };
   kb.build(false);
 
-  // Opens on a tap on the field only: focus alone, as on page load, leaves the
-  // screen clear.
-  $('handle').addEventListener('pointerdown', () => kb.attach($('handle'), false));
-  $('admin').addEventListener('pointerdown', e => {
+  // Opens on a click only: focus alone, as on page load, leaves the screen
+  // clear and a drag across a field does not raise the keyboard.
+  $('handle').addEventListener('click', () => kb.attach($('handle'), false));
+  $('admin').addEventListener('click', e => {
     const input = e.target.closest('input');
     if (input) kb.attach(input, true);
   });
@@ -943,7 +956,10 @@
   function finish() {
     const url = shareBase.replace(/\/$/, '') + '/' + roast.code;
     $('resultHandle').textContent = '@' + roast.handle;
-    $('score').textContent = String(roast.score).split('/')[0].trim();
+    const score = Number.parseInt(String(roast.score).split('/')[0].trim(), 10) || 0;
+    $('score').textContent = String(score);
+    $('scoreScale').style.setProperty('--score', `${Math.max(0, Math.min(100, score))}%`);
+    $('scoreScale').setAttribute('aria-valuenow', String(score));
     $('archetype').textContent = roast.archetype || '';
     $('archetype').hidden = !roast.archetype;
     $('finalVerdict').textContent = '“' + roast.verdict + '”';
@@ -1142,7 +1158,13 @@
     admin.title.textContent = 'Terminal ' + s.terminal;
     admin.hint.textContent = s.event;
 
-    const mins = Math.floor(s.uptimeSeconds / 60);
+    const uptime = (() => {
+      const secs = Math.max(0, Math.round(s.uptimeSeconds));
+      if (secs < 60) return `${secs} sec`;
+      const mins = Math.floor(secs / 60);
+      if (mins < 60) return `${mins} min`;
+      return `${Math.floor(mins / 60)} h ${mins % 60} min`;
+    })();
     const wifi = s.wifi && s.wifi.connected
       ? `${esc(s.wifi.ssid)} ${s.wifi.signal}%`
       : 'not connected';
@@ -1153,7 +1175,7 @@
         <dt>Printer</dt><dd class="${serial.port || s.printer ? '' : 'warn'}">${serialState}</dd>
         <dt>Wi-Fi</dt><dd class="${s.wifi && s.wifi.connected ? '' : 'warn'}">${wifi}</dd>
         <dt>Roasts</dt><dd>${s.printed}</dd>
-        <dt>Running</dt><dd>${mins} min</dd>
+        <dt>Running</dt><dd>${uptime}</dd>
         <dt>Roasts from</dt><dd>${s.provider === 'remote' ? 'live service' : 'demo data'}</dd>
         <dt>Version</dt><dd>${esc(s.version)}</dd>
         ${s.lastError ? `<dt>Last error</dt><dd class="warn">${esc(s.lastError)}</dd>` : ''}
@@ -1218,7 +1240,7 @@
              placeholder="${s.tokenSet ? 'Token stored. Paste a new one to replace it' : 'Paste the terminal token'}">
       <select id="aModelProvider" aria-label="Roast model">
         <option value="openai-terra"${s.modelProvider === 'openai-terra' ? ' selected' : ''}>OpenAI current model</option>
-        <option value="openai-mini"${s.modelProvider === 'openai-mini' ? ' selected' : ''}>OpenAI GPT-5 Mini, cheap test</option>
+        <option value="openai-luna"${s.modelProvider === 'openai-luna' ? ' selected' : ''}>OpenAI GPT-6 Luna, cheap test</option>
         <option value="grok"${s.modelProvider === 'grok' ? ' selected' : ''}>xAI Grok 4.7, roast quality test</option>
       </select>
       <div class="acts"><button id="aCheck" class="full">Test the connection</button></div>

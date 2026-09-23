@@ -34,7 +34,7 @@ var packs = map[string]Pack{
 	GitHub: {
 		Key:         GitHub,
 		Name:        "GitHub",
-		Headline:    "Type your GitHub username",
+		Headline:    "Brave enough?",
 		Placeholder: "yourusername",
 		HandleChars: "A-Za-z0-9-",
 		HandleMax:   39,

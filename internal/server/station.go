@@ -134,7 +134,7 @@ func (s *station) setProvider(v string) error {
 }
 
 func (s *station) setModelProvider(v string) error {
-	if v != "openai-terra" && v != "openai-mini" && v != "grok" {
+	if v != "openai-terra" && v != "openai-luna" && v != "openai-mini" && v != "grok" {
 		return fmt.Errorf("unknown roast model %q", v)
 	}
 	s.mu.Lock()
