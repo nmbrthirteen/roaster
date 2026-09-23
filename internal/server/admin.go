@@ -61,6 +61,7 @@ func (s *Server) adminRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/admin/reprint", s.post(s.adminReprint))
 	mux.HandleFunc("/admin/wifi/scan", s.guard(s.wifiScan))
 	mux.HandleFunc("/admin/wifi/connect", s.post(s.wifiConnect))
+	mux.HandleFunc("/admin/wifi/forget", s.post(s.wifiForget))
 	mux.HandleFunc("/admin/restart", s.post(s.adminRestart))
 	mux.HandleFunc("/admin/quit", s.post(s.adminQuit))
 	mux.HandleFunc("/admin/reboot", s.post(s.adminReboot))
@@ -201,7 +202,15 @@ func (s *Server) wifiConnect(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
 	}
-	fmt.Fprintf(w, "Joining %s.", r.FormValue("ssid"))
+	fmt.Fprintf(w, "Connected to %s.", r.FormValue("ssid"))
+}
+
+func (s *Server) wifiForget(w http.ResponseWriter, r *http.Request) {
+	if err := netconf.Forget(r.FormValue("ssid")); err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	fmt.Fprintf(w, "Forgot %s.", r.FormValue("ssid"))
 }
 
 func (s *Server) adminRestart(w http.ResponseWriter, r *http.Request) {

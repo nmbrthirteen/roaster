@@ -9,6 +9,21 @@ import (
 	"strings"
 )
 
+const openProfileTemplate = `<?xml version="1.0"?>
+<WLANProfile xmlns="http://www.microsoft.com/networking/WLAN/profile/v1">
+  <name>{{SSID}}</name>
+  <SSIDConfig><SSID><name>{{SSID}}</name></SSID></SSIDConfig>
+  <connectionType>ESS</connectionType>
+  <connectionMode>auto</connectionMode>
+  <MSM><security>
+    <authEncryption>
+      <authentication>open</authentication>
+      <encryption>none</encryption>
+      <useOneX>false</useOneX>
+    </authEncryption>
+  </security></MSM>
+</WLANProfile>`
+
 const profileTemplate = `<?xml version="1.0"?>
 <WLANProfile xmlns="http://www.microsoft.com/networking/WLAN/profile/v1">
   <name>{{SSID}}</name>
@@ -30,7 +45,11 @@ const profileTemplate = `<?xml version="1.0"?>
 </WLANProfile>`
 
 func tempProfile(ssid, password string) (string, error) {
-	xmlDoc := strings.ReplaceAll(profileTemplate, "{{SSID}}", escape(ssid))
+	template := profileTemplate
+	if password == "" {
+		template = openProfileTemplate
+	}
+	xmlDoc := strings.ReplaceAll(template, "{{SSID}}", escape(ssid))
 	xmlDoc = strings.ReplaceAll(xmlDoc, "{{KEY}}", escape(password))
 
 	path := filepath.Join(os.TempDir(), "roaster-wlan.xml")

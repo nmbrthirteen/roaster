@@ -342,6 +342,11 @@
 
   .admin[data-kb] .panel { padding-bottom: 46vh; }
   .wifi-pass { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 8px; }
+  .wifi-pass.saved { grid-template-columns: 1fr auto auto; }
+  .wifi-pass button { min-height: 64px; border-radius: 0; padding: 16px 18px; border: 1px solid var(--border);
+    font-family: var(--mono); font-size: 18px; font-weight: 600; background: var(--elevated); color: var(--white); }
+  .wifi-pass .drop { color: #ff8585; }
+  .wifi-name { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
   .nets { display: flex; flex-direction: column; gap: 8px; max-height: 280px; overflow-y: auto; }
   .nets button {
     display: flex; justify-content: space-between; gap: 12px; text-align: left;
@@ -349,7 +354,9 @@
     background: var(--elevated); color: var(--white); border: 1px solid var(--border);
     min-height: 60px; border-radius: 0; padding: 14px 16px;
   }
-  .nets button span:last-child { color: var(--subtle); }
+  .nets button span:last-child { color: var(--subtle); white-space: nowrap; }
+  .nets button.on { border-color: var(--primary); }
+  .nets button.on span:last-child { color: var(--primary); }
 
   .pins { display: flex; justify-content: center; gap: 10px; margin: 20px 0 18px; }
   .pins i {
@@ -474,7 +481,7 @@
   // Only characters a handle can hold, laid out like Windows' own touch
   // keyboard. Anything the pack allows beyond letters, digits and a hyphen
   // gets a key at the end of the bottom row.
-  const shifted = { 1: '!', 2: '@', 3: '#', 4: '$', 5: '%', 6: '^', 7: '&', 8: '*', 9: '(', 0: ')', '-': '_', '.': ',', '/': '?', ':': ';' };
+  const shifted = { 1: '!', 2: '@', 3: '#', 4: '$', 5: '%', 6: '^', 7: '&', 8: '*', 9: '(', 0: ')', '-': '_', '.': ',', '/': ':' };
 
   const kb = {
     el: $('kb'),
@@ -501,7 +508,7 @@
       top.append(erase);
 
       const middle = row('');
-      [...'asdfghjkl', ...(full ? [':'] : [])].forEach((ch, i) => {
+      [...'asdfghjkl', ...(full ? [' '] : [])].forEach((ch, i) => {
         const b = this.key(ch, ch);
         if (i === 0) b.classList.add('offset-1');
         middle.append(b);
@@ -567,7 +574,7 @@
 
     // Keys show what they would type.
     relabel() {
-      for (const b of this.el.querySelectorAll('button[data-ch]')) b.textContent = this.out(b.dataset.ch);
+      for (const b of this.el.querySelectorAll('button[data-ch]')) b.textContent = b.dataset.ch === ' ' ? '␣' : this.out(b.dataset.ch);
     },
 
     attach(input, full) {
@@ -998,6 +1005,8 @@
     body: $('adminBody'), said: $('said'),
   };
 
+  let nets = [];
+
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const say = (msg, bad) => { admin.said.textContent = msg; admin.said.classList.toggle('bad', !!bad); };
 
@@ -1096,8 +1105,10 @@
   };
 
   async function refresh() {
-    try { renderMenu(JSON.parse(await call('/admin/state'))); }
-    catch (err) { say(err.message, true); }
+    try {
+      renderMenu(JSON.parse(await call('/admin/state')));
+      if (nets.length) renderNetworks(nets);
+    } catch (err) { say(err.message, true); }
   }
 
   function renderMenu(s) {
@@ -1141,6 +1152,11 @@
       <h3>Wi-Fi</h3>
       <div class="acts"><button id="aScan" class="full">Scan for networks</button></div>
       <div class="nets" id="aNets"></div>
+      <div class="wifi-name">
+        <input id="aSsid" placeholder="Or type the network name" autocomplete="off" autocapitalize="off">
+        <input id="aSsidPass" type="password" placeholder="Password, empty if open" autocomplete="off">
+        <button id="aJoinName" class="full go2">Join</button>
+      </div>
 
       <h3>Event</h3>
       <select id="aEvent">
@@ -1219,10 +1235,22 @@
 
     on('aScan', () => act(async () => {
       say('Scanning...');
-      const nets = JSON.parse(await call('/admin/wifi/scan'));
-      renderNetworks(nets);
-      return nets.length ? `${nets.length} networks.` : 'No networks in range.';
+      const found = JSON.parse(await call('/admin/wifi/scan'));
+      renderNetworks(found);
+      return found.length ? `${found.length} networks. Tap one to join it.` : 'No networks in range.';
     }));
+
+    on('aJoinName', () => {
+      kb.close();
+      const ssid = $('aSsid').value.trim();
+      if (!ssid) return say('Type the network name first.', true);
+      act(async () => {
+        say(`Joining ${ssid}, this takes a few seconds...`);
+        const msg = await call('/admin/wifi/connect', new URLSearchParams({ ssid, password: $('aSsidPass').value }));
+        await refresh();
+        return msg;
+      });
+    });
 
     on('aEvent', async e => {
       try {
@@ -1337,25 +1365,65 @@
     ], () => call('/admin/signout', new URLSearchParams()));
   }
 
-  function renderNetworks(nets) {
+  function renderNetworks(list) {
+    nets = list;
     const box = $('aNets');
     if (!box) return;
-    box.innerHTML = nets.map((n, i) =>
-      `<button data-i="${i}"><span>${esc(n.ssid)}${n.saved ? ' &check;' : ''}</span><span>${n.signal}%${n.secure ? ' &#128274;' : ''}</span></button>`
-    ).join('');
-    const join = (n, password) => act(async () => await call('/admin/wifi/connect', new URLSearchParams({ ssid: n.ssid, password })));
+    box.innerHTML = list.map((n, i) => {
+      const state = n.active ? 'connected' : (n.saved ? 'saved' : '');
+      return `<button data-i="${i}"${n.active ? ' class="on"' : ''}><span>${esc(n.ssid)}</span>` +
+        `<span>${state} ${n.secure ? '&#128274;' : ''} ${n.signal}%</span></button>`;
+    }).join('');
+
+    const join = (n, password) => act(async () => {
+      say(`Joining ${n.ssid}, this takes a few seconds...`);
+      const cell = box.querySelector(`[data-i="${list.indexOf(n)}"] span:last-child`);
+      if (cell) cell.textContent = 'joining...';
+      try {
+        const msg = await call('/admin/wifi/connect', new URLSearchParams({ ssid: n.ssid, password }));
+        list.forEach(o => { o.active = o === n; });
+        n.saved = true;
+        await refresh();
+        return msg;
+      } catch (err) {
+        renderNetworks(list);
+        throw err;
+      }
+    });
+
+    const forget = n => act(async () => {
+      const msg = await call('/admin/wifi/forget', new URLSearchParams({ ssid: n.ssid }));
+      n.saved = false;
+      n.active = false;
+      await refresh();
+      return msg;
+    });
+
     box.querySelectorAll('[data-i]').forEach(b => b.addEventListener('click', () => {
-      const n = nets[Number(b.dataset.i)];
-      box.querySelector('.wifi-pass')?.remove();
-      if (!n.secure || n.saved) return join(n, '');
+      const n = list[Number(b.dataset.i)];
+      const open = box.querySelector('.wifi-pass');
+      const mine = open && open.previousElementSibling === b;
+      open?.remove();
+      kb.close();
+      if (mine) return;
+      if (!n.secure) return join(n, '');
+
       const form = document.createElement('div');
-      form.className = 'wifi-pass';
-      form.innerHTML = `<input type="password" autocomplete="off" placeholder="Password for ${esc(n.ssid)}"><button class="go2">Join</button>`;
+      form.className = n.saved ? 'wifi-pass saved' : 'wifi-pass';
+      const hint = n.saved ? 'Password, empty keeps the saved one' : `Password for ${esc(n.ssid)}`;
+      form.innerHTML = `<input type="password" autocomplete="off" placeholder="${hint}">` +
+        `<button class="go2">${n.active ? 'Rejoin' : 'Join'}</button>` +
+        (n.saved ? '<button class="drop">Forget</button>' : '');
       b.after(form);
       const input = form.querySelector('input');
-      form.querySelector('button').addEventListener('click', () => {
+      form.querySelector('.go2').addEventListener('click', () => {
         kb.close();
-        if (input.value) join(n, input.value);
+        if (input.value || n.saved) join(n, input.value);
+        else say('The network needs a password.', true);
+      });
+      form.querySelector('.drop')?.addEventListener('click', () => {
+        kb.close();
+        forget(n);
       });
       kb.attach(input, true);
     }));

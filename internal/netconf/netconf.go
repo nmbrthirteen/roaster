@@ -8,6 +8,7 @@ type Network struct {
 	Signal int    `json:"signal"` // percent
 	Secure bool   `json:"secure"`
 	Saved  bool   `json:"saved"`
+	Active bool   `json:"active"`
 }
 
 type Status struct {

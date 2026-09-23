@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 var (
@@ -63,6 +64,12 @@ func Scan() ([]Network, error) {
 		list = append(list, n)
 	}
 
+	if now, err := Current(); err == nil && now.Connected {
+		for i := range list {
+			list[i].Active = list[i].SSID == now.SSID
+		}
+	}
+
 	sort.Slice(list, func(a, b int) bool { return list[a].Signal > list[b].Signal })
 	return list, nil
 }
@@ -91,7 +98,7 @@ func Connect(ssid, password string) error {
 	if ssid == "" {
 		return fmt.Errorf("no network chosen")
 	}
-	if password != "" {
+	if password != "" || !saved(ssid) {
 		if err := addProfile(ssid, password); err != nil {
 			return err
 		}
@@ -100,7 +107,35 @@ func Connect(ssid, password string) error {
 	if err != nil {
 		return fmt.Errorf("could not connect: %s", strings.TrimSpace(out))
 	}
-	return nil
+	return joined(ssid)
+}
+
+// netsh reports success the moment it hands the request to Windows, which is
+// before the network answers, so a wrong password looks like a success here.
+func joined(ssid string) error {
+	deadline := time.Now().Add(20 * time.Second)
+	for {
+		time.Sleep(time.Second)
+		if now, err := Current(); err == nil && now.Connected && now.SSID == ssid {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("%s did not let this device on. The password is the usual reason", ssid)
+		}
+	}
+}
+
+func saved(ssid string) bool {
+	out, err := netsh("wlan", "show", "profiles")
+	if err != nil {
+		return false
+	}
+	for _, m := range reProfile.FindAllStringSubmatch(out, -1) {
+		if strings.TrimSpace(m[1]) == ssid {
+			return true
+		}
+	}
+	return false
 }
 
 func Forget(ssid string) error {
