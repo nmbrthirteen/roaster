@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/upgaming/roaster/internal/metric"
 	"github.com/upgaming/roaster/internal/roast"
 )
 
@@ -30,10 +31,10 @@ func TestTheWorstGaugeIsTheOneMentioned(t *testing.T) {
 		gauge("Commits after midnight", 40),
 		gauge("One-word commit messages", 71),
 		gauge("Repos with no description", 50),
-		{Label: "Longest gap between commits", Value: "12 days"},
+		{Label: "Longest quiet stretch", Value: "12 days"},
 	}}
 	got := Fallback(b)
-	if !strings.HasPrefix(got, "71% of your commit messages") {
+	if !strings.HasPrefix(got, "71% of commit messages") {
 		t.Errorf("got %q", got)
 	}
 }
@@ -42,6 +43,73 @@ func TestAQuietAccountStillGetsALine(t *testing.T) {
 	b := Brief{Metrics: []roast.Metric{gauge("Commits after midnight", 5)}}
 	if got := Fallback(b); got == "" || strings.Contains(got, "%") {
 		t.Errorf("a quiet account should get the quiet line, got %q", got)
+	}
+}
+
+func TestAGhostIsRoastedForBeingEmpty(t *testing.T) {
+	b := Brief{
+		Shape: metric.Ghost, Contributions: 9, ActiveDays: 5, CalendarDays: 264, QuietestRun: 223, Read: 1,
+		Metrics: []roast.Metric{gauge("Repos with no description", 100)},
+	}
+	if got := Fallback(b); !strings.Contains(got, "9 contributions") {
+		t.Errorf("a near empty account should hear about its emptiness, got %q", got)
+	}
+	if got := Archetype(b); got != "Director of Empty Calendars" {
+		t.Errorf("archetype %q", got)
+	}
+}
+
+func TestAMachineIsRoastedForTheVolume(t *testing.T) {
+	b := Brief{
+		Shape: metric.Machine, Contributions: 298858, Read: 15,
+		Unused:  []string{"JavaScript"},
+		Metrics: []roast.Metric{gauge("Active days", 99)},
+	}
+	got := Fallback(b)
+	if !strings.Contains(got, "298,858") {
+		t.Errorf("a huge account should hear about the volume, got %q", got)
+	}
+	if _, ok := Clean(got); !ok {
+		t.Errorf("the machine line would not print: %q", got)
+	}
+}
+
+func TestNoFallbackLineNarrates(t *testing.T) {
+	briefs := []Brief{
+		{},
+		{Unused: []string{"Rust"}, Read: 30},
+		{Unused: []string{"Rust"}, Read: 1},
+		{Shape: metric.Ghost, Contributions: 9, ActiveDays: 5, CalendarDays: 264, QuietestRun: 223},
+		{Shape: metric.Machine, Contributions: 298858},
+	}
+	var all []string
+	for _, b := range briefs {
+		for range 3 {
+			line := Fallback(b)
+			all = append(all, line)
+			b.Avoid = append(b.Avoid, line)
+		}
+	}
+	for _, options := range lines {
+		for _, o := range options {
+			all = append(all, fmt.Sprintf(o, "80%"))
+		}
+	}
+	for _, l := range all {
+		if !direct(l) {
+			t.Errorf("a fallback narrates instead of punching: %q", l)
+		}
+	}
+}
+
+func TestANarratedVerdictIsReplaced(t *testing.T) {
+	for _, v := range []string{"You commit at 3am.", "Your repos are empty.", "You’re busy.", "you've shipped nothing."} {
+		if direct(v) {
+			t.Errorf("%q opens with you and should be rejected", v)
+		}
+	}
+	if !direct("Youtube-dl fork number four. Bold.") {
+		t.Errorf("a word that merely starts with you is not narration")
 	}
 }
 
@@ -68,7 +136,7 @@ func TestMissingReadmesCanBeTheLine(t *testing.T) {
 		NoReadme: 8,
 		Metrics:  []roast.Metric{gauge("Commits after midnight", 20)},
 	}
-	if got := Fallback(b); !strings.HasPrefix(got, "80% of your repos have no README") {
+	if got := Fallback(b); !strings.HasPrefix(got, "80% of repos have no README") {
 		t.Errorf("got %q", got)
 	}
 }
@@ -79,7 +147,7 @@ func TestAWorseGaugeStillBeatsMissingReadmes(t *testing.T) {
 		NoReadme: 4,
 		Metrics:  []roast.Metric{gauge("One-word commit messages", 90)},
 	}
-	if got := Fallback(b); !strings.HasPrefix(got, "90% of your commit messages") {
+	if got := Fallback(b); !strings.HasPrefix(got, "90% of commit messages") {
 		t.Errorf("got %q", got)
 	}
 }

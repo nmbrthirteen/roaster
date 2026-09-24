@@ -24,6 +24,7 @@ func fakeOpenAI(t *testing.T, replies ...[2]string) (OpenAI, *map[string]any, *a
 			t.Errorf("the key should travel as a bearer header, got %q", got)
 		}
 		body, _ := io.ReadAll(r.Body)
+		asked = nil
 		json.Unmarshal(body, &asked)
 
 		reply := replies[min(n, len(replies)-1)]
@@ -51,8 +52,34 @@ func said(text string) [2]string {
 	return [2]string{"200", string(b)}
 }
 
+func TestAModelWithoutReasoningEffortIsAskedAgainWithoutIt(t *testing.T) {
+	refused := [2]string{"400", `{"code":"invalid-argument","error":"Model grok-4.20-0309-non-reasoning does not support parameter reasoningEffort."}`}
+	o, asked, calls := fakeOpenAI(t, refused, said(page("60% of commits at 3am. It shows.")))
+	got, err := o.Write(context.Background(), brief())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if calls.Load() != 2 {
+		t.Errorf("want one retry, got %d calls", calls.Load())
+	}
+	if _, sent := (*asked)["reasoning"]; sent {
+		t.Errorf("the retry should leave reasoning out")
+	}
+	if got.Verdict != "60% of commits at 3am. It shows." {
+		t.Errorf("verdict %q", got.Verdict)
+	}
+}
+
+func TestAnXAIErrorSaysWhatWentWrong(t *testing.T) {
+	o, _, _ := fakeOpenAI(t, [2]string{"401", `{"code":"unauthenticated","error":"bad key"}`})
+	_, err := o.Write(context.Background(), brief())
+	if err == nil || !strings.Contains(err.Error(), "bad key") {
+		t.Errorf("the xAI error text should reach the log, got %v", err)
+	}
+}
+
 func TestTheOpenAIRequestIsWhatWeMeanToSend(t *testing.T) {
-	o, asked, _ := fakeOpenAI(t, said(page("You commit at 3am and it shows.")))
+	o, asked, _ := fakeOpenAI(t, said(page("60% of commits at 3am. It shows.")))
 	if _, err := o.Write(context.Background(), brief()); err != nil {
 		t.Fatal(err)
 	}
@@ -85,18 +112,18 @@ func TestTheOpenAIRequestIsWhatWeMeanToSend(t *testing.T) {
 }
 
 func TestAnOpenAIPageComesBackAsWritten(t *testing.T) {
-	o, _, _ := fakeOpenAI(t, said(page("You commit at 3am, and it shows.")))
+	o, _, _ := fakeOpenAI(t, said(page("60% of commits at 3am, and it shows.")))
 	got, err := o.Write(context.Background(), brief())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Verdict != "You commit at 3am, and it shows." || got.Archetype != "The 3am Refactorer" {
+	if got.Verdict != "60% of commits at 3am, and it shows." || got.Archetype != "The 3am Refactorer" {
 		t.Errorf("got %+v", got)
 	}
 }
 
 func TestAnOpenAIReplyThatIsNotAPageIsUnusable(t *testing.T) {
-	o, _, _ := fakeOpenAI(t, said("You commit at 3am and it shows."))
+	o, _, _ := fakeOpenAI(t, said("60% of commits at 3am. It shows."))
 	if _, err := o.Write(context.Background(), brief()); !errors.Is(err, ErrUnusable) {
 		t.Errorf("want ErrUnusable, got %v", err)
 	}

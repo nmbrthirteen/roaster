@@ -23,7 +23,7 @@ func stocked() Brief {
 func TestAGoodPageIsTakenWhole(t *testing.T) {
 	p := Merge(stocked(), Page{
 		Archetype: "Head of Night Shifts",
-		Verdict:   `"You commit at 3am and it shows."`,
+		Verdict:   `"60% of commits at 3am. It shows."`,
 		Strengths: []string{"Written strength."},
 		Actions:   []string{"Written action one.", "Written action two."},
 		Findings:  []string{"Written finding."},
@@ -31,7 +31,7 @@ func TestAGoodPageIsTakenWhole(t *testing.T) {
 	})
 	want := Page{
 		Archetype: "Head of Night Shifts",
-		Verdict:   "You commit at 3am and it shows.",
+		Verdict:   "60% of commits at 3am. It shows.",
 		Strengths: []string{"Written strength."},
 		Actions:   []string{"Written action one.", "Written action two."},
 		Findings:  []string{"Written finding."},

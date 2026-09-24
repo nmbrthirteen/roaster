@@ -23,12 +23,25 @@ func Clean(s string) (string, bool) {
 	s = strings.ReplaceAll(s, "**", "")
 	s = strings.Join(strings.Fields(s), " ")
 	s = strings.TrimLeft(s, "# ")
-	s = strings.Trim(s, "\"'“”‘’ ")
+	s = unwrap(strings.TrimSpace(s))
 
 	if s == "" || blocked.MatchString(s) {
 		return "", false
 	}
 	return fit(s, maxVerdict), true
+}
+
+var quotePairs = map[rune]rune{'"': '"', '\'': '\'', '“': '”', '‘': '’'}
+
+func unwrap(s string) string {
+	r := []rune(s)
+	if len(r) < 2 {
+		return s
+	}
+	if closing, ok := quotePairs[r[0]]; ok && r[len(r)-1] == closing && strings.Count(s, string(r[0])) <= 2 {
+		return strings.TrimSpace(string(r[1 : len(r)-1]))
+	}
+	return s
 }
 
 // fit cuts an overlong verdict at the last sentence that fits, or failing that

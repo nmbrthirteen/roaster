@@ -347,7 +347,7 @@ go run ./cmd/roastd
   moment share a single GitHub request.
 - **Load is bounded.** Sixteen audits run at once across every stand. A request
   that cannot get a slot within ten seconds is told the service is busy, rather
-  than left hanging, and every audit is capped at forty seconds.
+  than left hanging, and every audit is capped at fifty-five seconds.
 - **Each stand is limited.** A burst of six, then one every three seconds, which
   no queue of humans reaches and a stolen token does.
 - **It keeps nothing it cannot lose.** Scale it by running more copies behind a

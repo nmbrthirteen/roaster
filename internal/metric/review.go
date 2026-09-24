@@ -88,11 +88,11 @@ func Strengths(f github.Facts) []string {
 	gap := quietest(f)
 	y := f.Year
 
-	add(total >= 1000, fmt.Sprintf("%s contributions this year. Genuinely impressive. Please sleep.", thousands(total)))
+	add(total >= 1000, fmt.Sprintf("%s contributions this year. Genuinely impressive. Please sleep.", Thousands(total)))
 	add(len(f.Year.Days) > 0 && total > 0 && gap <= 3, fmt.Sprintf("Never more than %s off all year. Admirable. Mildly alarming.", count(gap, "day")))
-	add(stars >= 100, fmt.Sprintf("%s stars. People actually use your stuff, which is brave of them.", thousands(stars)))
+	add(stars >= 100, fmt.Sprintf("%s stars. People actually use your stuff, which is brave of them.", Thousands(stars)))
 	add(y.Reviews >= 20, fmt.Sprintf("%d code reviews this year. Somebody has to read all that code.", y.Reviews))
-	add(f.Followers >= 100, fmt.Sprintf("%s followers. They want to see what breaks next.", thousands(f.Followers)))
+	add(f.Followers >= 100, fmt.Sprintf("%s followers. They want to see what breaks next.", Thousands(f.Followers)))
 	add(len(f.Repos) >= 3 && undescribed(f.Repos) == 0, "Every repo has a description. Rare. Almost suspicious.")
 	add(len(f.Commits) >= 20 && share(f.Commits, oneWord) == 0, "Zero one-word commit messages. Your reviewers wept with joy.")
 	add(total > 0 && total < 1000, fmt.Sprintf("%s this year. It counts. We checked.", count(total, "contribution")))
@@ -103,7 +103,7 @@ func Strengths(f github.Facts) []string {
 }
 
 // thousands writes 85367 as 85,367, the way a receipt should.
-func thousands(n int) string {
+func Thousands(n int) string {
 	s := fmt.Sprint(n)
 	for i := len(s) - 3; i > 0; i -= 3 {
 		s = s[:i] + "," + s[i:]
@@ -245,7 +245,13 @@ func quietest(f github.Facts) int {
 func Habits(f github.Facts, now time.Time) []roast.Finding {
 	var out []roast.Finding
 	if len(f.Commits) > 0 {
-		out = append(out, vocabulary(f.Commits), peakHour(f.Commits), busiestDay(f.Commits), wordiness(f.Commits))
+		out = append(out, vocabulary(f.Commits), peakHour(f.Commits))
+	}
+	if contributed(f) > 0 {
+		out = append(out, busiestDay(f))
+	}
+	if len(f.Commits) > 0 {
+		out = append(out, wordiness(f.Commits))
 	}
 
 	dead, issues := 0, 0
@@ -341,10 +347,12 @@ func peakHour(commits []github.Commit) roast.Finding {
 	return f
 }
 
-func busiestDay(commits []github.Commit) roast.Finding {
+const thinSample = ghostContributions
+
+func busiestDay(facts github.Facts) roast.Finding {
 	var days [7]int
-	for _, c := range commits {
-		days[c.At.Weekday()]++
+	for _, d := range facts.Year.Days {
+		days[d.Date.Weekday()] += d.Count
 	}
 	top := 0
 	for d, n := range days {
@@ -354,6 +362,10 @@ func busiestDay(commits []github.Commit) roast.Finding {
 	}
 	day := time.Weekday(top)
 	f := roast.Finding{Title: "Busiest day", Value: day.String()}
+	if total := contributed(facts); total < thinSample {
+		f.Line = fmt.Sprintf("%s all year. Busiest is a generous word.", count(total, "contribution"))
+		return f
+	}
 	switch day {
 	case time.Saturday, time.Sunday:
 		f.Line = "Weekend warrior. The weekend did not ask for this."

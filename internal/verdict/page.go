@@ -2,6 +2,7 @@ package verdict
 
 import (
 	"encoding/json"
+	"regexp"
 	"strings"
 	"unicode/utf8"
 
@@ -55,7 +56,7 @@ func parse(text string) (Page, error) {
 
 func Merge(b Brief, p Page) Page {
 	out := Written(b)
-	if v, ok := Clean(p.Verdict); ok {
+	if v, ok := Clean(p.Verdict); ok && direct(v) {
 		out.Verdict = v
 	}
 	if a, ok := label(p.Archetype); ok {
@@ -111,6 +112,12 @@ func overlay(stock, written []string, max int) []string {
 		}
 	}
 	return out
+}
+
+var narrated = regexp.MustCompile(`(?i)^(you|your|you're|youre|you've|youve|you'd|you'll)\b`)
+
+func direct(verdict string) bool {
+	return !narrated.MatchString(strings.ReplaceAll(verdict, "’", "'"))
 }
 
 func label(s string) (string, bool) {

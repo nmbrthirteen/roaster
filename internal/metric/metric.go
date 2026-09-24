@@ -8,6 +8,7 @@ package metric
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -29,9 +30,9 @@ func From(f github.Facts) []roast.Metric {
 	m := []roast.Metric{
 		gauge("Commits after midnight", share(f.Commits, atNight),
 			[3]string{"sleeps", "owl", "vampire"}),
-		gauge("Weekends with commits", days(f, isWeekend),
+		gauge("Active weekends", days(f, isWeekend),
 			[3]string{"rested", "restless", "no brakes"}),
-		gauge("Days with commits", days(f, func(time.Time) bool { return true }),
+		gauge("Active days", days(f, everyDay),
 			[3]string{"casual", "committed", "no off switch"}),
 		gauge("Repos with no description", undescribed(f.Repos),
 			[3]string{"clear", "vague", "ghosted"}),
@@ -55,9 +56,87 @@ func From(f github.Facts) []roast.Metric {
 
 const untested = "untested"
 
-// Score and its severity band are the roast's own, so the demo and the real
-// audit cannot drift apart on what a number means.
-func Score(metrics []roast.Metric) int { return roast.Score(metrics) }
+type Shape string
+
+const (
+	Ghost   Shape = "ghost"
+	Dabbler Shape = "dabbler"
+	Regular Shape = "regular"
+	Grinder Shape = "grinder"
+	Machine Shape = "machine"
+)
+
+const (
+	ghostContributions   = 50
+	ghostActiveDays      = 5
+	dabblerActiveDays    = 25
+	grinderActiveDays    = 66
+	machineContributions = 50000
+)
+
+func ShapeOf(f github.Facts) Shape {
+	total, active := contributed(f), days(f, everyDay)
+	switch {
+	case total < ghostContributions || active < ghostActiveDays:
+		return Ghost
+	case active < dabblerActiveDays:
+		return Dabbler
+	case total >= machineContributions:
+		return Machine
+	case active >= grinderActiveDays:
+		return Grinder
+	default:
+		return Regular
+	}
+}
+
+func Score(f github.Facts) int {
+	active := days(f, everyDay)
+	grind := (active + days(f, isWeekend) + share(f.Commits, atNight) + 3*volume(contributed(f))) / 6
+	neglect := (2*(100-active) + percent(quietest(f), len(f.Year.Days)) +
+		emptyOr(f.Repos, undescribed) + emptyOr(f.Repos, missingReadme) + share(f.Commits, oneWord)) / 6
+	return min(100, max(grind, neglect))
+}
+
+func volume(total int) int {
+	if total <= 100 {
+		return 0
+	}
+	return min(100, int(math.Round((math.Log10(float64(total))-2)*100/3)))
+}
+
+func emptyOr(repos []github.Repo, measure func([]github.Repo) int) int {
+	if len(repos) == 0 {
+		return 100
+	}
+	return measure(repos)
+}
+
+func missingReadme(repos []github.Repo) int {
+	n := 0
+	for _, r := range repos {
+		if !r.Readme {
+			n++
+		}
+	}
+	return percent(n, len(repos))
+}
+
+func Contributed(f github.Facts) int { return contributed(f) }
+
+func ActiveDays(f github.Facts) int {
+	n := 0
+	for _, d := range f.Year.Days {
+		if d.Count > 0 {
+			n++
+		}
+	}
+	return n
+}
+
+func Quietest(f github.Facts) int { return quietest(f) }
+
+func everyDay(time.Time) bool { return true }
 
 func atNight(c github.Commit) bool {
 	return c.At.Hour() < nightEnds
@@ -136,7 +215,7 @@ func undescribed(repos []github.Repo) int {
 // on it. The calendar is the only source that covers private work, and then
 // only as a count, so a quiet stretch here is a genuinely quiet stretch.
 func longestGap(f github.Facts) roast.Metric {
-	const label = "Longest gap between commits"
+	const label = "Longest quiet stretch"
 
 	if len(f.Year.Days) == 0 {
 		return roast.Metric{Label: label, Value: "unknown"}

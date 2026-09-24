@@ -74,7 +74,7 @@ func run(t *testing.T, a Audit, handle string) (roast.Roast, []roast.Update, err
 // The page animates each stage as it lands, in this order, and the done update
 // is what it prints from.
 func TestAnAuditArrivesInOrder(t *testing.T) {
-	a := Audit{GitHub: &reader{facts: account()}, Writer: writer{line: "You commit at 3am and it shows."}}
+	a := Audit{GitHub: &reader{facts: account()}, Writer: writer{line: "60% of commits at 3am. It shows."}}
 	r, updates, err := run(t, a, "@nmbrthirteen")
 	if err != nil {
 		t.Fatal(err)
@@ -84,12 +84,12 @@ func TestAnAuditArrivesInOrder(t *testing.T) {
 	for _, u := range updates {
 		phases = append(phases, u.Phase)
 	}
-	want := "fetch section section section section feed metric metric metric metric metric metric verdict verdict done"
+	want := "fetch section section section section feed metric metric metric metric metric metric section verdict verdict done"
 	if got := strings.Join(phases, " "); got != want {
 		t.Errorf("phases\n got %s\nwant %s", got, want)
 	}
 
-	if r.Verdict != "You commit at 3am and it shows." {
+	if r.Verdict != "60% of commits at 3am. It shows." {
 		t.Errorf("the verdict should be the one written, got %q", r.Verdict)
 	}
 	if r.Code == "" || r.Handle != "nmbrthirteen" || len(r.Actions) != 3 {
@@ -143,7 +143,7 @@ func TestTheWrittenPageReplacesTheStockLines(t *testing.T) {
 	for i := range habits {
 		habits[i] = fmt.Sprintf("Habit line %d.", i+1)
 	}
-	w := writer{line: "You commit at 3am and it shows.", page: verdict.Page{
+	w := writer{line: "60% of commits at 3am. It shows.", page: verdict.Page{
 		Archetype: "The 3am Refactorer",
 		Actions:   actions,
 		Habits:    habits,

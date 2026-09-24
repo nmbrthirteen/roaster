@@ -69,6 +69,17 @@ func TestTheStandAnswers(t *testing.T) {
 		t.Errorf("/kiosk should render the page, got %d", w.Code)
 	}
 
+	_, boot, _ := strings.Cut(w.Body.String(), `<script type="application/json" id="boot">`)
+	boot, _, _ = strings.Cut(boot, "</script>")
+	var settings struct {
+		Pack      roast.Pack `json:"pack"`
+		ShareBase string     `json:"shareBase"`
+		TimeZone  string     `json:"timeZone"`
+	}
+	if err := json.Unmarshal([]byte(boot), &settings); err != nil || settings.Pack.Key == "" || len(settings.Pack.Waiting) == 0 || settings.TimeZone == "" {
+		t.Errorf("the kiosk settings should arrive as JSON, got %v from %q", err, boot)
+	}
+
 	if w := get(t, h, "/"); w.Code != http.StatusFound || w.Header().Get("Location") != "/kiosk" {
 		t.Errorf("the root should land on the kiosk, got %d to %q", w.Code, w.Header().Get("Location"))
 	}

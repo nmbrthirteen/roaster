@@ -36,9 +36,9 @@ type openAIRequest struct {
 	Instructions string `json:"instructions"`
 	Input        string `json:"input"`
 	MaxOutput    int    `json:"max_output_tokens"`
-	Reasoning    struct {
+	Reasoning    *struct {
 		Effort string `json:"effort"`
-	} `json:"reasoning"`
+	} `json:"reasoning,omitempty"`
 	Text struct {
 		Format openAIFormat `json:"format"`
 	} `json:"text"`
@@ -82,6 +82,23 @@ type openAIError struct {
 	} `json:"error"`
 }
 
+type xAIError struct {
+	Code  string `json:"code"`
+	Error string `json:"error"`
+}
+
+func errorText(raw []byte) string {
+	var e openAIError
+	if json.Unmarshal(raw, &e) == nil && e.Error.Message != "" {
+		return strings.TrimSpace(e.Error.Type + " " + e.Error.Message)
+	}
+	var x xAIError
+	if json.Unmarshal(raw, &x) == nil && x.Error != "" {
+		return strings.TrimSpace(x.Code + " " + x.Error)
+	}
+	return ""
+}
+
 func (o OpenAI) Write(ctx context.Context, b Brief) (Page, error) {
 	provider := o.providerName()
 	if o.Key == "" {
@@ -98,15 +115,17 @@ func (o OpenAI) Write(ctx context.Context, b Brief) (Page, error) {
 		Input:        b.Render() + ask,
 		MaxOutput:    8192,
 	}
-	req.Reasoning.Effort = "low"
+	req.Reasoning = &struct {
+		Effort string `json:"effort"`
+	}{Effort: "low"}
 	req.Text.Format = openAIFormat{Type: "json_schema", Name: "roast", Schema: schema, Strict: true}
-	body, err := json.Marshal(req)
-	if err != nil {
-		return Page{}, err
-	}
 
 	started := time.Now()
-	resp, err := o.post(ctx, body)
+	resp, err := o.send(ctx, req)
+	if err != nil && strings.Contains(err.Error(), "reasoningEffort") {
+		req.Reasoning = nil
+		resp, err = o.send(ctx, req)
+	}
 	if err != nil {
 		return Page{}, err
 	}
@@ -141,6 +160,14 @@ func (o OpenAI) Write(ctx context.Context, b Brief) (Page, error) {
 		return Page{}, ErrDeclined
 	}
 	return parse(text.String())
+}
+
+func (o OpenAI) send(ctx context.Context, req openAIRequest) (openAIResponse, error) {
+	body, err := json.Marshal(req)
+	if err != nil {
+		return openAIResponse{}, err
+	}
+	return o.post(ctx, body)
 }
 
 // post sends the request, trying once more on a dropped connection, a rate
@@ -198,9 +225,7 @@ func (o OpenAI) post(ctx context.Context, body []byte) (openAIResponse, error) {
 
 		// The error body says what went wrong. The key is never in it, and it
 		// never goes anywhere but the log.
-		var e openAIError
-		json.Unmarshal(raw, &e)
-		last = fmt.Errorf("%s returned %s: %s %s", o.providerName(), res.Status, e.Error.Type, e.Error.Message)
+		last = fmt.Errorf("%s returned %s: %s", o.providerName(), res.Status, errorText(raw))
 
 		if res.StatusCode != http.StatusTooManyRequests && res.StatusCode < 500 {
 			return openAIResponse{}, last

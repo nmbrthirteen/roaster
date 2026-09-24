@@ -24,6 +24,8 @@ type Pack struct {
 	// with {handle} filled in. It must read as a joke, never as a failure.
 	Quiet [][2]string `json:"quiet"`
 
+	Waiting [][2]string `json:"waiting"`
+
 	Calendar  string    `json:"-"` // section label over the heatmap
 	Spotless  string    `json:"-"` // under a calendar with nothing on it
 	Exhibit   string    `json:"-"` // over the quoted item
@@ -50,6 +52,16 @@ var packs = map[string]Pack{
 			{"out", "nothing to commit, working tree clean"},
 			{"cmd", "echo \"we respect the mystery\""},
 			{"out", "we respect the mystery"},
+		},
+		Waiting: [][2]string{
+			{"./roast draft --count 5", "five drafts written. keeping the meanest one."},
+			{"./roast sharpen --harder", "the first draft was too polite. rewriting."},
+			{"sed -i 's/nice/honest/g' verdict.txt", "compliments removed."},
+			{"./roast ask --senior-engineer", "they laughed. that counts as approval."},
+			{"./roast check --read-aloud-safe", "clean enough for the queue behind you."},
+			{"git blame verdict.txt", "blame assigned. you know where."},
+			{"./roast fact-check verdict.txt", "every number is yours. we only added the pain."},
+			{"sleep 1  # dramatic pause", "..."},
 		},
 		Calendar: "Contribution calendar",
 		Spotless: "A spotless calendar. Nothing here can be used against you.",

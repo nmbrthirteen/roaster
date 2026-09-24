@@ -38,6 +38,12 @@ type Brief struct {
 	Score   int
 	Metrics []roast.Metric
 
+	Shape         metric.Shape
+	Contributions int
+	ActiveDays    int
+	CalendarDays  int
+	QuietestRun   int
+
 	Owned     int
 	Forked    int
 	Read      int // repositories read, the most recently pushed
@@ -75,9 +81,16 @@ type Brief struct {
 func From(f github.Facts, metrics []roast.Metric, now time.Time) Brief {
 	claimed := metric.Claimed(f.Readme)
 	b := Brief{
-		Years:      years(f.Created, now),
-		Score:      metric.Score(metrics),
-		Metrics:    metrics,
+		Years:   years(f.Created, now),
+		Score:   metric.Score(f),
+		Metrics: metrics,
+
+		Shape:         metric.ShapeOf(f),
+		Contributions: metric.Contributed(f),
+		ActiveDays:    metric.ActiveDays(f),
+		CalendarDays:  len(f.Year.Days),
+		QuietestRun:   metric.Quietest(f),
+
 		Owned:      f.Owned,
 		Forked:     f.Forked,
 		Read:       len(f.Repos),
@@ -127,6 +140,9 @@ func (b Brief) Render() string {
 
 	line("<account>")
 	line("On GitHub for %s. Roast score %d / 100 (%s).", plural(b.Years, "year"), b.Score, roast.Severity(b.Score))
+	line("Account shape: %s. %s", b.Shape, shapes[b.Shape])
+	line("Contribution calendar, private included: %s over %d days. %d days active, %d days empty. Longest run of empty days in a row: %d.",
+		plural(b.Contributions, "contribution"), b.CalendarDays, b.ActiveDays, b.CalendarDays-b.ActiveDays, b.QuietestRun)
 	line("")
 	line("Measured:")
 	for _, m := range b.Metrics {
@@ -205,6 +221,14 @@ func (b Brief) Render() string {
 		}
 	}
 	return s.String()
+}
+
+var shapes = map[metric.Shape]string{
+	metric.Ghost:   "Barely here. The emptiness is the joke: the silence, the few repos, the blank descriptions.",
+	metric.Dabbler: "Shows up now and then. The gaps and the half started repos are the joke.",
+	metric.Regular: "A normal pace. The joke is the most specific habit in the commits and repos.",
+	metric.Grinder: "Commits most days, weekends too. The joke is that there is no off switch.",
+	metric.Machine: "Enormous volume. The joke is the sheer amount, and what it says about days off.",
 }
 
 func facts(fs []roast.Finding) []string {

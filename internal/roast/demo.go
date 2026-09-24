@@ -115,11 +115,11 @@ func Sample(handle string) Roast {
 func build(handle string, rng *rand.Rand) Roast {
 	metrics := []Metric{
 		gauge("Commits after midnight", rng, 15, 90, [3]string{"sleeps", "owl", "vampire"}),
-		gauge("Weekends with commits", rng, 5, 85, [3]string{"rested", "restless", "no brakes"}),
-		gauge("Days with commits", rng, 10, 95, [3]string{"casual", "committed", "no off switch"}),
+		gauge("Active weekends", rng, 5, 85, [3]string{"rested", "restless", "no brakes"}),
+		gauge("Active days", rng, 10, 95, [3]string{"casual", "committed", "no off switch"}),
 		gauge("Repos with no description", rng, 20, 95, [3]string{"clear", "vague", "ghosted"}),
 		gauge("One-word commit messages", rng, 20, 95, [3]string{"poet", "brief", "caveman"}),
-		{Label: "Longest gap between commits", Value: fmt.Sprintf("%d days", 40+rng.Intn(400))},
+		{Label: "Longest quiet stretch", Value: fmt.Sprintf("%d days", 40+rng.Intn(400))},
 	}
 
 	score := Score(metrics)

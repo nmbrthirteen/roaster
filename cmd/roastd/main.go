@@ -92,7 +92,7 @@ func main() {
 	svc := newService(router, cfg.tokens, limits{
 		slots:  cfg.parallel,
 		queue:  10 * time.Second,
-		budget: 40 * time.Second,
+		budget: 55 * time.Second,
 		every:  3 * time.Second,
 		burst:  6,
 	})
@@ -147,7 +147,7 @@ func fromEnv(env func(string) string) (settings, error) {
 		strapiToken: env("STRAPI_TOKEN"),
 	}
 	if cfg.grokModel == "" {
-		cfg.grokModel = "grok-4.7"
+		cfg.grokModel = "grok-4.6"
 	}
 	// OpenAI when its key is there, Claude when only that one is, and the
 	// numbers alone when neither is. One writer, chosen once, logged at start.

@@ -126,6 +126,22 @@ func contributions(f github.Facts) roast.Section {
 	return s
 }
 
+const evidenceLines = 8
+
+func Evidence(handle string, habits, findings []roast.Finding) roast.Section {
+	s := roast.Section{Cmd: "./roast evidence " + handle}
+	for _, f := range append(append([]roast.Finding(nil), habits...), findings...) {
+		if len(s.Lines) == evidenceLines {
+			break
+		}
+		s.Lines = append(s.Lines, fmt.Sprintf("%-22s %s", strings.ToLower(f.Title), shown(f.Value, 40)))
+	}
+	if len(s.Lines) == 0 {
+		s.Lines = append(s.Lines, "# not much evidence. the verdict will have to improvise honestly.")
+	}
+	return s
+}
+
 // ago is how gh prints an update time, rounded to the largest unit.
 func ago(t, now time.Time) string {
 	if t.IsZero() {

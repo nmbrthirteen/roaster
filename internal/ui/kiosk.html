@@ -476,15 +476,14 @@
   </div>
 </div>
 
+<script type="application/json" id="boot">{"pack": {{.Pack}}, "shareBase": {{.Receipt.ShareBase}}, "timeZone": {{.TimeZone}}}</script>
 <script>
 (() => {
   const $ = id => document.getElementById(id);
   const screens = ['entry', 'audit', 'result'];
 
   // Set in the hidden menu. Brings the handle rules and the loader's words.
-  const pack = {{.Pack}};
-  const shareBase = {{.Receipt.ShareBase}};
-  const timeZone = {{.TimeZone}};
+  const { pack, shareBase, timeZone } = JSON.parse($('boot').textContent);
   const clock = (d, opts) => new Intl.DateTimeFormat('en-US', { timeZone, hourCycle: 'h23', ...opts }).format(d);
   const handleRule = new RegExp('[^' + pack.handleChars + ']', 'g');
 
@@ -767,9 +766,10 @@
       // The reading always plays to the end, however fast the verdict comes
       // back: it is half the fun. The verdict is typed last, and the result
       // screen follows once it has been read.
-      if (u.phase === 'verdict' && !u.verdict) feed.push(() => { stage('verdict'); if (!verdictIn) line('dim', 'waiting for the verdict...'); }, 0);
+      if (u.phase === 'verdict' && !u.verdict) feed.push(() => { stage('verdict'); if (!verdictIn) feed.stall(); }, 0);
       if (u.phase === 'verdict' && u.verdict) {
         verdictIn = true;
+        feed.unstall();
         feed.push(() => { stage('verdict'); typeVerdict(u.verdict); }, typingTime('cat verdict.txt') + 14 * u.verdict.length + 1500);
       }
       if (u.phase === 'done') { roast = u.roast; src.close(); feed.push(() => stream === src && finish(), 0); }
@@ -889,11 +889,28 @@
       this.timer = setTimeout(() => this.next(), s.pause);
     },
 
-    stop() { clearTimeout(this.timer); this.timer = null; this.steps = []; this.lanes.clear(); this.sections = 0; this.measuring = false; },
+    stop() { clearTimeout(this.timer); this.timer = null; this.steps = []; this.lanes.clear(); this.sections = 0; this.measuring = false; this.stalled = 0; this.unstall(); },
+
+    stalling: null, stalled: 0,
+
+    stall() {
+      if (this.stalling || !(pack.waiting || []).length) return;
+      const say = () => {
+        const [cmd, out] = pack.waiting[this.stalled++ % pack.waiting.length];
+        line('cmd', cmd);
+        this.stalling = setTimeout(() => {
+          line('dim', out);
+          this.stalling = setTimeout(say, 1600);
+        }, typingTime(cmd) + 700);
+      };
+      this.stalling = setTimeout(say, 400);
+    },
+
+    unstall() { clearTimeout(this.stalling); this.stalling = null; },
 
     // A command is typed, so it waits for its own typing before the output.
     section(sec) {
-      const step = ['profile', 'readme', 'repos', 'year'][this.sections++];
+      const step = ['profile', 'readme', 'repos', 'year', 'verdict'][this.sections++];
       this.push(() => { if (step) stage(step); line('cmd', sec.cmd); }, typingTime(sec.cmd));
       for (const text of sec.lines || []) this.push(() => line('out', text), this.line);
     },

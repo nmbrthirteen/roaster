@@ -3,6 +3,8 @@ package verdict
 import (
 	"fmt"
 	"strings"
+
+	"github.com/upgaming/roaster/internal/metric"
 )
 
 // A gauge below this is not the most interesting thing about anybody.
@@ -17,34 +19,34 @@ const noReadme = "Repos with no README"
 // Each has a few, because the person behind in the queue has read the last one.
 var lines = map[string][]string{
 	"Commits after midnight": {
-		"%s of your commits land after midnight. Nobody reviews code at 3am, and it shows.",
-		"%s of your commits come after midnight. It reads like it was written half asleep.",
-		"%s of your commits happen after midnight. The bugs work the night shift here.",
+		"%s of commits after midnight. The bugs work the night shift.",
+		"%s of commits after midnight. Written half asleep, reviewed by nobody.",
+		"%s of commits after midnight. Sleep was optional. So was testing.",
 	},
-	"Weekends with commits": {
-		"Commits on %s of weekends. Saturday is a workday here, and nobody is paying for it.",
-		"%s of weekends have commits in them. Your friends stopped asking. The repo never did.",
-		"Weekend commits on %s of weekends. That is a second job with no salary.",
+	"Active weekends": {
+		"Activity on %s of weekends. Saturday is a workday with no salary.",
+		"%s of weekends busy. The repo sees more Saturdays than the sofa.",
+		"%s of weekends busy. A second job nobody is paying for.",
 	},
-	"Days with commits": {
-		"Commits on %s of days this year. It isn't a streak, it's a hostage situation.",
-		"Commits on %s of days this year. The green squares get more sunlight than you do.",
-		"%s of this year's days have commits on them. A day off is a rumor in this repo.",
+	"Active days": {
+		"Activity on %s of days. Not a streak. A hostage situation.",
+		"%s of days active. A day off is a rumor here.",
+		"%s of days green. The calendar forgot what grey looks like.",
 	},
 	"Repos with no description": {
-		"%s of your repos have no description. Even you have to click in to find out.",
-		"No description on %s of your repos. Naming them was the whole plan.",
-		"%s of your repos have no description. A shop with no signs and no customers.",
+		"%s of repos with no description. Mystery is not a feature.",
+		"No description on %s of repos. Naming them was the whole plan.",
+		"%s of repos undescribed. A shop with no signs and no customers.",
 	},
 	"One-word commit messages": {
-		"%s of your commit messages are one word. The next person on this code gets zero help.",
-		"%s of your commit messages are one word. The history reads like a shopping list for bugs.",
-		`%s of your commit messages are one word. "fix" fixed what? Nobody will ever know.`,
+		"%s of commit messages are one word. The next reader gets zero help.",
+		"%s of commit messages are one word. A shopping list for bugs.",
+		`%s of commit messages are one word. "fix" fixed what? Nobody knows.`,
 	},
 	noReadme: {
-		"%s of your repos have no README. To install one, read the code and pray.",
-		"No README on %s of your repos. The setup guide lives in your head.",
-		"%s of your repos ship with no README. Good luck to whoever finds them next.",
+		"%s of repos have no README. Install guide: read the code and pray.",
+		"No README on %s of repos. The docs live in one head.",
+		"%s of repos ship with no README. Good luck to whoever clones one.",
 	},
 }
 
@@ -53,18 +55,12 @@ var lines = map[string][]string{
 // because it only says what was measured, and it never fails, so a visitor
 // always leaves with a receipt.
 func Fallback(b Brief) string {
-	switch len(b.Unused) {
-	case 0:
-	case 1:
-		return fresh(b.Avoid, b.Unused[0],
-			"Your README claims %s. Your repos have never heard of it.",
-			"Your README lists %s. Your code has no idea.",
-		)
-	default:
-		return fresh(b.Avoid, and(b.Unused),
-			"Your README claims %s. Your repos can't back up a single one.",
-			"Your README lists %s. Nobody told your code.",
-		)
+	if options := shaped(b); len(options) > 0 {
+		return fresh(b.Avoid, "", options...)
+	}
+
+	if options := claimed(b); len(options) > 0 {
+		return fresh(b.Avoid, "", options...)
 	}
 
 	if best, value := worst(b); best != "" {
@@ -72,10 +68,51 @@ func Fallback(b Brief) string {
 	}
 
 	return fresh(b.Avoid, "",
-		"Your public GitHub is so empty it echoes. Hard to write bugs with no code.",
+		"Nothing public. Hard to ship bugs with no code.",
 		"Nothing public to roast. The safest way to never ship a bug is to never ship.",
 		"Zero public activity. The perfect codebase is the one nobody can see.",
 	)
+}
+
+func claimed(b Brief) []string {
+	if len(b.Unused) == 0 {
+		return nil
+	}
+	langs := and(b.Unused)
+	switch b.Read {
+	case 0:
+		return []string{fmt.Sprintf("%s on the badges. Not a single repo to back it up.", langs)}
+	case 1:
+		return []string{fmt.Sprintf("%s on the badges. The only repo never heard of it.", langs)}
+	}
+	return []string{
+		fmt.Sprintf("%s on the badges. Not one of the %d latest repos agrees. Decoration.", langs, b.Read),
+		fmt.Sprintf("README says %s. The %d latest repos say otherwise.", langs, b.Read),
+	}
+}
+
+func shaped(b Brief) []string {
+	switch b.Shape {
+	case metric.Ghost:
+		if b.Contributions == 0 || b.CalendarDays == 0 {
+			return nil
+		}
+		empty := b.CalendarDays - b.ActiveDays
+		return []string{
+			fmt.Sprintf("%s in a whole year. The keyboard still has the plastic on.", plural(b.Contributions, "contribution")),
+			fmt.Sprintf("%d of %d days empty. The green squares filed a missing person report.", empty, b.CalendarDays),
+			fmt.Sprintf("%d days in a row with nothing. Not a break. A retirement.", b.QuietestRun),
+		}
+	case metric.Machine:
+		n := metric.Thousands(b.Contributions)
+		return []string{
+			fmt.Sprintf("%s contributions this year. GitHub should be paying rent.", n),
+			fmt.Sprintf("%s contributions in one year. The laptop needs a holiday.", n),
+			fmt.Sprintf("%s contributions this year. The green squares ran out of green.", n),
+		}
+	default:
+		return nil
+	}
 }
 
 func worst(b Brief) (label, value string) {
@@ -98,8 +135,8 @@ func worst(b Brief) (label, value string) {
 
 var archetypes = map[string]string{
 	"Commits after midnight":    "Head of Night Shifts",
-	"Weekends with commits":     "Chief Weekend Officer",
-	"Days with commits":         "Senior Always-On Engineer",
+	"Active weekends":           "Chief Weekend Officer",
+	"Active days":               "Senior Always-On Engineer",
 	"Repos with no description": "Director of Mystery Repos",
 	"One-word commit messages":  "Senior Fix Engineer",
 	noReadme:                    "Head of Undocumented Features",
@@ -107,10 +144,14 @@ var archetypes = map[string]string{
 
 func Archetype(b Brief) string {
 	switch {
-	case len(b.Unused) > 0:
-		return "Principal Badge Collector"
 	case b.Read == 0 && b.Year.Commits == 0:
 		return "Stealth Mode Founder"
+	case b.Shape == metric.Ghost:
+		return "Director of Empty Calendars"
+	case b.Shape == metric.Machine:
+		return "Principal Commit Machine"
+	case len(b.Unused) > 0:
+		return "Principal Badge Collector"
 	}
 	if best, _ := worst(b); best != "" {
 		return archetypes[best]

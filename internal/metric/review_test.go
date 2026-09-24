@@ -78,6 +78,10 @@ func TestHabits(t *testing.T) {
 	got := Habits(github.Facts{
 		Commits: []github.Commit{{Message: "fix: login", At: fri}, {Message: "Fix typo", At: fri}, {Message: "wip", At: fri}},
 		Repos:   []github.Repo{{Name: "old", Pushed: now.AddDate(-2, 0, 0), OpenIssues: 3}},
+		Year: github.Year{Days: []github.Day{
+			{Date: time.Date(2026, 9, 16, 0, 0, 0, 0, time.UTC), Count: 1},
+			{Date: fri, Count: 3},
+		}},
 	}, now)
 	byTitle := map[string]string{}
 	for _, f := range got {
@@ -95,6 +99,30 @@ func TestHabits(t *testing.T) {
 		if byTitle[k] != v {
 			t.Errorf("%s = %q, want %q", k, byTitle[k], v)
 		}
+	}
+}
+
+func TestBusiestDayFollowsTheCalendarNotTheLastFewCommits(t *testing.T) {
+	sunday := time.Date(2026, 9, 20, 15, 0, 0, 0, time.UTC)
+	var days []github.Day
+	for i := range 7 {
+		d := github.Day{Date: time.Date(2026, 9, 14+i, 0, 0, 0, 0, time.UTC), Count: 1}
+		if d.Date.Weekday() == time.Monday {
+			d.Count = 200
+		}
+		days = append(days, d)
+	}
+	got := busiestDay(github.Facts{
+		Commits: []github.Commit{{Message: "a b", At: sunday}, {Message: "c d", At: sunday}},
+		Year:    github.Year{Days: days},
+	})
+	if got.Value != "Monday" {
+		t.Errorf("busiest day = %q, want Monday from the calendar", got.Value)
+	}
+
+	quiet := busiestDay(github.Facts{Year: github.Year{Days: []github.Day{{Date: sunday, Count: 4}}}})
+	if strings.Contains(quiet.Line, "Weekend warrior") || !strings.Contains(quiet.Line, "4 contributions") {
+		t.Errorf("four contributions are not a weekend habit, got %q", quiet.Line)
 	}
 }
 
@@ -137,8 +165,8 @@ func TestStrengthsCreditTheWorkOnce(t *testing.T) {
 
 func TestThousands(t *testing.T) {
 	for n, want := range map[int]string{0: "0", 999: "999", 1000: "1,000", 297218: "297,218", 1234567: "1,234,567"} {
-		if got := thousands(n); got != want {
-			t.Errorf("thousands(%d) = %q, want %q", n, got, want)
+		if got := Thousands(n); got != want {
+			t.Errorf("Thousands(%d) = %q, want %q", n, got, want)
 		}
 	}
 }

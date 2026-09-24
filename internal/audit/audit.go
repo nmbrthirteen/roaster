@@ -23,7 +23,7 @@ import (
 	"github.com/upgaming/roaster/internal/verdict"
 )
 
-const verdictTimeout = 25 * time.Second
+const verdictTimeout = 40 * time.Second
 
 var (
 	// ErrOptedOut is an account that asked not to be roasted. Said plainly, so
@@ -103,6 +103,8 @@ func (a Audit) Roast(ctx context.Context, req roast.Request, emit func(roast.Upd
 	for _, m := range metrics {
 		emit(roast.Update{Phase: roast.PhaseMetric, Metric: &m})
 	}
+	evidence := metric.Evidence(got.handle, got.habits, got.findings)
+	emit(roast.Update{Phase: roast.PhaseSection, Section: &evidence})
 
 	emit(roast.Update{Phase: roast.PhaseVerdict, Label: "Writing the verdict"})
 	b := got.brief
@@ -115,7 +117,7 @@ func (a Audit) Roast(ctx context.Context, req roast.Request, emit func(roast.Upd
 		a.Memory.said(key(handle), line)
 	}
 
-	score := roast.Score(metrics)
+	score := got.brief.Score
 	r := roast.Roast{
 		Code:      roast.Code(),
 		Pack:      roast.GitHub,

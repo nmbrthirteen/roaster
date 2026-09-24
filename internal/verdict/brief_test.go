@@ -152,11 +152,11 @@ func TestAbsenceIsSaidPrecisely(t *testing.T) {
 func TestLinesAlreadyPrintedSitOutsideTheAccount(t *testing.T) {
 	f := account()
 	b := From(f, metric.From(f), now)
-	b.Avoid = []string{"You commit at 3am and it shows."}
+	b.Avoid = []string{"60% of commits at 3am. It shows."}
 	rendered := b.Render()
 
 	end := strings.Index(rendered, "</account>")
-	at := strings.Index(rendered, "You commit at 3am and it shows.")
+	at := strings.Index(rendered, "60% of commits at 3am. It shows.")
 	if at < end {
 		t.Errorf("lines already printed should come after the account block, not inside it")
 	}

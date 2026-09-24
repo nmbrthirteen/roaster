@@ -1,6 +1,7 @@
 package metric
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -58,7 +59,7 @@ func TestAnEmptyAccountStillPrints(t *testing.T) {
 			t.Errorf("%s should read as zero, got %q", m.Label, m.Value)
 		}
 	}
-	if got := find(t, metrics, "Longest gap between commits").Value; got != "unknown" {
+	if got := find(t, metrics, "Longest quiet stretch").Value; got != "unknown" {
 		t.Errorf("with no calendar the gap is unknown, got %q", got)
 	}
 }
@@ -91,8 +92,8 @@ func TestTheNumbersAreTheArithmetic(t *testing.T) {
 		tag   string
 	}{
 		{"Commits after midnight", "75%", "vampire"},
-		{"Weekends with commits", "50%", "restless"},
-		{"Days with commits", "43%", "committed"},
+		{"Active weekends", "50%", "restless"},
+		{"Active days", "43%", "committed"},
 		{"Repos with no description", "67%", "ghosted"},
 		{"One-word commit messages", "50%", "brief"},
 	} {
@@ -104,10 +105,90 @@ func TestTheNumbersAreTheArithmetic(t *testing.T) {
 			t.Errorf("%s: tag %q, want %q", want.label, got.Tag, want.tag)
 		}
 	}
+}
 
-	// Halfway between the tallest bar, 75, and the average of all five, 57.
-	if got := Score(metrics); got != 66 {
-		t.Errorf("score %d, want 66", got)
+func year(active func(i int) int) []github.Day {
+	start := time.Date(2025, time.September, 22, 0, 0, 0, 0, time.UTC)
+	out := make([]github.Day, 365)
+	for i := range out {
+		out[i] = github.Day{Date: start.AddDate(0, 0, i), Count: active(i)}
+	}
+	return out
+}
+
+func someRepos(n int, described bool) []github.Repo {
+	out := make([]github.Repo, n)
+	for i := range out {
+		out[i] = github.Repo{Name: fmt.Sprint("r", i), Readme: described}
+		if described {
+			out[i].Description = "does a thing"
+		}
+	}
+	return out
+}
+
+func TestTheScoreTellsAccountsApart(t *testing.T) {
+	ghost := github.Facts{
+		Repos: someRepos(1, false),
+		Year: github.Year{Days: year(func(i int) int {
+			if i == 10 || i == 340 || i == 350 {
+				return 3
+			}
+			return 0
+		})},
+	}
+	balanced := github.Facts{
+		Repos: someRepos(10, true),
+		Year: github.Year{Days: year(func(i int) int {
+			if i%7 == 1 || i%7 == 3 || i%7 == 4 {
+				return 3
+			}
+			return 0
+		})},
+	}
+	grinder := github.Facts{
+		Repos: someRepos(15, true),
+		Year:  github.Year{Days: year(func(i int) int { return 20 + i%3 })},
+	}
+	machine := github.Facts{
+		Repos: someRepos(99, true),
+		Year:  github.Year{Days: year(func(i int) int { return 800 })},
+	}
+
+	for _, c := range []struct {
+		name  string
+		f     github.Facts
+		shape Shape
+	}{
+		{"ghost", ghost, Ghost},
+		{"balanced", balanced, Regular},
+		{"grinder", grinder, Grinder},
+		{"machine", machine, Machine},
+	} {
+		if got := ShapeOf(c.f); got != c.shape {
+			t.Errorf("%s: shape %q, want %q", c.name, got, c.shape)
+		}
+	}
+
+	g, b, gr, m := Score(ghost), Score(balanced), Score(grinder), Score(machine)
+	if b >= 40 {
+		t.Errorf("a balanced account should score low, got %d", b)
+	}
+	if g < 75 || m < 75 {
+		t.Errorf("both extremes should score high: ghost %d, machine %d", g, m)
+	}
+	if !(b < gr && gr < m) {
+		t.Errorf("more grind should score higher: balanced %d, grinder %d, machine %d", b, gr, m)
+	}
+	if m-gr < 10 {
+		t.Errorf("a machine should clearly outscore a grinder: %d vs %d", m, gr)
+	}
+}
+
+func TestAnEmptyAccountScoresAsNeglected(t *testing.T) {
+	f := github.Facts{Year: github.Year{Days: year(func(int) int { return 0 })}}
+	if got := Score(f); got < 75 {
+		t.Errorf("an account with nothing in it is the most roastable kind, got %d", got)
 	}
 }
 
@@ -119,7 +200,7 @@ func TestTheLongestGapIsTheLongestRunOfEmptyDays(t *testing.T) {
 		day(1, 3), day(2, 0), day(3, 0), day(4, 0), day(5, 1), day(6, 0), day(7, 2),
 	}}}
 
-	if got := find(t, From(f), "Longest gap between commits").Value; got != "3 days" {
+	if got := find(t, From(f), "Longest quiet stretch").Value; got != "3 days" {
 		t.Errorf("got %q, want \"3 days\"", got)
 	}
 }
@@ -129,7 +210,7 @@ func TestOneEmptyDayIsADayNotDays(t *testing.T) {
 		{Date: time.Now(), Count: 1}, {Date: time.Now(), Count: 0}, {Date: time.Now(), Count: 4},
 	}}}
 
-	if got := find(t, From(f), "Longest gap between commits").Value; got != "1 day" {
+	if got := find(t, From(f), "Longest quiet stretch").Value; got != "1 day" {
 		t.Errorf("got %q, want \"1 day\"", got)
 	}
 }

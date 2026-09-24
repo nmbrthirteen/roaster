@@ -58,7 +58,7 @@ func brief() Brief {
 }
 
 func TestTheRequestIsWhatWeMeanToSend(t *testing.T) {
-	c, asked := fakeAPI(t, http.StatusOK, message("end_turn", page("You commit at 3am and it shows.")))
+	c, asked := fakeAPI(t, http.StatusOK, message("end_turn", page("60% of commits at 3am. It shows.")))
 	if _, err := c.Write(context.Background(), brief()); err != nil {
 		t.Fatal(err)
 	}
@@ -89,12 +89,12 @@ func TestTheRequestIsWhatWeMeanToSend(t *testing.T) {
 }
 
 func TestAPageComesBackAsWritten(t *testing.T) {
-	c, _ := fakeAPI(t, http.StatusOK, message("end_turn", page("You commit at 3am, and it shows.")))
+	c, _ := fakeAPI(t, http.StatusOK, message("end_turn", page("60% of commits at 3am, and it shows.")))
 	got, err := c.Write(context.Background(), brief())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Verdict != "You commit at 3am, and it shows." || got.Archetype != "The 3am Refactorer" {
+	if got.Verdict != "60% of commits at 3am, and it shows." || got.Archetype != "The 3am Refactorer" {
 		t.Errorf("got %+v", got)
 	}
 }
@@ -107,7 +107,7 @@ func TestARefusalIsSaidAsOne(t *testing.T) {
 }
 
 func TestAReplyThatIsNotAPageIsUnusable(t *testing.T) {
-	c, _ := fakeAPI(t, http.StatusOK, message("end_turn", "You commit at 3am and it shows."))
+	c, _ := fakeAPI(t, http.StatusOK, message("end_turn", "60% of commits at 3am. It shows."))
 	if _, err := c.Write(context.Background(), brief()); !errors.Is(err, ErrUnusable) {
 		t.Errorf("want ErrUnusable, got %v", err)
 	}

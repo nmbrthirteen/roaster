@@ -98,7 +98,7 @@ func TestXAIEnablesGrok(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.writer != "grok" || cfg.grokModel != "grok-4.7" {
+	if cfg.writer != "grok" || cfg.grokModel != "grok-4.6" {
 		t.Errorf("got writer %q and model %q", cfg.writer, cfg.grokModel)
 	}
 }

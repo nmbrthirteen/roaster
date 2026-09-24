@@ -114,7 +114,7 @@ func readFacts(handle string) {
 	took := time.Since(started)
 
 	metrics := metric.From(f)
-	score := metric.Score(metrics)
+	score := metric.Score(f)
 
 	fmt.Printf("\n@%s", f.Handle)
 	if f.Name != "" {

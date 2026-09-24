@@ -12,6 +12,8 @@ func TestCleanTidiesWhatTheModelWrote(t *testing.T) {
 		{"**Bold** move,\n\ncommitting at 3am.", "Bold move, committing at 3am."},
 		{"# A heading it should not have written", "A heading it should not have written"},
 		{"You claim C# and write C.", "You claim C# and write C."},
+		{`"Day 1: Schema." 328 days later, day two never showed.`, `"Day 1: Schema." 328 days later, day two never showed.`},
+		{`"fix" and "wip". The whole history.`, `"fix" and "wip". The whole history.`},
 	} {
 		got, ok := Clean(c.in)
 		if !ok || got != c.want {
