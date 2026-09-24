@@ -156,7 +156,7 @@ func (r Roast) heat(d *receipt.Doc, pack Pack) {
 
 // exhibit prints where and when, so anyone holding the receipt can check it.
 func (r Roast) exhibit(d *receipt.Doc, pack Pack) {
-	d.Add(receipt.Feed{Lines: 2}, receipt.Section{Label: "Exhibit A"})
+	d.Add(receipt.Feed{Lines: 2}, receipt.Section{Label: "Your worst commit"})
 	w := r.Exhibit
 	if w == nil {
 		d.Add(

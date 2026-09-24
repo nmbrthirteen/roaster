@@ -105,9 +105,9 @@ func TestTheNumbersAreTheArithmetic(t *testing.T) {
 		}
 	}
 
-	// The score is the average of the five bars: 75, 50, 43, 67, 50.
-	if got := Score(metrics); got != 57 {
-		t.Errorf("score %d, want 57", got)
+	// Halfway between the tallest bar, 75, and the average of all five, 57.
+	if got := Score(metrics); got != 66 {
+		t.Errorf("score %d, want 66", got)
 	}
 }
 

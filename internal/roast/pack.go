@@ -53,7 +53,7 @@ var packs = map[string]Pack{
 		},
 		Calendar: "Contribution calendar",
 		Spotless: "A spotless calendar. Nothing here can be used against you.",
-		Exhibit:  "Your worst commit, verbatim.",
+		Exhibit:  "Copied word for word:",
 		NoExhibit: [2]string{
 			"We went looking for your worst commit.",
 			"With no public commits, your record is technically flawless.",

@@ -272,34 +272,34 @@ var (
 	}
 )
 
-// Score is the plain average of the gauges. Weighting the worst one made
-// receipts where three bars were short still read as serious, which contradicts
-// the picture directly above it.
+// Score leans on the tallest gauge as much as on the average. The tallest bar
+// is the headline of the receipt, and a plain average let four quiet bars
+// cancel it: commits on 77% of days still scored a calm 36.
 func Score(metrics []Metric) int {
-	total, n := 0, 0
+	total, top, n := 0, 0, 0
 	for _, m := range metrics {
 		if m.Percent == nil {
 			continue
 		}
 		total += *m.Percent
+		top = max(top, *m.Percent)
 		n++
 	}
 	if n == 0 {
 		return 0
 	}
-	return total / n
+	return (top*n + total + n) / (2 * n)
 }
 
-// Severity bands are set against where real accounts land, measured on a
-// spread of them from empty to the busiest on GitHub: most sit between 5 and
-// 50. Bands that never fire are worse than no bands.
+// Severity bands sit where real accounts land under the score above: most
+// between 15 and 70. Bands that never fire are worse than no bands.
 func Severity(score int) string {
 	switch {
-	case score >= 45:
+	case score >= 60:
 		return "critical"
-	case score >= 30:
+	case score >= 40:
 		return "serious"
-	case score >= 15:
+	case score >= 20:
 		return "survivable"
 	default:
 		return "suspiciously tidy"

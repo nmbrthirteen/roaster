@@ -17,34 +17,34 @@ const noReadme = "Repos with no README"
 // Each has a few, because the person behind in the queue has read the last one.
 var lines = map[string][]string{
 	"Commits after midnight": {
-		"%s of your commits land after midnight. Your rubber duck has filed for overtime.",
-		"%s of your commits ship after midnight. Your code has never once seen daylight.",
-		"%s of your commits happen after midnight. The 3am bugs were written at 2am.",
+		"%s of your commits land after midnight. Nobody reviews code at 3am, and it shows.",
+		"%s of your commits come after midnight. It reads like it was written half asleep.",
+		"%s of your commits happen after midnight. The bugs work the night shift here.",
 	},
 	"Weekends with commits": {
-		"You committed on %s of weekend days this year. Your calendar says Saturday. Your git log says sprint.",
-		"%s of your weekends had commits in them. HR would like a word. So would your friends.",
-		"You coded through %s of your weekends. Brunch exists. We checked.",
+		"Commits on %s of weekends. Saturday is a workday here, and nobody is paying for it.",
+		"%s of weekends have commits in them. Your friends stopped asking. The repo never did.",
+		"Weekend commits on %s of weekends. That is a second job with no salary.",
 	},
 	"Days with commits": {
-		"You committed on %s of days this year. Impressive stamina. Worrying hobby.",
-		"Commits on %s of days this year. Your laptop has asked for a holiday.",
-		"%s of this year's days have your commits on them. The other days are presumably recovery.",
+		"Commits on %s of days this year. It isn't a streak, it's a hostage situation.",
+		"Commits on %s of days this year. The green squares get more sunlight than you do.",
+		"%s of this year's days have commits on them. A day off is a rumor in this repo.",
 	},
 	"Repos with no description": {
-		"%s of your repos have no description. Even you have to open them to find out.",
-		"%s of your repos have no description. Mystery boxes, and all of them free.",
-		"%s of your repos come with no description. Naming things was hard. Describing them was apparently impossible.",
+		"%s of your repos have no description. Even you have to click in to find out.",
+		"No description on %s of your repos. Naming them was the whole plan.",
+		"%s of your repos have no description. A shop with no signs and no customers.",
 	},
 	"One-word commit messages": {
-		"%s of your commit messages are one word long. Your git log reads like a ransom note.",
-		"%s of your commit messages are a single word. Even git blame just shrugs.",
-		`%s of your commit messages are one word. "fix" what? We will never know.`,
+		"%s of your commit messages are one word. The next person on this code gets zero help.",
+		"%s of your commit messages are one word. The history reads like a shopping list for bugs.",
+		`%s of your commit messages are one word. "fix" fixed what? Nobody will ever know.`,
 	},
 	noReadme: {
-		"%s of your repos have no README. Installation instructions: vibes.",
-		"%s of your repos have no README. Onboarding is a treasure hunt with no map.",
-		"%s of your repos have no README. The docs live in your head, and your head isn't on GitHub.",
+		"%s of your repos have no README. To install one, read the code and pray.",
+		"No README on %s of your repos. The setup guide lives in your head.",
+		"%s of your repos ship with no README. Good luck to whoever finds them next.",
 	},
 }
 
@@ -57,8 +57,8 @@ func Fallback(b Brief) string {
 	case 0:
 	case 1:
 		return fresh(b.Avoid, b.Unused[0],
-			"Your README claims %s. Your repos have never met it.",
-			"Your README lists %s. Your repos would like to see some ID.",
+			"Your README claims %s. Your repos have never heard of it.",
+			"Your README lists %s. Your code has no idea.",
 		)
 	default:
 		return fresh(b.Avoid, and(b.Unused),
@@ -72,8 +72,8 @@ func Fallback(b Brief) string {
 	}
 
 	return fresh(b.Avoid, "",
-		"Your public GitHub is so empty it echoes. No commits, no bugs, no evidence.",
-		"We found nothing public to roast. Stealth genius, or a very long draft.",
+		"Your public GitHub is so empty it echoes. Hard to write bugs with no code.",
+		"Nothing public to roast. The safest way to never ship a bug is to never ship.",
 		"Zero public activity. The perfect codebase is the one nobody can see.",
 	)
 }
