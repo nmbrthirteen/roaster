@@ -10,6 +10,9 @@ import (
 )
 
 type Page struct {
+	Drafts struct {
+		Verdicts []string `json:"verdicts"`
+	} `json:"drafts"`
 	Archetype string   `json:"label"`
 	Verdict   string   `json:"verdict"`
 	Strengths []string `json:"strengths"`
@@ -56,7 +59,7 @@ func parse(text string) (Page, error) {
 
 func Merge(b Brief, p Page) Page {
 	out := Written(b)
-	if v, ok := Clean(p.Verdict); ok && direct(v) {
+	if v, ok := usable(append([]string{p.Verdict}, p.Drafts.Verdicts...)); ok {
 		out.Verdict = v
 	}
 	if a, ok := label(p.Archetype); ok {
@@ -116,8 +119,20 @@ func overlay(stock, written []string, max int) []string {
 
 var narrated = regexp.MustCompile(`(?i)^(you|your|you're|youre|you've|youve|you'd|you'll)\b`)
 
+var corrected = regexp.MustCompile(`(?i)\b(is not|isn't|is no|'s not|was not|wasn't)\b[^.!?]{0,80}[.,!?]\s*(that|it|this)('s|\s+is|\s+was)\s`)
+
 func direct(verdict string) bool {
-	return !narrated.MatchString(strings.ReplaceAll(verdict, "’", "'"))
+	v := strings.ReplaceAll(verdict, "’", "'")
+	return !narrated.MatchString(v) && !corrected.MatchString(v)
+}
+
+func usable(candidates []string) (string, bool) {
+	for _, c := range candidates {
+		if v, ok := Clean(c); ok && direct(v) {
+			return v, true
+		}
+	}
+	return "", false
 }
 
 func label(s string) (string, bool) {

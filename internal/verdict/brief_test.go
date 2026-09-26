@@ -76,6 +76,43 @@ func TestTheBriefCarriesTheWork(t *testing.T) {
 	}
 }
 
+func TestEachRoastGetsAnAngleFromTheAccount(t *testing.T) {
+	f := account()
+	f.Commits = append(f.Commits,
+		github.Commit{Message: "Cut 2.7.29 (#210)"},
+		github.Commit{Message: "Update 02_data_insertion.sql"},
+		github.Commit{Message: "fix(ignore-io): use the gitignore templates (#1273)"},
+		github.Commit{Message: "Merge tag 'rproc-v7.3-fixes' of git://git.kernel.org/pub/scm"},
+		github.Commit{Message: "chore: open 0.20.4 unreleased"},
+	)
+	b := From(f, metric.From(f), now)
+	angles := Angles(b)
+	for _, a := range angles {
+		for _, unreadable := range []string{`"fix"`, "2.7.29", "02_data_insertion", "#1273", "rproc", "0.20.4"} {
+			if strings.Contains(a, unreadable) {
+				t.Errorf("a stranger cannot read a joke built on %q: %q", unreadable, a)
+			}
+		}
+	}
+	for _, want := range []string{`the commit message "fix(ignore-io): use the gitignore templates"`, "the repository roaster: A conference kiosk.", "Rust"} {
+		found := false
+		for _, a := range angles {
+			found = found || strings.Contains(a, want)
+		}
+		if !found {
+			t.Errorf("no angle mentions %q in %v", want, angles)
+		}
+	}
+
+	b.Angle = PickAngle(b, func(n int) int { return n - 1 })
+	if !strings.Contains(b.Render(), "Angle for the verdict: "+b.Angle) {
+		t.Errorf("the picked angle should sit in the account block")
+	}
+	if got := PickAngle(Brief{}, func(int) int { return 0 }); got != "" {
+		t.Errorf("an account with nothing to go on has no angle, got %q", got)
+	}
+}
+
 // A commit message is written by whoever wants to write one, including someone
 // who wants the stand to say something it should not.
 func TestAccountTextCannotBreakOutOfItsBlock(t *testing.T) {

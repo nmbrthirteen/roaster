@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math/rand/v2"
 	"strings"
 	"time"
 
@@ -111,6 +112,7 @@ func (a Audit) Roast(ctx context.Context, req roast.Request, emit func(roast.Upd
 	if a.Memory != nil {
 		b.Avoid = a.Memory.avoid(key(handle))
 	}
+	b.Angle = verdict.PickAngle(b, rand.IntN)
 	page := a.write(ctx, b)
 	line := page.Verdict
 	if a.Memory != nil {

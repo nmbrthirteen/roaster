@@ -9,6 +9,7 @@ package verdict
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 	"unicode"
@@ -69,6 +70,8 @@ type Brief struct {
 	Actions   []string
 	Findings  []roast.Finding
 	Habits    []roast.Finding
+
+	Angle string
 
 	// Avoid is lines already printed: to this account on an earlier visit,
 	// and to whoever was in the queue before. They are the stand's own
@@ -141,8 +144,8 @@ func (b Brief) Render() string {
 	line("<account>")
 	line("On GitHub for %s. Roast score %d / 100 (%s).", plural(b.Years, "year"), b.Score, roast.Severity(b.Score))
 	line("Account shape: %s. %s", b.Shape, shapes[b.Shape])
-	line("Contribution calendar, private included: %s over %d days. %d days active, %d days empty. Longest run of empty days in a row: %d.",
-		plural(b.Contributions, "contribution"), b.CalendarDays, b.ActiveDays, b.CalendarDays-b.ActiveDays, b.QuietestRun)
+	line("Contribution calendar, private included: %s contributions over %d days. %d days active, %d days empty. Longest run of empty days in a row: %d.",
+		metric.Thousands(b.Contributions), b.CalendarDays, b.ActiveDays, b.CalendarDays-b.ActiveDays, b.QuietestRun)
 	line("")
 	line("Measured:")
 	for _, m := range b.Metrics {
@@ -211,6 +214,10 @@ func (b Brief) Render() string {
 	stock("Actions", b.Actions)
 	stock("Findings", facts(b.Findings))
 	stock("Habits", facts(b.Habits))
+	if b.Angle != "" {
+		line("")
+		line("Angle for the verdict: %s", scrub(b.Angle, maxStockText))
+	}
 	line("</account>")
 
 	if len(b.Avoid) > 0 {
@@ -224,11 +231,75 @@ func (b Brief) Render() string {
 }
 
 var shapes = map[metric.Shape]string{
-	metric.Ghost:   "Barely here. The emptiness is the joke: the silence, the few repos, the blank descriptions.",
-	metric.Dabbler: "Shows up now and then. The gaps and the half started repos are the joke.",
-	metric.Regular: "A normal pace. The joke is the most specific habit in the commits and repos.",
-	metric.Grinder: "Commits most days, weekends too. The joke is that there is no off switch.",
-	metric.Machine: "Enormous volume. The joke is the sheer amount, and what it says about days off.",
+	metric.Ghost:   "Barely here. Never call it busy.",
+	metric.Dabbler: "Shows up now and then. Never call it busy or dead.",
+	metric.Regular: "A normal pace. Never call it lazy or obsessed.",
+	metric.Grinder: "Busy most days, weekends too. Never call it lazy.",
+	metric.Machine: "Enormous volume, almost no days off. Never call it lazy.",
+}
+
+var (
+	ticketRef = regexp.MustCompile(`\s*\(#\d+\)`)
+	plainWord = regexp.MustCompile(`^[A-Za-z][A-Za-z']*[,.:!?]?$`)
+	noise     = regexp.MustCompile(`\d+\.\d+|://|\w[_/]\w+\.\w+`)
+)
+
+func readable(commit string) bool {
+	if noise.MatchString(commit) {
+		return false
+	}
+	fields, words := strings.Fields(commit), 0
+	for _, w := range fields {
+		if plainWord.MatchString(w) {
+			words++
+		}
+	}
+	return words >= 3 && words*10 >= len(fields)*6
+}
+
+var characterful = map[string]bool{
+	"Favourite first words": true,
+	"Busiest day":           true,
+	"Peak hour":             true,
+	"The graveyard":         true,
+	"Oldest untouched repo": true,
+	"Main language":         true,
+	"Forks":                 true,
+}
+
+func Angles(b Brief) []string {
+	var out []string
+	for _, c := range b.Commits {
+		if c = strings.TrimSpace(ticketRef.ReplaceAllString(c, "")); readable(c) {
+			out = append(out, fmt.Sprintf("the commit message %q, quoted word for word.", c))
+		}
+	}
+	for _, r := range b.Repos {
+		out = append(out, "the repository "+r+".")
+	}
+	if len(b.Unused) > 0 {
+		out = append(out, "the profile badges claim "+strings.Join(b.Unused, ", ")+", and no repo read is written in it.")
+	}
+	for _, f := range append(append([]roast.Finding(nil), b.Habits...), b.Findings...) {
+		if characterful[f.Title] {
+			out = append(out, fmt.Sprintf("%s: %s.", strings.ToLower(f.Title), f.Value))
+		}
+	}
+	switch b.Shape {
+	case metric.Ghost:
+		out = append(out, "how empty this account is.")
+	case metric.Machine, metric.Grinder:
+		out = append(out, "the days off that never happen.")
+	}
+	return out
+}
+
+func PickAngle(b Brief, n func(int) int) string {
+	angles := Angles(b)
+	if len(angles) == 0 {
+		return ""
+	}
+	return angles[n(len(angles))]
 }
 
 func facts(fs []roast.Finding) []string {

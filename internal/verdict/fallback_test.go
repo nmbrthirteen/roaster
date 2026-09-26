@@ -102,6 +102,35 @@ func TestNoFallbackLineNarrates(t *testing.T) {
 	}
 }
 
+func TestTheCorrectionShapeIsReplacedByACleanDraft(t *testing.T) {
+	for _, v := range []string{
+		"Init. That is not a commit message. That is you shrugging at git.",
+		"A whole package so Electron can right click. That is not a library, that is a menu.",
+		"Update 02_data_insertion.sql is not a message. It is you reading the filename.",
+		"This isn't a portfolio, it's a warning.",
+	} {
+		if direct(v) {
+			t.Errorf("%q uses the correction shape and should be rejected", v)
+		}
+	}
+	for _, v := range []string{
+		"A repo named test is running production. I have seen braver deploys.",
+		"Not a streak. A hostage situation.",
+		"Nothing about this is final, and we both know it.",
+	} {
+		if !direct(v) {
+			t.Errorf("%q is a direct line and should pass", v)
+		}
+	}
+
+	var p Page
+	p.Verdict = "Init. That is not a commit message. That is you shrugging."
+	p.Drafts.Verdicts = []string{"This isn't a repo, it's a note.", "Init, and then silence. I have seen tombstones with more detail."}
+	if got := Merge(Brief{}, p).Verdict; got != p.Drafts.Verdicts[1] {
+		t.Errorf("the first clean draft should replace a worn verdict, got %q", got)
+	}
+}
+
 func TestANarratedVerdictIsReplaced(t *testing.T) {
 	for _, v := range []string{"You commit at 3am.", "Your repos are empty.", "You’re busy.", "you've shipped nothing."} {
 		if direct(v) {
