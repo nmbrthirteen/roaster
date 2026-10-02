@@ -23,7 +23,15 @@ func (d *Doc) ESCPOS(assets Assets) []byte {
 	b.Write([]byte{esc, 't', 0})           // select PC437, which carries the gauge glyphs
 	b.Write([]byte{esc, '3', LineSpacing}) // tighten the default leading
 
+	var drawn *band
+	if TextAsImage() {
+		drawn = newBand()
+	}
+
 	for _, ln := range d.Lines() {
+		if drawn != nil && (ln.QR != "" || ln.Image != "" || ln.Cut) {
+			drawn.flush(&b)
+		}
 		switch {
 		case ln.QR != "":
 			writeAlign(&b, ln.Style.Align)
@@ -33,6 +41,8 @@ func (d *Doc) ESCPOS(assets Assets) []byte {
 				writeAlign(&b, ln.Style.Align)
 				writeRaster(&b, r)
 			}
+		case ln.Text != "" && drawn != nil:
+			drawn.text(ln.Text, ln.Style)
 		case ln.Text != "":
 			tall := ln.Style.Double || ln.Style.Tall
 			if tall {
@@ -48,11 +58,18 @@ func (d *Doc) ESCPOS(assets Assets) []byte {
 		}
 
 		if ln.Feed > 0 {
-			b.Write([]byte{esc, 'd', byte(ln.Feed)})
+			if drawn != nil && len(drawn.rows) > 0 && !ln.Cut {
+				drawn.feed(ln.Feed * LineSpacing)
+			} else {
+				b.Write([]byte{esc, 'd', byte(ln.Feed)})
+			}
 		}
 		if ln.Cut {
 			b.Write([]byte{gs, 'V', 66, 0}) // function B: feed to cutter, partial cut
 		}
+	}
+	if drawn != nil {
+		drawn.flush(&b)
 	}
 	return b.Bytes()
 }

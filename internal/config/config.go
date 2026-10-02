@@ -22,6 +22,7 @@ type Config struct {
 	Pack      string `json:"pack,omitempty"`    // the social this stand roasts; empty is GitHub
 	Printer   string `json:"printer"`           // tcp:host:9100, lp:queue or file:path
 	Columns   int    `json:"columns,omitempty"` // characters per line; empty is 48
+	Text      string `json:"text,omitempty"`    // "font" lets the printer draw letters; empty draws them as an image
 	Event     string `json:"event"`             // event code the kiosk opens on
 	EventsDir string `json:"eventsDir"`         // event files that override the built-in ones
 	KioskURL  string `json:"kioskUrl"`          // what the kiosk launcher opens

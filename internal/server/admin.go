@@ -40,6 +40,7 @@ type adminState struct {
 	Events        []event.Event       `json:"events"`
 	Printer       string              `json:"printer"`
 	Columns       int                 `json:"columns"`
+	Text          string              `json:"text"`
 	Printers      []printer.Candidate `json:"printers"`
 	Provider      string              `json:"provider"`
 	RemoteURL     string              `json:"remoteUrl"`
@@ -85,6 +86,7 @@ func (s *Server) adminState(w http.ResponseWriter, r *http.Request) {
 		Events:        all(s.st.eventSet()),
 		Printer:       spec,
 		Columns:       receipt.Width(),
+		Text:          textMode(),
 		Printers:      printer.Discover(),
 		Provider:      cfg.Provider,
 		RemoteURL:     cfg.RemoteURL,
@@ -117,6 +119,12 @@ func (s *Server) adminSettings(w http.ResponseWriter, r *http.Request) {
 	if v := r.FormValue("columns"); v != "" {
 		n, _ := strconv.Atoi(v)
 		if err := s.st.setColumns(n); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+	if v := r.FormValue("text"); v != "" {
+		if err := s.st.setText(v); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}

@@ -6,8 +6,9 @@ require (
 	github.com/anthropics/anthropic-sdk-go v1.74.0
 	github.com/jchv/go-webview2 v0.0.0-20260205173254-56598839c808
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
+	golang.org/x/image v0.46.0
 	golang.org/x/sync v0.23.0
-	golang.org/x/sys v0.35.0
+	golang.org/x/sys v0.48.0
 	golang.org/x/time v0.16.0
 )
 
@@ -23,4 +24,5 @@ require (
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
 	go.yaml.in/yaml/v4 v4.0.0-rc.2 // indirect
+	golang.org/x/text v0.42.0 // indirect
 )

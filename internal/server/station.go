@@ -122,6 +122,21 @@ func (s *station) setColumns(n int) error {
 	return config.Save(path, saved)
 }
 
+// setText picks who draws the letters: "image" draws them here and sends a
+// picture, "font" sends characters for the printer's own font. Some printers
+// print every letter of their font as a black block.
+func (s *station) setText(v string) error {
+	if v != "image" && v != "font" {
+		return fmt.Errorf("text is printed as image or font")
+	}
+	receipt.SetTextAsImage(v == "image")
+	s.mu.Lock()
+	s.cfg.Text, s.saved.Text = v, v
+	saved, path := s.saved, s.path
+	s.mu.Unlock()
+	return config.Save(path, saved)
+}
+
 func (s *station) setProvider(v string) error {
 	if v != "demo" && v != "remote" {
 		return fmt.Errorf("provider must be demo or remote")
