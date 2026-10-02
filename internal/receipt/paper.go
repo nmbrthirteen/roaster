@@ -25,6 +25,8 @@ func (d *Doc) EstimateHeightMM(assets Assets) float64 {
 			if r, ok := assets[ln.Image]; ok {
 				dots += float64(r.Height)
 			}
+		case ln.Bitmap != nil:
+			dots += float64(ln.Bitmap.Height)
 		case ln.Text != "":
 			if ln.Style.Double || ln.Style.Tall {
 				dots += tallRow

@@ -142,9 +142,9 @@ func (r Roast) heat(d *receipt.Doc, pack Pack) {
 	d.Add(
 		receipt.Feed{Lines: 2},
 		receipt.Section{Label: pack.Calendar},
-		receipt.Text{Value: fmt.Sprintf("%d weeks, a column each. Dark is busy.", len(r.Heat))},
+		receipt.Text{Value: fmt.Sprintf("%d weeks, a column each.", len(r.Heat))},
 		receipt.Feed{Lines: 1},
-		receipt.Heatmap{Weeks: r.Heat},
+		receipt.Heatmap{Weeks: r.Heat, Ending: r.At},
 		receipt.Feed{Lines: 1},
 		receipt.KV{Label: "Contributions", Value: fmt.Sprint(total)},
 		receipt.KV{Label: "Days with none", Value: fmt.Sprintf("%d of %d", idle, days)},
@@ -170,17 +170,10 @@ func (r Roast) exhibit(d *receipt.Doc, pack Pack) {
 	if msg == "" {
 		msg = "(an empty message)"
 	}
-	where := w.Where
-	if w.Ref != "" {
-		where = w.Ref + " in " + w.Where
-	}
 	d.Add(
 		receipt.Text{Value: pack.Exhibit},
 		receipt.Feed{Lines: 1},
-		receipt.Para{Value: "“" + msg + "”", Indent: 2},
-		receipt.Feed{Lines: 1},
-		receipt.Text{Value: where},
-		receipt.Text{Value: w.At.Format("Mon 2 Jan 2006, 15:04")},
+		receipt.Commit{Ref: w.Ref, Where: w.Where, When: w.At.Format("Mon 2 Jan 2006, 15:04"), Message: msg},
 	)
 }
 

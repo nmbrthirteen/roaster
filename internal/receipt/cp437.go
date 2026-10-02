@@ -25,6 +25,3 @@ func encodeText(s string) []byte {
 	}
 	return out
 }
-
-// displayWidth counts printed columns.
-func displayWidth(s string) int { return len([]rune(s)) }

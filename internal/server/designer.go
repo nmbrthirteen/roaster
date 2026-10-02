@@ -3,8 +3,10 @@ package server
 import (
 	"fmt"
 	"html/template"
+	"image/png"
 	"log"
 	"net/http"
+	"path"
 	"strconv"
 
 	"github.com/upgaming/roaster/internal/event"
@@ -20,7 +22,9 @@ func (s *Server) designerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/preview", s.preview)
 	mux.HandleFunc("/preview.txt", s.previewText)
 	mux.HandleFunc("/preview.bin", s.previewBytes)
+	mux.HandleFunc("/preview.png", s.previewPicture)
 	mux.HandleFunc("/test.bin", s.testBytes)
+	mux.HandleFunc("/fonts/receipt/", receiptFont)
 	mux.HandleFunc("/api/example", s.example)
 
 	mux.HandleFunc("/printer", s.post(s.choosePrinter))
@@ -70,6 +74,24 @@ func (s *Server) previewText(w http.ResponseWriter, r *http.Request) {
 func (s *Server) previewBytes(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Write(sample().Doc(s.pick(r), s.st.config().Terminal).ESCPOS(s.assets))
+}
+
+// previewPicture is the sample receipt dot for dot as the printer prints it.
+func (s *Server) previewPicture(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "image/png")
+	png.Encode(w, sample().Doc(s.pick(r), s.st.config().Terminal).Picture(s.assets))
+}
+
+// receiptFont serves the faces the receipt is drawn in, for the designer.
+func receiptFont(w http.ResponseWriter, r *http.Request) {
+	b, ok := receipt.FontFiles[path.Base(r.URL.Path)]
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "font/ttf")
+	w.Header().Set("Cache-Control", "max-age=86400")
+	w.Write(b)
 }
 
 // testBytes is the test slip as raw bytes, for a page printing it itself.

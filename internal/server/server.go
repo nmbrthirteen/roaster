@@ -176,8 +176,9 @@ func textMode() string {
 	return "font"
 }
 
-// testSlip exercises the three things a printer can silently fail at: reversed
-// video, the block glyphs the gauges are drawn from, and the native QR command.
+// testSlip exercises the three things a printer can silently fail at: raster
+// printing, which carries every line of text unless the stand is set to the
+// printer's own font, the drawn fonts, and the native QR command.
 func testSlip(spec string, ev event.Event) *receipt.Doc {
 	center := receipt.Style{Align: receipt.AlignCenter}
 	d := &receipt.Doc{}
@@ -197,8 +198,9 @@ func testSlip(spec string, ev event.Event) *receipt.Doc {
 		receipt.Feed{Lines: 2},
 		receipt.Section{Label: "This line should be reversed"},
 		receipt.Feed{Lines: 1},
-		receipt.Bar{Label: "Gauge glyphs", Value: "60%", Percent: 60},
-		receipt.Text{Value: "Solid blocks above, not question marks."},
+		receipt.Bar{Label: "Gauge", Value: "60%", Percent: 60},
+		receipt.Text{Value: "José Müller — გამარჯობა …"},
+		receipt.Text{Value: "Every letter above as written, no question marks."},
 		receipt.Feed{Lines: 2},
 		receipt.QR{Data: "https://lifeat.upgaming.com", Size: 5},
 		receipt.Feed{Lines: 1},

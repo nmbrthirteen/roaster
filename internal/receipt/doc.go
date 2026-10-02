@@ -82,6 +82,11 @@ type Line struct {
 
 	Image string // asset name
 
+	// Bitmap is a graphic drawn in code, the full printable width across. Alt
+	// says what it shows, for the plain text preview and the designer.
+	Bitmap *Raster
+	Alt    string
+
 	// Bleed pads to the full printable width instead of sitting inside the gutter.
 	Bleed bool
 
@@ -96,7 +101,7 @@ func (d *Doc) Add(b ...Block) { d.Blocks = append(d.Blocks, b...) }
 func (d *Doc) Lines() []Line {
 	var out []Line
 	for _, b := range d.Blocks {
-		for _, ln := range b.lines() {
+		for _, ln := range tidy(b).lines() {
 			if ln.Text != "" {
 				// Alignment is resolved here rather than left to the printer's ESC a
 				// command, so the gutter survives centring.

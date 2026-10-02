@@ -1,8 +1,13 @@
 package receipt
 
 import (
+	"bytes"
+	"encoding/base64"
 	"fmt"
 	"html"
+	"image"
+	"image/color"
+	"image/png"
 	"net/url"
 	"strings"
 )
@@ -24,6 +29,9 @@ func (d *Doc) HTML(assets Assets) string {
 			}
 			fmt.Fprintf(&b, `<div class="ln img"><img style="width:%.2fch" src="/assets/%s.png" alt=""></div>`,
 				cols, html.EscapeString(ln.Image))
+		case ln.Bitmap != nil:
+			fmt.Fprintf(&b, `<div class="ln img"><img style="width:%.2fch" src="%s" alt="%s"></div>`,
+				float64(ln.Bitmap.Width)/dotsPerCol, ln.Bitmap.dataURL(), html.EscapeString(ln.Alt))
 		case ln.Text != "":
 			fmt.Fprintf(&b, `<div class="ln%s">%s</div>`,
 				classes(ln.Style), html.EscapeString(ln.Text))
@@ -70,6 +78,8 @@ func (d *Doc) Plain() string {
 			fmt.Fprintf(&b, "%s\n", pad("[QR "+ln.QR+"]", Width(), AlignCenter))
 		case ln.Image != "":
 			fmt.Fprintf(&b, "%s\n", pad("["+ln.Image+"]", Width(), AlignCenter))
+		case ln.Bitmap != nil:
+			b.WriteString(ln.Alt + "\n")
 		case ln.Text != "":
 			b.WriteString(ln.Text + "\n")
 		}
@@ -79,4 +89,19 @@ func (d *Doc) Plain() string {
 		}
 	}
 	return b.String()
+}
+
+// dataURL inlines a drawn graphic, which has no file to point at.
+func (r Raster) dataURL() string {
+	img := image.NewGray(image.Rect(0, 0, r.Width, r.Height))
+	for y := range r.Height {
+		for x := range r.Width {
+			if !r.at(x, y) {
+				img.SetGray(x, y, color.Gray{Y: 0xFF})
+			}
+		}
+	}
+	var b bytes.Buffer
+	png.Encode(&b, img)
+	return "data:image/png;base64," + base64.StdEncoding.EncodeToString(b.Bytes())
 }

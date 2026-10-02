@@ -1,6 +1,11 @@
 package receipt
 
-import "strings"
+import (
+	"strings"
+	"unicode"
+
+	"golang.org/x/text/unicode/norm"
+)
 
 // wrap breaks text to the given column count on word boundaries, splitting any
 // word that cannot fit on a line of its own.
@@ -71,4 +76,62 @@ func pad(s string, cols int, a Align) string {
 	default:
 		return s + strings.Repeat(" ", gap)
 	}
+}
+
+// displayWidth counts printed columns.
+func displayWidth(s string) int { return len([]rune(s)) }
+
+// printable makes text safe to set one rune to a cell. Composed forms first, so
+// an accent typed as a separate mark joins its letter instead of taking a
+// column of its own. Then whatever prints nothing is dropped: leftover marks,
+// joiners, emoji variation selectors and control codes, which would otherwise
+// leave a gap or a stray "?". Emoji go too, since no font here draws them and
+// a rocket printed as "?" reads as a fault. A letter no font has still prints
+// "?", so missing text shows. Tabs become spaces; newlines stay, since wrap
+// breaks paragraphs on them.
+func printable(s string) string {
+	s = norm.NFC.String(s)
+	return strings.Map(func(r rune) rune {
+		switch {
+		case r == '\n':
+			return r
+		case r == '\t':
+			return ' '
+		case unicode.In(r, unicode.Mn, unicode.Me, unicode.Cf, unicode.Cc):
+			return -1
+		case r >= 0x1F3FB && r <= 0x1F3FF: // emoji skin tones, which only modify the emoji before
+			return -1
+		case unicode.Is(unicode.So, r) && !hasGlyph(r):
+			return -1
+		}
+		return r
+	}, s)
+}
+
+// tidy runs printable over every piece of text a block carries.
+func tidy(b Block) Block {
+	switch v := b.(type) {
+	case Text:
+		v.Value = printable(v.Value)
+		return v
+	case KV:
+		v.Label, v.Value = printable(v.Label), printable(v.Value)
+		return v
+	case Para:
+		v.Value, v.Mark = printable(v.Value), printable(v.Mark)
+		return v
+	case Section:
+		v.Label = printable(v.Label)
+		return v
+	case Bar:
+		v.Label, v.Value, v.Tag = printable(v.Label), printable(v.Value), printable(v.Tag)
+		return v
+	case Hero:
+		v.Caption, v.Value = printable(v.Caption), printable(v.Value)
+		return v
+	case Commit:
+		v.Ref, v.Where, v.When, v.Message = printable(v.Ref), printable(v.Where), printable(v.When), printable(v.Message)
+		return v
+	}
+	return b
 }

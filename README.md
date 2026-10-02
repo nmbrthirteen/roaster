@@ -16,13 +16,22 @@ CSS and JavaScript with no build step.
 
 ## How the printing works
 
-A receipt is a document of blocks, flattened to fixed-width lines. Two encoders
-consume the same lines: one emits ESC/POS bytes for the printer, the other
-emits HTML for the designer page. They cannot drift apart, so what you see in
-the browser is what the head fires.
+A receipt is a document of blocks, flattened to fixed-width lines. The printer's
+own font only knows code page 437, so by default the text never goes to it as
+text. Every line is drawn here with fonts built into the binary and sent as a
+raster, so an accented name, an em dash or a Georgian commit message prints as
+written. Go
+Mono sets the look; DejaVu Sans Mono, Noto Sans Georgian and Noto Sans fill in
+what it lacks. The contribution calendar and the worst commit are drawn as
+graphics. Logos use the same raster command, and the QR code the printer's own.
 
-The printable width is 42 columns in Font A, which every 80mm printer supports.
-Two columns are held at each edge as a margin, leaving 38 for content.
+`/preview.png` is the sample receipt dot for dot as the printer gets it, drawn
+from the same rasters as the ESC/POS job. The designer page sets its mock-up in
+the same fonts.
+
+The printable width is 48 columns of 12 dots, 576 dots across an 80mm head.
+Narrower heads take 42 and 58mm paper 32, set in the hidden menu. Two columns are
+held at each edge as a margin.
 
 ## Running it
 
@@ -69,15 +78,17 @@ spooler queue, `tcp:` for a networked printer. The Web Serial option disappears
 from the menu when the page is running somewhere that cannot do it.
 
 Press **Print test slip** before trusting a new printer. It costs 90mm of paper
-and proves the three things a printer can silently fail at: reversed video, the
-PC437 block glyphs the gauges are drawn from, and the native QR command.
+and proves the three things a printer can silently fail at: raster printing,
+which carries every line of text, the drawn fonts, and the native QR command.
 
 By default the stand draws every letter itself and sends it as a picture, the
 same way the logo goes, so the printer's own font is never used. Some printers
 ship with a font that prints every letter as a solid black block while the logo
 and the QR come out fine. If a printer's font is known to be good, the hidden
 menu can switch to **Letters in the printer's own font**, which sends a much
-smaller job (`"text": "font"` in the settings file).
+smaller job (`"text": "font"` in the settings file). That font only carries
+code page 437, so anything past it prints as `?`. The contribution calendar and
+the worst commit stay drawn either way.
 
 ## Windows kiosk mode
 
@@ -426,7 +437,12 @@ rule, supersampled and thresholded to 1 bit.
 
 MIT for the source code, see [LICENSE](LICENSE).
 
-Two things in this repository are not covered by it. `internal/ui/fonts/integral-*.woff2`
+The receipt fonts in `internal/receipt/fonts/` keep their own licences, carried
+inside each file: Noto Sans and Noto Sans Georgian under the SIL Open Font
+Licence 1.1, DejaVu Sans Mono under the Bitstream Vera licence. Go Mono comes
+from `golang.org/x/image` under a BSD licence.
+
+Two other things in this repository are not covered by it. `internal/ui/fonts/integral-*.woff2`
 are Fontspring demo builds of Integral CF, a commercial typeface, included so
 the kiosk renders as designed on our own hardware. The Upgaming name and mark
 are trademarks. Replace both, along with `internal/ui/assets/logo.png` and the
