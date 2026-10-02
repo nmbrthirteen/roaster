@@ -72,6 +72,13 @@ Press **Print test slip** before trusting a new printer. It costs 90mm of paper
 and proves the three things a printer can silently fail at: reversed video, the
 PC437 block glyphs the gauges are drawn from, and the native QR command.
 
+By default the stand draws every letter itself and sends it as a picture, the
+same way the logo goes, so the printer's own font is never used. Some printers
+ship with a font that prints every letter as a solid black block while the logo
+and the QR come out fine. If a printer's font is known to be good, the hidden
+menu can switch to **Letters in the printer's own font**, which sends a much
+smaller job (`"text": "font"` in the settings file).
+
 ## Windows kiosk mode
 
 `scripts\kioskmode.bat`, as administrator, locks the device to the stand with

@@ -63,6 +63,7 @@ func New(o Options) (*Server, error) {
 	if o.Config.Columns != 0 && !receipt.SetWidth(o.Config.Columns) {
 		log.Printf("columns %d is not a printer width; using %d", o.Config.Columns, receipt.Width())
 	}
+	receipt.SetTextAsImage(o.Config.Text != "font")
 	if err := s.st.reloadEvents(); err != nil {
 		return nil, fmt.Errorf("events: %w", err)
 	}
@@ -168,6 +169,13 @@ func sample() roast.Roast {
 	return r
 }
 
+func textMode() string {
+	if receipt.TextAsImage() {
+		return "image"
+	}
+	return "font"
+}
+
 // testSlip exercises the three things a printer can silently fail at: reversed
 // video, the block glyphs the gauges are drawn from, and the native QR command.
 func testSlip(spec string, ev event.Event) *receipt.Doc {
@@ -185,6 +193,7 @@ func testSlip(spec string, ev event.Event) *receipt.Doc {
 		receipt.Feed{Lines: 2},
 		receipt.KV{Label: "Target", Value: spec},
 		receipt.KV{Label: "Columns", Value: strconv.Itoa(receipt.Width())},
+		receipt.KV{Label: "Letters", Value: textMode()},
 		receipt.Feed{Lines: 2},
 		receipt.Section{Label: "This line should be reversed"},
 		receipt.Feed{Lines: 1},

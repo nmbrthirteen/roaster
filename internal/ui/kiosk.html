@@ -1209,6 +1209,10 @@
         ${[[48, '80 mm paper, 48 characters a line (most printers)'], [42, '80 mm paper, 42 characters a line (narrow head)'], [32, '58 mm paper, 32 characters a line']]
           .map(([n, label]) => `<option value="${n}"${n === s.columns ? ' selected' : ''}>${label}</option>`).join('')}
       </select>
+      <select id="aText">
+        ${[['image', 'Letters drawn as an image (works on any printer)'], ['font', "Letters in the printer's own font (faster)"]]
+          .map(([v, label]) => `<option value="${v}"${v === s.text ? ' selected' : ''}>${label}</option>`).join('')}
+      </select>
       <div class="acts">
         ${hasSerial ? '<button id="aConnect">Connect printer</button>' : ''}
         <button id="aTest">Test slip</button>
@@ -1375,6 +1379,7 @@
     on('aSource', e => save({ provider: e.target.value }), 'change');
     on('aModelProvider', e => save({ modelProvider: e.target.value }), 'change');
     on('aColumns', e => save({ columns: e.target.value }, () => say('Saved. Print a test slip to check the edges.')), 'change');
+    on('aText', e => save({ text: e.target.value }, () => say('Saved. Print a test slip to check the letters.')), 'change');
     on('aRemote', e => save({ remoteUrl: e.target.value.trim() }), 'change');
     on('aToken', e => e.target.value.trim() && save({ token: e.target.value.trim() }), 'change');
     on('aCheck', () => act(async () => { say('Checking...'); return await call('/admin/service'); }));
