@@ -41,20 +41,39 @@ func From(f github.Facts) []roast.Metric {
 		longestGap(f),
 	}
 	// Nothing to measure is not a virtue. "0% poet" on an empty account reads
-	// as praise, so a gauge with no data says so.
+	// as praise, so a gauge with no data says so. It also loses its bar: the
+	// share page ranks every bar against the room, and a blank ranked as 0%
+	// came out "night owl, top 100%".
+	tags := [5]string{untested, untested, untested, untested, untested}
+	if Empty(f) {
+		tags = emptyTags
+	}
+	blank := func(i int) { m[i] = roast.Metric{Label: m[i].Label, Value: "none", Tag: tags[i]} }
 	if len(f.Commits) == 0 {
-		m[0].Tag, m[4].Tag = untested, untested
+		blank(0)
+		blank(4)
 	}
 	if len(f.Repos) == 0 {
-		m[3].Tag = untested
+		blank(3)
 	}
 	if contributed(f) == 0 {
-		m[1].Tag, m[2].Tag = untested, untested
+		blank(1)
+		blank(2)
 	}
 	return m
 }
 
 const untested = "untested"
+
+// emptyTags stand in for "untested" when there is nothing at all, so the
+// damage report jokes about the blank too.
+var emptyTags = [5]string{"out cold", "all off", "on leave", "no repos", "no words"}
+
+// Empty is an account with nothing to roast: no contributions on the calendar
+// and no public commits to read.
+func Empty(f github.Facts) bool {
+	return contributed(f) == 0 && len(f.Commits) == 0
+}
 
 type Shape string
 
@@ -90,7 +109,12 @@ func ShapeOf(f github.Facts) Shape {
 	}
 }
 
+// Score is 0 for an empty account. Scored as neglect it came out near 100,
+// ranking someone who did nothing above most of the room.
 func Score(f github.Facts) int {
+	if Empty(f) {
+		return 0
+	}
 	active := days(f, everyDay)
 	grind := (active + days(f, isWeekend) + share(f.Commits, atNight) + 3*volume(contributed(f))) / 6
 	neglect := (2*(100-active) + percent(quietest(f), len(f.Year.Days)) +

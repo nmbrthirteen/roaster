@@ -119,14 +119,17 @@ func (a Audit) Roast(ctx context.Context, req roast.Request, emit func(roast.Upd
 		a.Memory.said(key(handle), line)
 	}
 
-	score := got.brief.Score
+	score, tag := got.brief.Score, roast.Severity(got.brief.Score)
+	if got.brief.Empty {
+		tag = "nothing to roast"
+	}
 	r := roast.Roast{
 		Code:      roast.Code(),
 		Pack:      roast.GitHub,
 		Handle:    got.handle,
 		At:        a.now(),
 		Score:     fmt.Sprintf("%d / 100", score),
-		ScoreTag:  roast.Severity(score),
+		ScoreTag:  tag,
 		Archetype: page.Archetype,
 		Metrics:   metrics,
 		Verdict:   line,

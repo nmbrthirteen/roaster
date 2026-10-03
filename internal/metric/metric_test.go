@@ -32,7 +32,11 @@ func find(t *testing.T, metrics []roast.Metric, label string) roast.Metric {
 }
 
 func TestTheReceiptGetsFiveGaugesAndOnePlainRow(t *testing.T) {
-	metrics := From(github.Facts{})
+	metrics := From(github.Facts{
+		Commits: []github.Commit{at(18, 20, "Stop the printed receipt reading as random")},
+		Repos:   someRepos(1, true),
+		Year:    github.Year{Days: year(func(i int) int { return i % 2 })},
+	})
 
 	if len(metrics) != 6 {
 		t.Fatalf("the document is laid out for six rows, got %d", len(metrics))
@@ -50,13 +54,17 @@ func TestTheReceiptGetsFiveGaugesAndOnePlainRow(t *testing.T) {
 	}
 }
 
-// An account with nothing public still has to print.
+// An account with nothing public still has to print, and its blank gauges
+// carry no bar, so the share page cannot rank them against the room.
 func TestAnEmptyAccountStillPrints(t *testing.T) {
 	metrics := From(github.Facts{})
 
-	for _, m := range metrics[:5] {
-		if m.Value != "0%" || *m.Percent != 0 {
-			t.Errorf("%s should read as zero, got %q", m.Label, m.Value)
+	for i, m := range metrics[:5] {
+		if m.Value != "none" || m.Percent != nil {
+			t.Errorf("%s should read as none with no bar, got %q", m.Label, m.Value)
+		}
+		if m.Tag != emptyTags[i] {
+			t.Errorf("%s should joke about the blank, got tag %q", m.Label, m.Tag)
 		}
 	}
 	if got := find(t, metrics, "Longest quiet stretch").Value; got != "unknown" {
@@ -185,10 +193,23 @@ func TestTheScoreTellsAccountsApart(t *testing.T) {
 	}
 }
 
-func TestAnEmptyAccountScoresAsNeglected(t *testing.T) {
-	f := github.Facts{Year: github.Year{Days: year(func(int) int { return 0 })}}
-	if got := Score(f); got < 75 {
-		t.Errorf("an account with nothing in it is the most roastable kind, got %d", got)
+func TestAnEmptyAccountScoresZero(t *testing.T) {
+	f := github.Facts{
+		Repos: someRepos(2, false),
+		Year:  github.Year{Days: year(func(int) int { return 0 })},
+	}
+	if got := Score(f); got != 0 {
+		t.Errorf("an account with nothing in it has nothing to roast, got %d", got)
+	}
+}
+
+func TestAPrivateOnlyAccountKeepsUntestedGauges(t *testing.T) {
+	metrics := From(github.Facts{Year: github.Year{Days: year(func(i int) int { return i % 2 })}})
+
+	for _, i := range []int{0, 3, 4} {
+		if m := metrics[i]; m.Tag != untested || m.Percent != nil {
+			t.Errorf("%s: busy in private, so the blank is untested, got %q", m.Label, m.Tag)
+		}
 	}
 }
 
