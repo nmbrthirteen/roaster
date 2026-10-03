@@ -27,6 +27,11 @@ func (stub) Roast(ctx context.Context, req roast.Request, emit func(roast.Update
 
 func testServer(t *testing.T) http.Handler {
 	t.Helper()
+	return testStation(t).Handler()
+}
+
+func testStation(t *testing.T) *Server {
+	t.Helper()
 
 	cfg := config.Defaults()
 	cfg.EventsDir = ""    // the events compiled into the binary
@@ -42,7 +47,7 @@ func testServer(t *testing.T) http.Handler {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return s.Handler()
+	return s
 }
 
 func get(t *testing.T, h http.Handler, path string) *httptest.ResponseRecorder {

@@ -89,6 +89,7 @@ func main() {
 		log.Fatal(err)
 	}
 
+	go srv.WatchNetwork(context.Background())
 	log.Printf("roaster listening on %s, terminal #%s", cfg.Addr, srv.Terminal())
 	log.Fatal(http.ListenAndServe(cfg.Addr, srv.Handler()))
 }

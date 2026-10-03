@@ -186,6 +186,9 @@ func (s *Server) problemList() []string {
 	if _, err := s.source(); err != nil {
 		out = append(out, err.Error())
 	}
+	if note := networkNotes[s.network()]; note != "" {
+		out = append(out, note)
+	}
 	return out
 }
 
