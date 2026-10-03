@@ -1008,14 +1008,36 @@
       await port.open({ baudRate: 115200 });
       this.port = port;
     },
-    async write(bytes) {
+    // Only one writer can hold the stream. A test print tapped while a
+    // receipt is still going would ask for a second one, so jobs wait in line.
+    queue: Promise.resolve(),
+    write(bytes) {
+      const job = this.queue.then(() => this.send(bytes));
+      this.queue = job.catch(() => {});
+      return job;
+    },
+    async send(bytes) {
       if (!this.port) throw new Error('Connect the printer first.');
       const writer = this.port.writable.getWriter();
       try {
-        for (let i = 0; i < bytes.length; i += 64) await writer.write(bytes.subarray(i, i + 64));
+        for (let i = 0; i < bytes.length; i += 64) {
+          await inTime(writer.write(bytes.subarray(i, i + 64)), 15000);
+        }
+      } catch (err) {
+        // A printer out of paper stops reading and the write never settles.
+        // Aborting drops the stuck stream; the port hands out a fresh one.
+        await writer.abort().catch(() => {});
+        throw err;
       } finally { writer.releaseLock(); }
     },
   };
+  function inTime(p, ms) {
+    let timer;
+    const late = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error('The printer stopped taking data. Check the paper and the cable.')), ms);
+    });
+    return Promise.race([p, late]).finally(() => clearTimeout(timer));
+  }
   serial.restore().catch(() => {});
 
   $('print').addEventListener('click', async e => {
