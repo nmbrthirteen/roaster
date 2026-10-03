@@ -4,6 +4,7 @@ package netconf
 
 import (
 	"encoding/xml"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -32,8 +33,8 @@ const profileTemplate = `<?xml version="1.0"?>
   <connectionMode>auto</connectionMode>
   <MSM><security>
     <authEncryption>
-      <authentication>WPA2PSK</authentication>
-      <encryption>AES</encryption>
+      <authentication>{{AUTH}}</authentication>
+      <encryption>{{CIPHER}}</encryption>
       <useOneX>false</useOneX>
     </authEncryption>
     <sharedKey>
@@ -44,13 +45,41 @@ const profileTemplate = `<?xml version="1.0"?>
   </security></MSM>
 </WLANProfile>`
 
-func tempProfile(ssid, password string) (string, error) {
+// profileSecurity turns what a scan reports into what a profile names. A
+// WPA2 profile on a WPA3-only network never joins, which is how a phone
+// hotspot turns away a correct password.
+func profileSecurity(auth, cipher string) (string, string, error) {
+	enc := "AES"
+	if strings.EqualFold(cipher, "TKIP") {
+		enc = "TKIP"
+	}
+	switch strings.ToLower(auth) {
+	case "wpa3-personal":
+		return "WPA3SAE", "AES", nil
+	case "wpa-personal":
+		return "WPAPSK", enc, nil
+	case "wpa2-personal", "":
+		return "WPA2PSK", enc, nil
+	}
+	if strings.Contains(strings.ToLower(auth), "enterprise") {
+		return "", "", fmt.Errorf("this network wants a username as well as a password, which the stand cannot send. Use another network")
+	}
+	return "WPA2PSK", enc, nil
+}
+
+func tempProfile(ssid, password, auth, cipher string) (string, error) {
 	template := profileTemplate
 	if password == "" {
 		template = openProfileTemplate
 	}
+	authName, enc, err := profileSecurity(auth, cipher)
+	if password != "" && err != nil {
+		return "", err
+	}
 	xmlDoc := strings.ReplaceAll(template, "{{SSID}}", escape(ssid))
 	xmlDoc = strings.ReplaceAll(xmlDoc, "{{KEY}}", escape(password))
+	xmlDoc = strings.ReplaceAll(xmlDoc, "{{AUTH}}", authName)
+	xmlDoc = strings.ReplaceAll(xmlDoc, "{{CIPHER}}", enc)
 
 	path := filepath.Join(os.TempDir(), "roaster-wlan.xml")
 	// The file holds the passphrase in clear text, so it is readable only by
