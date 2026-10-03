@@ -19,6 +19,7 @@ import (
 	"github.com/upgaming/roaster/internal/config"
 	"github.com/upgaming/roaster/internal/github"
 	"github.com/upgaming/roaster/internal/metric"
+	"github.com/upgaming/roaster/internal/netconf"
 	"github.com/upgaming/roaster/internal/receipt"
 	"github.com/upgaming/roaster/internal/roast"
 	"github.com/upgaming/roaster/internal/secret"
@@ -43,6 +44,7 @@ func main() {
 	// Before anything asks where the folder is.
 	state.Use(*stateDir)
 	startLog()
+	netconf.RetryDropped()
 
 	if *setToken {
 		storeToken()

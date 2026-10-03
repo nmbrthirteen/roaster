@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/upgaming/roaster/internal/config"
+	"github.com/upgaming/roaster/internal/netconf"
 	"github.com/upgaming/roaster/internal/state"
 	"github.com/upgaming/roaster/internal/update"
 	"github.com/upgaming/roaster/internal/version"
@@ -68,6 +69,7 @@ func main() {
 	flag.Parse()
 
 	logTo("kiosk.log")
+	netconf.RetryDropped()
 	if *watched {
 		watch(withoutWatch(os.Args[1:]))
 		return
