@@ -18,7 +18,56 @@ var (
 	reAuth    = regexp.MustCompile(`(?m)^\s*Authentication\s*:\s*(.*)$`)
 	reProfile = regexp.MustCompile(`(?m)^\s*All User Profile\s*:\s*(.*)$`)
 	reState   = regexp.MustCompile(`(?m)^\s*State\s*:\s*(.*)$`)
+	reCipher  = regexp.MustCompile(`(?m)^\s*Encryption\s*:\s*(.*)$`)
+	reBlock   = regexp.MustCompile(`(?m)^SSID \d+ :`)
 )
+
+type found struct {
+	Network
+	auth, cipher string
+}
+
+// parseNetworks reads netsh's network list. Each network is a block starting
+// at its SSID line.
+func parseNetworks(out string) []found {
+	var list []found
+	blocks := reBlock.Split(out, -1)
+	names := reSSID.FindAllStringSubmatch(out, -1)
+	for i, block := range blocks[1:] {
+		if i >= len(names) {
+			break
+		}
+		name := strings.TrimSpace(names[i][1])
+		if name == "" {
+			continue
+		}
+		f := found{Network: Network{SSID: name}}
+		if m := reSignal.FindStringSubmatch(block); m != nil {
+			f.Signal, _ = strconv.Atoi(m[1])
+		}
+		if m := reAuth.FindStringSubmatch(block); m != nil {
+			f.auth = strings.TrimSpace(m[1])
+			f.Secure = !strings.EqualFold(f.auth, "Open")
+		}
+		if m := reCipher.FindStringSubmatch(block); m != nil {
+			f.cipher = strings.TrimSpace(m[1])
+		}
+		list = append(list, f)
+	}
+	return list
+}
+
+// security is how ssid asks to be joined, as the last scan saw it. A network
+// out of sight is taken to be WPA2, the most common.
+func security(ssid string) (auth, cipher string) {
+	out, _ := netsh("wlan", "show", "networks")
+	for _, f := range parseNetworks(out) {
+		if f.SSID == ssid {
+			return f.auth, f.cipher
+		}
+	}
+	return "WPA2-Personal", "CCMP"
+}
 
 func netsh(args ...string) (string, error) {
 	out, err := exec.Command("netsh", args...).CombinedOutput()
@@ -43,25 +92,9 @@ func Scan() ([]Network, error) {
 	}
 
 	var list []Network
-	// Each network is a block starting at its SSID line.
-	blocks := regexp.MustCompile(`(?m)^SSID \d+ :`).Split(out, -1)
-	names := reSSID.FindAllStringSubmatch(out, -1)
-	for i, block := range blocks[1:] {
-		if i >= len(names) {
-			break
-		}
-		name := strings.TrimSpace(names[i][1])
-		if name == "" {
-			continue
-		}
-		n := Network{SSID: name, Saved: saved[name]}
-		if m := reSignal.FindStringSubmatch(block); m != nil {
-			n.Signal, _ = strconv.Atoi(m[1])
-		}
-		if m := reAuth.FindStringSubmatch(block); m != nil {
-			n.Secure = !strings.EqualFold(strings.TrimSpace(m[1]), "Open")
-		}
-		list = append(list, n)
+	for _, f := range parseNetworks(out) {
+		f.Saved = saved[f.SSID]
+		list = append(list, f.Network)
 	}
 
 	if now, err := Current(); err == nil && now.Connected {
@@ -147,7 +180,8 @@ func Forget(ssid string) error {
 }
 
 func addProfile(ssid, password string) error {
-	f, err := tempProfile(ssid, password)
+	auth, cipher := security(ssid)
+	f, err := tempProfile(ssid, password, auth, cipher)
 	if err != nil {
 		return err
 	}
