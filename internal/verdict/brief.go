@@ -40,6 +40,7 @@ type Brief struct {
 	Metrics []roast.Metric
 
 	Shape         metric.Shape
+	Empty         bool // nothing to roast: no contributions, no public commits
 	Contributions int
 	ActiveDays    int
 	CalendarDays  int
@@ -89,6 +90,7 @@ func From(f github.Facts, metrics []roast.Metric, now time.Time) Brief {
 		Metrics: metrics,
 
 		Shape:         metric.ShapeOf(f),
+		Empty:         metric.Empty(f),
 		Contributions: metric.Contributed(f),
 		ActiveDays:    metric.ActiveDays(f),
 		CalendarDays:  len(f.Year.Days),
@@ -144,6 +146,9 @@ func (b Brief) Render() string {
 	line("<account>")
 	line("On GitHub for %s. Roast score %d / 100 (%s).", plural(b.Years, "year"), b.Score, roast.Severity(b.Score))
 	line("Account shape: %s. %s", b.Shape, shapes[b.Shape])
+	if b.Empty {
+		line("Nothing to roast: no contributions and no public commits. Every line on the page, the label too, jokes about the empty account, each from a different side.")
+	}
 	line("Contribution calendar, private included: %s contributions over %d days. %d days active, %d days empty. Longest run of empty days in a row: %d.",
 		metric.Thousands(b.Contributions), b.CalendarDays, b.ActiveDays, b.CalendarDays-b.ActiveDays, b.QuietestRun)
 	line("")
@@ -287,7 +292,7 @@ func Angles(b Brief) []string {
 	}
 	switch b.Shape {
 	case metric.Ghost:
-		out = append(out, "how empty this account is.")
+		out = append(out, emptyAngle)
 	case metric.Machine, metric.Grinder:
 		out = append(out, "the days off that never happen.")
 	}
@@ -295,12 +300,17 @@ func Angles(b Brief) []string {
 }
 
 func PickAngle(b Brief, n func(int) int) string {
+	if b.Empty {
+		return emptyAngle
+	}
 	angles := Angles(b)
 	if len(angles) == 0 {
 		return ""
 	}
 	return angles[n(len(angles))]
 }
+
+const emptyAngle = "how empty this account is."
 
 func facts(fs []roast.Finding) []string {
 	out := make([]string, len(fs))

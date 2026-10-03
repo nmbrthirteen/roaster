@@ -206,3 +206,18 @@ func TestTheBriefIsGrammatical(t *testing.T) {
 		t.Errorf("the counts and verbs should agree, got:\n%s", rendered)
 	}
 }
+
+func TestAnEmptyAccountIsRoastedForBeingEmpty(t *testing.T) {
+	f := github.Facts{Repos: []github.Repo{{Name: "dotfiles"}}, Year: github.Year{Days: make([]github.Day, 371)}}
+	b := From(f, metric.From(f), now)
+
+	if !b.Empty {
+		t.Fatalf("no contributions and no commits should brief as empty")
+	}
+	if got := PickAngle(b, func(int) int { return 0 }); got != emptyAngle {
+		t.Errorf("the angle should be the emptiness, got %q", got)
+	}
+	if !strings.Contains(b.Render(), "Nothing to roast") {
+		t.Errorf("the brief should tell the model the whole page is about the emptiness")
+	}
+}
