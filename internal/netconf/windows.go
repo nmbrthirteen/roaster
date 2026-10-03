@@ -60,6 +60,9 @@ func parseNetworks(out string) []found {
 // security is how ssid asks to be joined, as the last scan saw it. A network
 // out of sight is taken to be WPA2, the most common.
 func security(ssid string) (auth, cipher string) {
+	if f, ok := lookup(ssid); ok && f.auth != "" {
+		return f.auth, f.cipher
+	}
 	out, _ := netsh("wlan", "show", "networks")
 	for _, f := range parseNetworks(out) {
 		if f.SSID == ssid {
@@ -75,6 +78,18 @@ func netsh(args ...string) (string, error) {
 }
 
 func Scan() ([]Network, error) {
+	rescan()
+	if got, err := available(); err == nil && len(got) > 0 {
+		list := make([]Network, 0, len(got))
+		for _, f := range got {
+			list = append(list, f.Network)
+		}
+		sort.Slice(list, func(a, b int) bool { return list[a].Signal > list[b].Signal })
+		return list, nil
+	}
+
+	// netsh is what explains a scan Windows refused, such as location being
+	// off, so it stays as the way through when the API comes back empty.
 	saved := map[string]bool{}
 	if out, err := netsh("wlan", "show", "profiles"); err == nil {
 		for _, m := range reProfile.FindAllStringSubmatch(out, -1) {
@@ -82,7 +97,6 @@ func Scan() ([]Network, error) {
 		}
 	}
 
-	rescan()
 	out, err := netsh("wlan", "show", "networks", "mode=bssid")
 	if strings.Contains(strings.ToLower(out), "location") {
 		return nil, locationError(strings.TrimSpace(out))
@@ -136,7 +150,7 @@ func Connect(ssid, password string) error {
 			return err
 		}
 	}
-	out, err := netsh("wlan", "connect", "name="+ssid, "ssid="+ssid)
+	out, err := netsh("wlan", "connect", "name="+ssid)
 	if err != nil {
 		return fmt.Errorf("could not connect: %s", strings.TrimSpace(out))
 	}
@@ -149,6 +163,9 @@ func joined(ssid string) error {
 	deadline := time.Now().Add(20 * time.Second)
 	for {
 		time.Sleep(time.Second)
+		if f, ok := lookup(ssid); ok && f.Active {
+			return nil
+		}
 		if now, err := Current(); err == nil && now.Connected && now.SSID == ssid {
 			return nil
 		}
@@ -158,7 +175,24 @@ func joined(ssid string) error {
 	}
 }
 
+// lookup finds ssid in what the Wi-Fi API sees right now.
+func lookup(ssid string) (found, bool) {
+	list, err := available()
+	if err != nil {
+		return found{}, false
+	}
+	for _, f := range list {
+		if f.SSID == ssid {
+			return f, true
+		}
+	}
+	return found{}, false
+}
+
 func saved(ssid string) bool {
+	if f, ok := lookup(ssid); ok {
+		return f.Saved
+	}
 	out, err := netsh("wlan", "show", "profiles")
 	if err != nil {
 		return false

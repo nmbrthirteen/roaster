@@ -3,6 +3,7 @@
 package netconf
 
 import (
+	"encoding/hex"
 	"encoding/xml"
 	"fmt"
 	"os"
@@ -13,7 +14,7 @@ import (
 const openProfileTemplate = `<?xml version="1.0"?>
 <WLANProfile xmlns="http://www.microsoft.com/networking/WLAN/profile/v1">
   <name>{{SSID}}</name>
-  <SSIDConfig><SSID><name>{{SSID}}</name></SSID></SSIDConfig>
+  <SSIDConfig><SSID><hex>{{HEX}}</hex><name>{{SSID}}</name></SSID></SSIDConfig>
   <connectionType>ESS</connectionType>
   <connectionMode>auto</connectionMode>
   <MSM><security>
@@ -28,7 +29,7 @@ const openProfileTemplate = `<?xml version="1.0"?>
 const profileTemplate = `<?xml version="1.0"?>
 <WLANProfile xmlns="http://www.microsoft.com/networking/WLAN/profile/v1">
   <name>{{SSID}}</name>
-  <SSIDConfig><SSID><name>{{SSID}}</name></SSID></SSIDConfig>
+  <SSIDConfig><SSID><hex>{{HEX}}</hex><name>{{SSID}}</name></SSID></SSIDConfig>
   <connectionType>ESS</connectionType>
   <connectionMode>auto</connectionMode>
   <MSM><security>
@@ -77,6 +78,9 @@ func tempProfile(ssid, password, auth, cipher string) (string, error) {
 		return "", err
 	}
 	xmlDoc := strings.ReplaceAll(template, "{{SSID}}", escape(ssid))
+	// Windows matches the network on the hex bytes, so a name with an
+	// apostrophe or an emoji in it still finds its network.
+	xmlDoc = strings.ReplaceAll(xmlDoc, "{{HEX}}", strings.ToUpper(hex.EncodeToString([]byte(ssid))))
 	xmlDoc = strings.ReplaceAll(xmlDoc, "{{KEY}}", escape(password))
 	xmlDoc = strings.ReplaceAll(xmlDoc, "{{AUTH}}", authName)
 	xmlDoc = strings.ReplaceAll(xmlDoc, "{{CIPHER}}", enc)
