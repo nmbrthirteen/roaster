@@ -5,9 +5,9 @@
 // It also starts the server it shows and keeps it running, which is why this is
 // the only thing anyone has to launch.
 //
-// Hosting the page rather than driving Edge costs Web Serial: WebView2 has no
-// navigator.serial, so a printer is reached through the server's own transports
-// instead. On a device running its own server that is the shorter path anyway.
+// A printer is reached through the server's own transports. Newer WebView2
+// runtimes also offer Web Serial, which the page uses only after someone
+// presses Connect printer in the hidden menu.
 package main
 
 import (
