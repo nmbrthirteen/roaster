@@ -990,13 +990,14 @@
   }
 
   // Web Serial is what lets the kiosk be a hosted URL with nothing installed.
-  // The Windows app has no such thing, and prints through the server instead,
-  // so everything it offers is behind this.
+  // The Windows app has it too, and an open port takes over from the printer
+  // picked in the menu. Picking a server printer closes it and remembers that,
+  // so the next start does not quietly open it again.
   const hasSerial = 'serial' in navigator;
   const serial = {
     port: null,
     async restore() {
-      if (!hasSerial) return;
+      if (!hasSerial || localStorage.getItem('printVia') === 'server') return;
       const [granted] = await navigator.serial.getPorts();
       if (!granted) return;
       await granted.open({ baudRate: 115200 });
@@ -1005,8 +1006,16 @@
     async connect() {
       if (!hasSerial) throw new Error('This browser has no Web Serial.');
       const port = await navigator.serial.requestPort();
-      await port.open({ baudRate: 115200 });
+      // Already open when it is the port this page restored on start.
+      if (!port.writable) await port.open({ baudRate: 115200 });
       this.port = port;
+      localStorage.setItem('printVia', 'browser');
+    },
+    async disconnect() {
+      localStorage.setItem('printVia', 'server');
+      const port = this.port;
+      this.port = null;
+      if (port) await this.queue.then(() => port.close()).catch(() => {});
     },
     // Only one writer can hold the stream. A test print tapped while a
     // receipt is still going would ask for a second one, so jobs wait in line.
@@ -1223,9 +1232,9 @@
 
       <h3>Printer</h3>
       <select id="aPrinter">
-        ${hasSerial ? '<option value="browser">This browser, over Web Serial</option>' : ''}
+        ${hasSerial ? `<option value="browser"${serial.port ? ' selected' : ''}>This browser, over Web Serial</option>` : ''}
         <option value="">None</option>
-        ${(s.printers || []).map(p => `<option value="${esc(p.spec)}"${p.spec === s.printer ? ' selected' : ''}>${esc(p.label)}</option>`).join('')}
+        ${(s.printers || []).map(p => `<option value="${esc(p.spec)}"${!serial.port && p.spec === s.printer ? ' selected' : ''}>${esc(p.label)}</option>`).join('')}
       </select>
       <select id="aColumns">
         ${[[48, '80 mm paper, 48 characters a line (most printers)'], [42, '80 mm paper, 42 characters a line (narrow head)'], [32, '58 mm paper, 32 characters a line']]
@@ -1315,6 +1324,7 @@
 
     on('aPrinter', async e => {
       if (e.target.value === 'browser') return say('Press Connect printer.');
+      await serial.disconnect();
       try { say(await call('/printer', new URLSearchParams({ spec: e.target.value }))); }
       catch (err) { say(err.message, true); }
     }, 'change');
