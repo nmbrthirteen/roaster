@@ -67,7 +67,7 @@ const untested = "untested"
 
 // emptyTags stand in for "untested" when there is nothing at all, so the
 // damage report jokes about the blank too.
-var emptyTags = [5]string{"out cold", "all off", "on leave", "no repos", "no words"}
+var emptyTags = [5]string{"out cold", "all off", "on leave", "no repos", "speechless"}
 
 // Empty is an account with nothing to roast: no contributions on the calendar
 // and no public commits to read.
