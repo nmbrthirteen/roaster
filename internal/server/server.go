@@ -14,6 +14,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/upgaming/roaster/internal/config"
@@ -37,6 +38,7 @@ type Server struct {
 	provider roast.Provider
 	assets   receipt.Assets
 	started  time.Time
+	netState atomic.Pointer[string]
 
 	designer *template.Template
 	kiosk    *template.Template

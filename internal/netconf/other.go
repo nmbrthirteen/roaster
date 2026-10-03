@@ -10,3 +10,5 @@ func Scan() ([]Network, error)            { return nil, errUnsupported }
 func Current() (Status, error)            { return Status{}, errUnsupported }
 func Connect(ssid, password string) error { return errUnsupported }
 func Forget(ssid string) error            { return errUnsupported }
+func Rejoin() error                       { return errUnsupported }
+func Known() []string                     { return nil }

@@ -205,6 +205,39 @@ func saved(ssid string) bool {
 	return false
 }
 
+// Rejoin drops the current network and joins it again, which clears a
+// connection Windows still calls up after the network stopped answering.
+func Rejoin() error {
+	list, err := available()
+	if err != nil {
+		return err
+	}
+	for _, f := range list {
+		if f.Active {
+			netsh("wlan", "disconnect")
+			return Connect(f.SSID, "")
+		}
+	}
+	return fmt.Errorf("not on any network")
+}
+
+// Known is every network in range that this stand has joined before, except
+// the one it is on, strongest first.
+func Known() []string {
+	list, err := available()
+	if err != nil {
+		return nil
+	}
+	sort.Slice(list, func(a, b int) bool { return list[a].Signal > list[b].Signal })
+	var out []string
+	for _, f := range list {
+		if f.Saved && !f.Active {
+			out = append(out, f.SSID)
+		}
+	}
+	return out
+}
+
 func Forget(ssid string) error {
 	out, err := netsh("wlan", "delete", "profile", "name="+ssid)
 	if err != nil {
