@@ -1251,7 +1251,7 @@
       </div>
 
       <h3>Wi-Fi</h3>
-      <div class="acts"><button id="aScan" class="full">Scan for networks</button></div>
+      <div class="acts"><button id="aScan">Scan for networks</button><button id="aInternet">Check internet</button></div>
       <div class="nets" id="aNets"></div>
       <div class="wifi-name">
         <input id="aSsid" placeholder="Or type the network name" autocomplete="off" autocapitalize="off">
@@ -1351,6 +1351,8 @@
       return found.length ? `${found.length} networks. Tap one to join it.` : 'No networks in range.';
     }));
 
+    on('aInternet', () => act(checkInternet));
+
     on('aJoinName', () => {
       kb.close();
       const ssid = $('aSsid').value.trim();
@@ -1359,7 +1361,7 @@
         say(`Joining ${ssid}, this takes a few seconds...`);
         const msg = await call('/admin/wifi/connect', new URLSearchParams({ ssid, password: $('aSsidPass').value }));
         await refresh();
-        return msg;
+        return `${msg} ${await checkInternet()}`;
       });
     });
 
@@ -1478,6 +1480,17 @@
     ], () => call('/admin/signout', new URLSearchParams()));
   }
 
+  // A venue network can join fine and still hold every request at its own
+  // sign-in page. The kiosk app puts a button back to the stand on that page.
+  async function checkInternet() {
+    say('Checking the internet...');
+    const net = JSON.parse(await call('/admin/wifi/internet'));
+    if (net.state === 'online') return 'The internet works.';
+    if (net.state === 'offline') throw new Error('This Wi-Fi has no internet. Try another network.');
+    setTimeout(() => { location.href = net.portal; }, 2000);
+    return 'This Wi-Fi wants its sign-in page. Opening it now.';
+  }
+
   function renderNetworks(list) {
     nets = list;
     const box = $('aNets');
@@ -1497,7 +1510,7 @@
         list.forEach(o => { o.active = o === n; });
         n.saved = true;
         await refresh();
-        return msg;
+        return `${msg} ${await checkInternet()}`;
       } catch (err) {
         renderNetworks(list);
         throw err;

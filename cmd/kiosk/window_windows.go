@@ -4,6 +4,7 @@ package main
 
 import (
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -98,6 +99,7 @@ func (h *host) run() error {
 	}
 	h.view.Resize()
 	h.tighten()
+	h.view.Init(wayBack(h.s.url))
 
 	// Whichever is true right now, rather than a blank window for a second.
 	if alive(health(h.s.url), time.Second) {
@@ -202,6 +204,27 @@ func (h *host) tighten() {
 			log.Printf("could not turn off %s: %v", what, err)
 		}
 	}
+}
+
+// wayBack puts a button back to the stand on any page from somewhere else.
+// A venue's Wi-Fi sign-in page is opened from the hidden menu, and a screen
+// with no address bar has no other way home from it.
+func wayBack(home string) string {
+	quoted, _ := json.Marshal(home)
+	return `(() => {
+  const home = ` + string(quoted) + `;
+  if (window.top !== window || !/^https?:$/.test(location.protocol)) return;
+  if (location.origin === new URL(home).origin) return;
+  const add = () => {
+    const b = document.createElement('button');
+    b.textContent = 'Back to the stand';
+    b.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:2147483647;' +
+      'padding:16px 28px;border:0;border-radius:12px;background:#0fff50;color:#070707;font:600 20px system-ui,sans-serif';
+    b.onclick = () => { location.href = home; };
+    document.body.appendChild(b);
+  };
+  if (document.body) add(); else document.addEventListener('DOMContentLoaded', add);
+})();`
 }
 
 func (h *host) pump() {
