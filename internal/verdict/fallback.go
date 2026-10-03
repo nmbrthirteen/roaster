@@ -2,6 +2,7 @@ package verdict
 
 import (
 	"fmt"
+	"math/rand/v2"
 	"strings"
 
 	"github.com/upgaming/roaster/internal/metric"
@@ -55,6 +56,10 @@ var lines = map[string][]string{
 // because it only says what was measured, and it never fails, so a visitor
 // always leaves with a receipt.
 func Fallback(b Brief) string {
+	if b.Empty {
+		return fresh(b.Avoid, "", empty(b)...)
+	}
+
 	if options := shaped(b); len(options) > 0 {
 		return fresh(b.Avoid, "", options...)
 	}
@@ -70,6 +75,30 @@ func Fallback(b Brief) string {
 	return fresh(b.Avoid, "",
 		"Nothing public. Hard to ship bugs with no code.",
 		"Nothing public to roast. The safest way to never ship a bug is to never ship.",
+		"Zero public activity. The perfect codebase is the one nobody can see.",
+	)
+}
+
+// empty is the whole joke for an account with nothing in it. With repos left
+// over, the joke is that they were left.
+func empty(b Brief) []string {
+	if b.Read > 0 {
+		return []string{
+			fmt.Sprintf("%s, and not one got a commit this year. Even the repos gave up.", plural(max(b.Owned, b.Read), "repo")),
+			"The repos are still here. Their developer left a year ago and never wrote back.",
+			"A whole year without one commit. The repos are just collecting dust now.",
+		}
+	}
+	out := []string{
+		"So empty I can hear an echo in here. One commit would fix that.",
+		"Zero contributions all year. The keyboard is still waiting for its first job.",
+	}
+	if b.QuietestRun > 0 {
+		out = append(out, fmt.Sprintf("%d empty days in a row. This receipt is the most you shipped all year.", b.QuietestRun))
+	}
+	return append(out,
+		"I came to roast your code and found a login. Bring code next time.",
+		"Nothing public. Hard to ship bugs with no code.",
 		"Zero public activity. The perfect codebase is the one nobody can see.",
 	)
 }
@@ -142,10 +171,24 @@ var archetypes = map[string]string{
 	noReadme:                    "Head of Undocumented Features",
 }
 
+// The labels for an account with nothing to show rotate, because a quiet
+// account is common and the queue reads every receipt.
+var (
+	emptyLabels  = []string{"Senior Account Holder", "Principal Lurker", "Chief Spectator Officer", "VP of Coming Soon", "Professional Logged In User"}
+	leftLabels   = []string{"Curator of Abandoned Repos", "Retired Repo Owner", "Keeper of the Repo Graveyard"}
+	hiddenLabels = []string{"Chief Invisible Officer", "Head of Classified Commits", "Director of Secret Work"}
+)
+
+func anyOf(labels []string) string { return labels[rand.IntN(len(labels))] }
+
 func Archetype(b Brief) string {
 	switch {
+	case b.Empty && b.Read == 0:
+		return anyOf(emptyLabels)
+	case b.Empty:
+		return anyOf(leftLabels)
 	case b.Read == 0 && b.Year.Commits == 0:
-		return "Stealth Mode Founder"
+		return anyOf(hiddenLabels)
 	case b.Shape == metric.Ghost:
 		return "Director of Empty Calendars"
 	case b.Shape == metric.Machine:

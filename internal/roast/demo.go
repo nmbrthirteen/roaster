@@ -72,7 +72,7 @@ func (Demo) Roast(ctx context.Context, req Request, emit func(Update)) (Roast, e
 		r.Findings = demoFindings[:2]
 		r.Strengths = []string{"Zero bugs in production. Technically.", "Showed up to a roast stand voluntarily. Brave."}
 		r.Habits = nil
-		r.Archetype = "Stealth Mode Founder"
+		r.Archetype = "Senior Account Holder"
 	}
 	for _, s := range r.Story {
 		section := s

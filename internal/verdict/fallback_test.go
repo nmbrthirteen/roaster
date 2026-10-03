@@ -2,6 +2,7 @@ package verdict
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -198,5 +199,44 @@ func TestTheFallbackDoesNotRepeatItself(t *testing.T) {
 	// Every line used: it starts again rather than printing nothing.
 	if got := Fallback(b); got == "" {
 		t.Errorf("with every line used, the fallback should still print one")
+	}
+}
+
+// No activity is the joke, and the label says so instead of guessing at a
+// reason for it.
+func TestAnEmptyAccountGetsAJokeForALabel(t *testing.T) {
+	for _, c := range []struct {
+		b    Brief
+		want []string
+	}{
+		{Brief{Empty: true}, emptyLabels},
+		{Brief{Empty: true, Read: 2}, leftLabels},
+		{Brief{Shape: metric.Grinder, Contributions: 4000}, hiddenLabels},
+	} {
+		got := Archetype(c.b)
+		if !slices.Contains(c.want, got) {
+			t.Errorf("archetype %q, want one of %q", got, c.want)
+		}
+		if _, ok := label(got); !ok {
+			t.Errorf("archetype %q does not fit the receipt", got)
+		}
+	}
+}
+
+func TestAnEmptyAccountIsToldItIsEmpty(t *testing.T) {
+	withRepos := Fallback(Brief{Empty: true, Read: 2, Owned: 2, Metrics: []roast.Metric{gauge("Repos with no description", 100)}})
+	if !strings.Contains(withRepos, "2 repos") {
+		t.Errorf("leftover repos should be the joke, got %q", withRepos)
+	}
+
+	b := Brief{Empty: true, QuietestRun: 371}
+	seen := map[string]bool{}
+	for range empty(b) {
+		line := Fallback(b)
+		if seen[line] {
+			t.Errorf("%q repeated before the rest were used", line)
+		}
+		seen[line] = true
+		b.Avoid = append(b.Avoid, line)
 	}
 }
