@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -32,6 +33,10 @@ func (r Remote) Roast(ctx context.Context, req Request, emit func(Update)) (Roas
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Accept", "text/event-stream")
+	// The stand sits idle between visitors, and the far end drops the pooled
+	// connection while it waits. The key marks the POST as safe to replay, so
+	// the transport retries a dead reused connection instead of failing on EOF.
+	httpReq.Header.Set("Idempotency-Key", rand.Text())
 	if r.Token != "" {
 		httpReq.Header.Set("Authorization", "Bearer "+r.Token)
 	}
