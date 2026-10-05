@@ -75,3 +75,27 @@ func TestAnOlderStrapiStillGetsTheRoast(t *testing.T) {
 		t.Errorf("want one try with the archetype and one without, got %+v", sent)
 	}
 }
+
+func TestAPrintedReceiptIsMarkedOnceItsEntryExists(t *testing.T) {
+	defer func(was []time.Duration) { printedRetries = was }(printedRetries)
+	printedRetries = []time.Duration{time.Millisecond, time.Millisecond}
+
+	var tries int
+	strapi := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/roaster/entries/abcde/printed" || r.Header.Get("Authorization") != "Bearer t" {
+			t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		// The first try lands before the roast is saved.
+		if tries++; tries == 1 {
+			http.NotFound(w, r)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer strapi.Close()
+
+	archive{url: strapi.URL, token: "t"}.markPrinted("abcde")
+	if tries != 2 {
+		t.Errorf("want a retry after the missing entry, got %d tries", tries)
+	}
+}

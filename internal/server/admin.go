@@ -212,7 +212,9 @@ func (s *Server) adminReprint(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Nothing has been printed yet.", http.StatusNotFound)
 		return
 	}
-	s.send(w, last.Doc(s.pick(r), s.st.config().Terminal), "reprint")
+	if s.send(w, last.Doc(s.pick(r), s.st.config().Terminal), "reprint") {
+		s.printed(last.Code)
+	}
 }
 
 func (s *Server) wifiScan(w http.ResponseWriter, r *http.Request) {

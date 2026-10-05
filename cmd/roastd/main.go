@@ -46,7 +46,7 @@ type settings struct {
 	parallel  int
 
 	strapiURL   string // STRAPI_URL; with STRAPI_TOKEN, every roast is saved there
-	strapiToken string // STRAPI_TOKEN, allowed to create roast entries and nothing more
+	strapiToken string // STRAPI_TOKEN, allowed to create roast entries and mark them printed
 }
 
 func main() {
@@ -83,8 +83,10 @@ func main() {
 	}
 
 	var router roast.Provider = roast.Router{roast.GitHub: modelRouter{audit: provider, writers: writers, fallback: defaultModel(cfg)}}
+	var printed func(string)
 	if cfg.strapiURL != "" && cfg.strapiToken != "" {
-		router = archive{next: router, url: cfg.strapiURL, token: cfg.strapiToken}
+		saved := archive{next: router, url: cfg.strapiURL, token: cfg.strapiToken}
+		router, printed = saved, saved.markPrinted
 	} else {
 		slog.Warn("STRAPI_URL or STRAPI_TOKEN is not set; roasts will not be saved and share links will not open")
 	}
@@ -96,6 +98,7 @@ func main() {
 		every:  3 * time.Second,
 		burst:  6,
 	})
+	svc.printed = printed
 
 	srv := &http.Server{
 		Addr:    cfg.addr,

@@ -8,6 +8,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -106,23 +107,44 @@ func (s *Server) pick(r *http.Request) event.Event {
 }
 
 // send prints a document and says what happened, in words meant for the person
-// standing at the stand rather than for a log.
-func (s *Server) send(w http.ResponseWriter, doc *receipt.Doc, what string) {
+// standing at the stand rather than for a log. It reports whether it printed.
+func (s *Server) send(w http.ResponseWriter, doc *receipt.Doc, what string) bool {
 	prn, _ := s.st.printer()
 	if prn == nil {
 		s.st.note("No printer selected.")
 		http.Error(w, "Pick a printer first.", http.StatusPreconditionFailed)
-		return
+		return false
 	}
 	job := doc.ESCPOS(s.assets)
 	if err := prn.Print(job); err != nil {
 		log.Printf("print: %v", err)
 		s.st.printFailure(err.Error())
 		http.Error(w, err.Error(), http.StatusBadGateway)
-		return
+		return false
 	}
 	s.st.counted()
 	fmt.Fprintf(w, "Sent %s, %d bytes to %s.", what, len(job), prn.Name())
+	return true
+}
+
+// printed records that a roast's receipt came out. Only the roast service
+// keeps records; demo roasts have none to update.
+func (s *Server) printed(code string) {
+	src, err := s.source()
+	if err != nil {
+		return
+	}
+	remote, ok := src.(roast.Remote)
+	if !ok {
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		if err := remote.Printed(ctx, code); err != nil {
+			log.Printf("record print of %s: %v", code, err)
+		}
+	}()
 }
 
 // guard is the code check. Everything an operator can reach goes through it,
