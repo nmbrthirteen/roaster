@@ -104,8 +104,8 @@ function Set-KioskUserValues {
 }
 
 # The stand gets a power plan of its own that never sleeps, never turns the
-# screen off and ignores a closed lid, so the plan in use before comes back
-# untouched when kiosk mode is taken off.
+# screen off, keeps it at full brightness and ignores a closed lid, so the plan
+# in use before comes back untouched when kiosk mode is taken off.
 $powerNote = Join-Path $env:ProgramData 'Roaster\power-plan.txt'
 $guidRule = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
 
@@ -128,6 +128,12 @@ function Set-StandPower {
   }
   powercfg /setacvalueindex $stand SUB_BUTTONS LIDACTION 0
   powercfg /setdcvalueindex $stand SUB_BUTTONS LIDACTION 0
+  # Full brightness, and no dimming by the light sensor, which a dark venue
+  # corner or a hand over the sensor would trigger.
+  foreach ($value in @('VIDEONORMALLEVEL', 100), @('ADAPTBRIGHT', 0)) {
+    powercfg /setacvalueindex $stand SUB_VIDEO $value[0] $value[1]
+    powercfg /setdcvalueindex $stand SUB_VIDEO $value[0] $value[1]
+  }
   powercfg /setactive $stand
 }
 
@@ -381,7 +387,7 @@ New-ItemProperty -Path $edgeUI -Name 'AllowEdgeSwipe' -PropertyType DWord -Value
 if (-not (Test-Path $updates)) { New-Item -Path $updates -Force | Out-Null }
 New-ItemProperty -Path $updates -Name 'NoAutoRebootWithLoggedOnUsers' -PropertyType DWord -Value 1 -Force | Out-Null
 foreach ($step in @(
-    @{ What = 'keep the screen on'; Run = { Set-StandPower } },
+    @{ What = 'keep the screen on at full brightness'; Run = { Set-StandPower } },
     @{ What = 'set the kiosk account up'; Run = { Set-KioskUserValues } },
     @{ What = 'turn location on for Wi-Fi scanning'; Run = { Enable-Location; Enable-UserLocation | Out-Null } })) {
   try {

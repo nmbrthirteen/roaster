@@ -39,6 +39,7 @@ type Server struct {
 	assets   receipt.Assets
 	started  time.Time
 	netState atomic.Pointer[string]
+	queued   atomic.Int64 // when the print queue was first seen holding a job, in Unix nanoseconds
 
 	designer *template.Template
 	kiosk    *template.Template
@@ -116,7 +117,7 @@ func (s *Server) send(w http.ResponseWriter, doc *receipt.Doc, what string) {
 	job := doc.ESCPOS(s.assets)
 	if err := prn.Print(job); err != nil {
 		log.Printf("print: %v", err)
-		s.st.note(err.Error())
+		s.st.printFailure(err.Error())
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
 	}

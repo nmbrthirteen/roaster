@@ -372,6 +372,14 @@
     display: block;
   }
   .pins i.on { background: var(--primary); border-color: var(--primary); }
+  .loading { display: flex; justify-content: center; gap: 12px; padding: 48px 0 32px; }
+  .loading i {
+    width: 14px; height: 14px; border-radius: 50%; background: var(--primary);
+    animation: pulse 1.2s var(--ease) infinite;
+  }
+  .loading i:nth-child(2) { animation-delay: .15s; }
+  .loading i:nth-child(3) { animation-delay: .3s; }
+  @keyframes pulse { 0%, 100% { opacity: .25; transform: scale(.8); } 50% { opacity: 1; transform: scale(1); } }
   .pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
   .pad button {
     font-family: var(--mono); font-size: 28px; font-weight: 400; font-style: normal;
@@ -1152,7 +1160,7 @@
     if (Date.now() < admin.lockedUntil) return false;
     let res;
     try {
-      res = await fetch('/admin/state', { headers: { 'X-Admin-Pin': code } });
+      res = await fetch('/admin/check', { headers: { 'X-Admin-Pin': code } });
     } catch {
       return false;
     }
@@ -1169,13 +1177,25 @@
     admin.code = code;
     admin.el.hidden = false;
     clearTimeout(idleTimer);
-    renderMenu(await res.json());
     say('');
+    renderLoading();
+    try {
+      renderMenu(JSON.parse(await call('/admin/state')));
+    } catch (err) {
+      say(err.message, true);
+    }
     return true;
   }
 
+  // The state takes a few seconds on Windows, where listing printers and
+  // Wi-Fi means starting PowerShell and netsh.
+  function renderLoading() {
+    admin.title.textContent = '';
+    admin.hint.textContent = '';
+    admin.body.innerHTML = '<div class="loading" role="status" aria-label="Loading"><i></i><i></i><i></i></div>';
+  }
+
   async function verify() {
-    say('Checking...');
     const code = admin.pin;
     if (await unlock(code)) return;
     admin.pin = '';
@@ -1221,6 +1241,7 @@
     admin.body.innerHTML = `
       <dl class="facts">
         <dt>Printer</dt><dd class="${serial.port || s.printer ? '' : 'warn'}">${serialState}</dd>
+        ${serial.port ? '' : `<dt>Printer status</dt><dd class="${s.printerStatus ? 'warn' : ''}">${s.printerStatus ? esc(s.printerStatus) : 'Ready'}</dd>`}
         <dt>Wi-Fi</dt><dd class="${s.wifi && s.wifi.connected ? '' : 'warn'}">${wifi}</dd>
         <dt>Roasts</dt><dd>${s.printed}</dd>
         <dt>Running</dt><dd>${uptime}</dd>
