@@ -988,7 +988,7 @@
     $('archetype').textContent = roast.archetype || '';
     $('archetype').hidden = !roast.archetype;
     $('finalVerdict').textContent = '“' + roast.verdict + '”';
-    $('shareQr').src = '/qr?m=8&d=' + encodeURIComponent(url);
+    $('shareQr').src = '/qr?m=8&d=' + encodeURIComponent(url + '?s=screen');
     $('print').disabled = false;
     $('print').textContent = 'Print my receipt';
     $('again').textContent = 'Start over';
@@ -1064,6 +1064,7 @@
       if (serial.port) {
         const res = await fetch('/receipt.bin?code=' + roast.code + location.search.replace('?', '&'));
         await serial.write(new Uint8Array(await res.arrayBuffer()));
+        reportPrinted(roast.code);
       } else {
         const res = await fetch('/receipt/print', {
           method: 'POST',
@@ -1361,7 +1362,11 @@
     }));
 
     on('aReprint', () => act(async () => {
-      if (serial.port) { await printBytes('/receipt.bin?code=' + encodeURIComponent(lastCode())); return 'Reprinted from this browser.'; }
+      if (serial.port) {
+        await printBytes('/receipt.bin?code=' + encodeURIComponent(lastCode()));
+        reportPrinted(lastCode());
+        return 'Reprinted from this browser.';
+      }
       return await call('/admin/reprint', new URLSearchParams());
     }));
 
@@ -1622,6 +1627,12 @@
   }
 
   function lastCode() { return roast ? roast.code : ''; }
+
+  // A receipt printed over Web Serial never passes through the server, so the
+  // page says so for the roast's record.
+  function reportPrinted(code) {
+    fetch('/receipt/printed', { method: 'POST', body: new URLSearchParams({ code }) }).catch(() => {});
+  }
 
   async function printBytes(path) {
     const res = await fetch(path);

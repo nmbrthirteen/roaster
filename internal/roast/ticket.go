@@ -97,7 +97,8 @@ func (r Roast) Doc(ev event.Event, terminal string) *receipt.Doc {
 	share := ev.ShareURL(r.Code)
 	d.Add(
 		brk,
-		receipt.QR{Data: share, Size: 5},
+		// The mark tells the share page it was opened by scanning the receipt.
+		receipt.QR{Data: share + "?s=receipt", Size: 5},
 		gap,
 		receipt.Text{Value: ev.Receipt.CTA, Style: center},
 		receipt.Text{Value: trimScheme(share), Style: center},

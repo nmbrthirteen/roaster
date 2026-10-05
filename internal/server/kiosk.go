@@ -36,6 +36,7 @@ func (s *Server) stand(mux *http.ServeMux) {
 	mux.HandleFunc("/api/roast", s.audit)
 	mux.HandleFunc("/receipt.bin", s.receiptBytes)
 	mux.HandleFunc("/receipt/print", s.printReceipt)
+	mux.HandleFunc("/receipt/printed", s.receiptPrinted)
 	mux.HandleFunc("/health", s.health)
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -143,7 +144,25 @@ func (s *Server) printReceipt(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "no such roast", http.StatusNotFound)
 		return
 	}
-	s.send(w, rst.Doc(s.pick(r), s.st.config().Terminal), "receipt")
+	if s.send(w, rst.Doc(s.pick(r), s.st.config().Terminal), "receipt") {
+		s.printed(rst.Code)
+	}
+}
+
+// receiptPrinted is the page saying it printed a receipt itself, over Web
+// Serial, where the server never sees the paper come out.
+func (s *Server) receiptPrinted(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "post only", http.StatusMethodNotAllowed)
+		return
+	}
+	rst, ok := s.st.recall(r.FormValue("code"))
+	if !ok {
+		http.Error(w, "no such roast", http.StatusNotFound)
+		return
+	}
+	s.printed(rst.Code)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // health is what the page and the launcher both poll to decide this is alive.

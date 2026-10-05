@@ -203,3 +203,40 @@ func TestAnAuditErrorReachesTheStandInWords(t *testing.T) {
 		t.Errorf("want %q, got %v", audit.ErrOptedOut, err)
 	}
 }
+
+func TestAStandReportsAPrintedReceipt(t *testing.T) {
+	got := make(chan string, 1)
+	svc := newService(&provider{}, []string{token}, roomy())
+	svc.printed = func(code string) { got <- code }
+	srv := httptest.NewServer(svc.handler())
+	defer srv.Close()
+
+	post := func(auth, body string) int {
+		req, _ := http.NewRequest(http.MethodPost, srv.URL+"/printed", strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer "+auth)
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res.Body.Close()
+		return res.StatusCode
+	}
+
+	if code := post("wrong-token", `{"code":"abcde"}`); code != http.StatusUnauthorized {
+		t.Errorf("an unknown terminal should be refused, got %d", code)
+	}
+	if code := post(token, `{"code":"../x"}`); code != http.StatusBadRequest {
+		t.Errorf("a malformed code should be refused, got %d", code)
+	}
+	if code := post(token, `{"code":"abcde"}`); code != http.StatusAccepted {
+		t.Fatalf("a known terminal should be heard, got %d", code)
+	}
+	select {
+	case c := <-got:
+		if c != "abcde" {
+			t.Errorf("recorded %q", c)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("the print was never recorded")
+	}
+}

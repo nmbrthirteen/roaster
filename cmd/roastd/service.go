@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -33,6 +34,7 @@ type limits struct {
 type service struct {
 	provider roast.Provider
 	lim      limits
+	printed  func(code string) // nil when there is nowhere to record it
 
 	terminals map[[32]byte]*rate.Limiter
 	slots     chan struct{}
@@ -57,7 +59,31 @@ func (s *service) handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", s.health)
 	mux.HandleFunc("POST /roast", s.roast)
+	mux.HandleFunc("POST /printed", s.markPrinted)
 	return mux
+}
+
+var shareCode = regexp.MustCompile(`^[23456789a-z]{5}$`)
+
+// markPrinted is a stand saying a roast's receipt came out. It answers at once
+// and records it after: the visitor is already holding the paper.
+func (s *service) markPrinted(w http.ResponseWriter, r *http.Request) {
+	if _, _, ok := s.authenticate(r); !ok {
+		http.Error(w, "unknown terminal", http.StatusUnauthorized)
+		return
+	}
+	var req struct {
+		Code string `json:"code"`
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<10)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || !shareCode.MatchString(req.Code) {
+		http.Error(w, "send a JSON body with a share code", http.StatusBadRequest)
+		return
+	}
+	if s.printed != nil {
+		go s.printed(req.Code)
+	}
+	w.WriteHeader(http.StatusAccepted)
 }
 
 func (s *service) health(w http.ResponseWriter, r *http.Request) {

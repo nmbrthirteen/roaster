@@ -21,7 +21,7 @@ import (
 type archive struct {
 	next  roast.Provider
 	url   string // Strapi's base URL
-	token string // a Strapi API token allowed to create roast entries, nothing more
+	token string // a Strapi API token allowed to create roast entries and mark them printed
 	http  *http.Client
 }
 
@@ -111,4 +111,54 @@ func (a archive) post(ctx context.Context, e entry) (int, string, error) {
 	defer res.Body.Close()
 	reply, _ := io.ReadAll(io.LimitReader(res.Body, 4<<10))
 	return res.StatusCode, string(reply), nil
+}
+
+// printedRetries is how long to wait before each new try at marking a receipt
+// printed. The entry is saved after the roast, so a quick print can land first.
+var printedRetries = []time.Duration{3 * time.Second, 10 * time.Second, 30 * time.Second}
+
+// markPrinted tells Strapi a stand printed this roast's receipt.
+func (a archive) markPrinted(code string) {
+	for try := 0; ; try++ {
+		status, err := a.call(http.MethodPost, "/api/roaster/entries/"+code+"/printed")
+		switch {
+		case err == nil && status < 300:
+			slog.Info("printed", "code", code)
+			return
+		case err == nil && status != http.StatusNotFound:
+			slog.Error("printed", "code", code, "err", fmt.Sprintf("Strapi answered %d", status))
+			return
+		case try == len(printedRetries):
+			slog.Error("printed", "code", code, "err", fmt.Sprint("gave up: ", errOr(err, "no entry")))
+			return
+		}
+		time.Sleep(printedRetries[try])
+	}
+}
+
+func (a archive) call(method, path string) (int, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, method, strings.TrimRight(a.url, "/")+path, nil)
+	if err != nil {
+		return 0, err
+	}
+	req.Header.Set("Authorization", "Bearer "+a.token)
+	client := a.http
+	if client == nil {
+		client = http.DefaultClient
+	}
+	res, err := client.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	res.Body.Close()
+	return res.StatusCode, nil
+}
+
+func errOr(err error, fallback string) string {
+	if err != nil {
+		return err.Error()
+	}
+	return fallback
 }

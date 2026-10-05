@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
+	"path"
 	"strings"
 	"time"
 )
@@ -90,4 +92,36 @@ func (r Remote) Roast(ctx context.Context, req Request, emit func(Update)) (Roas
 		return Roast{}, fmt.Errorf("the roast service closed without finishing")
 	}
 	return final, nil
+}
+
+// Printed tells the service this roast's receipt came out, beside the roast
+// route, so the share page's record says it was printed.
+func (r Remote) Printed(ctx context.Context, code string) error {
+	u, err := url.Parse(r.URL)
+	if err != nil {
+		return err
+	}
+	u.Path, u.RawQuery = path.Join(path.Dir(u.Path), "printed"), ""
+
+	body, _ := json.Marshal(map[string]string{"code": code})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+r.Token)
+
+	client := r.Client
+	if client == nil {
+		client = &http.Client{Timeout: 10 * time.Second}
+	}
+	res, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	res.Body.Close()
+	if res.StatusCode >= 300 {
+		return fmt.Errorf("roast service returned %s", res.Status)
+	}
+	return nil
 }
