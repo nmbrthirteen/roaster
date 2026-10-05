@@ -2,7 +2,6 @@ package server
 
 import (
 	"log"
-	"net/http"
 	"time"
 
 	"github.com/upgaming/roaster/internal/printer"
@@ -12,13 +11,8 @@ import (
 // this has stuck behind a printer that is not taking it.
 const stuckAfter = 20 * time.Second
 
-// printerStatus is the one line the stand shows when the printer needs a hand,
-// and an empty one when it does not. It is open to the page without the code:
-// it says nothing an operator would keep from a visitor.
-func (s *Server) printerStatus(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, map[string]string{"problem": s.printerProblem(time.Now())})
-}
-
+// printerProblem is the one line the menu shows when the printer needs a hand,
+// and an empty one when it does not.
 func (s *Server) printerProblem(now time.Time) string {
 	prn, spec := s.st.printer()
 	if spec == "" {

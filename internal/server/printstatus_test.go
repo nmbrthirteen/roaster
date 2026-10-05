@@ -1,21 +1,9 @@
 package server
 
 import (
-	"encoding/json"
 	"testing"
 	"time"
 )
-
-func TestTheStandSaysWhenThereIsNoPrinter(t *testing.T) {
-	w := get(t, testServer(t), "/printer/status")
-	var got struct{ Problem string }
-	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
-		t.Fatalf("the page reads this as JSON: %v", err)
-	}
-	if got.Problem != "No printer selected" {
-		t.Errorf("problem = %q", got.Problem)
-	}
-}
 
 func TestAReceiptLeftInTheQueueCountsAsStuck(t *testing.T) {
 	s := testStation(t)
@@ -47,5 +35,11 @@ func TestAFailedPrintShowsUntilOneWorks(t *testing.T) {
 	s.st.counted()
 	if s.st.lastPrintFailed() {
 		t.Errorf("a receipt that printed clears it")
+	}
+}
+
+func TestTheMenuSaysWhenThereIsNoPrinter(t *testing.T) {
+	if got := testStation(t).printerProblem(time.Now()); got != "No printer selected" {
+		t.Errorf("problem = %q", got)
 	}
 }

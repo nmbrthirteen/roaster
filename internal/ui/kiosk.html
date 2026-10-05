@@ -399,17 +399,6 @@
   }
   .said[data-open] { transform: translate(-50%, 0); opacity: 1; visibility: visible; }
   .said.bad { background: #ff6b6b; }
-
-  /* Small on purpose: it is for whoever looks after the stand, and a visitor
-     only needs to see that something is off. */
-  .printer-state {
-    position: fixed; z-index: 3; left: clamp(12px, 2vw, 24px); bottom: clamp(12px, 2vw, 24px); margin: 0;
-    display: flex; align-items: center; gap: 8px;
-    font-family: var(--mono); font-size: 15px; color: var(--muted);
-    background: var(--surface); border: 1px solid var(--border); padding: 8px 12px;
-  }
-  .printer-state[hidden] { display: none; }
-  .printer-state::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #ff6b6b; }
   @media (prefers-reduced-motion: reduce) { .said { transition: none; } }
 
   @media (prefers-reduced-motion: reduce) {
@@ -486,7 +475,6 @@
 
 
 <p class="said" id="said" role="status" aria-live="polite"></p>
-<p class="printer-state" id="printerState" role="status" hidden></p>
 
 <div class="admin" id="admin" hidden>
   <div class="panel">
@@ -1093,7 +1081,6 @@
       e.target.textContent = 'Try again';
       $('note').textContent = err.message || String(err);
     }
-    checkPrinter();
   });
 
 
@@ -1146,7 +1133,6 @@
     admin.code = '';
     say('');
     resetIdleTimer();
-    checkPrinter();
   }
 
   function renderPad() {
@@ -1204,8 +1190,8 @@
   // The state takes a few seconds on Windows, where listing printers and
   // Wi-Fi means starting PowerShell and netsh.
   function renderLoading() {
-    admin.title.textContent = 'Opening the menu';
-    admin.hint.textContent = 'Checking the printer and Wi-Fi.';
+    admin.title.textContent = '';
+    admin.hint.textContent = '';
     admin.body.innerHTML = '<div class="loading" role="status" aria-label="Loading"><i></i><i></i><i></i></div>';
   }
 
@@ -1642,24 +1628,6 @@
     if (!res.ok) throw new Error(await res.text());
     await serial.write(new Uint8Array(await res.arrayBuffer()));
   }
-
-  // A printer with no paper, an open cover or a stuck queue shows in a corner,
-  // so it is noticed before a visitor waits on a receipt that will not come.
-  // A printer reached over Web Serial is the browser's, and the server cannot
-  // see it.
-  async function checkPrinter() {
-    let problem = '';
-    if (!serial.port) {
-      try {
-        const res = await fetch('/printer/status', { cache: 'no-store' });
-        if (res.ok) problem = (await res.json()).problem || '';
-      } catch {}
-    }
-    $('printerState').textContent = problem;
-    $('printerState').hidden = !problem;
-  }
-  checkPrinter();
-  setInterval(checkPrinter, 15000);
 
   // Third level of supervision: the page is up but the server behind it went
   // away. Three misses is about 45 seconds, enough to ride out a restart.
