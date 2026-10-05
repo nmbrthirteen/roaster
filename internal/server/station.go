@@ -27,9 +27,10 @@ type station struct {
 	// the audit without sending the whole document back and forth.
 	roasts map[string]roast.Roast
 
-	printed   int
-	lastError string
-	lastRoast *roast.Roast
+	printed     int
+	lastError   string
+	printFailed bool // the last receipt sent did not reach the printer
+	lastRoast   *roast.Roast
 }
 
 // note records the last thing that went wrong, so the hidden menu can show it
@@ -44,7 +45,21 @@ func (s *station) counted() {
 	s.mu.Lock()
 	s.printed++
 	s.lastError = ""
+	s.printFailed = false
 	s.mu.Unlock()
+}
+
+func (s *station) printFailure(msg string) {
+	s.mu.Lock()
+	s.lastError = msg
+	s.printFailed = true
+	s.mu.Unlock()
+}
+
+func (s *station) lastPrintFailed() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.printFailed
 }
 
 func (s *station) stats() (int, string, *roast.Roast) {

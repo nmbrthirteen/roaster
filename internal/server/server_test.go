@@ -124,7 +124,7 @@ func TestTheCodeGuardsEverythingThatChangesTheDevice(t *testing.T) {
 	h := testServer(t)
 
 	guarded := []string{
-		"/admin/state", "/admin/settings", "/admin/reprint", "/admin/reboot",
+		"/admin/check", "/admin/state", "/admin/settings", "/admin/reprint", "/admin/reboot",
 		"/printer", "/print", "/print/test", "/event", "/events",
 	}
 	for _, path := range guarded {

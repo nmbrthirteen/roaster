@@ -111,6 +111,9 @@ func (h *host) run() error {
 
 	setTimer.Call(h.hwnd, tickID, tickEvery, 0)
 	go h.watchServer()
+	if !h.s.window {
+		go fullBrightness()
+	}
 
 	h.pump()
 	close(h.done)

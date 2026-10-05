@@ -37,6 +37,7 @@ func (s *Server) stand(mux *http.ServeMux) {
 	mux.HandleFunc("/receipt.bin", s.receiptBytes)
 	mux.HandleFunc("/receipt/print", s.printReceipt)
 	mux.HandleFunc("/health", s.health)
+	mux.HandleFunc("/printer/status", s.printerStatus)
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/kiosk", http.StatusFound)

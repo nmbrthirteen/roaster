@@ -39,6 +39,7 @@ type adminState struct {
 	EventCode     string              `json:"event"`
 	Events        []event.Event       `json:"events"`
 	Printer       string              `json:"printer"`
+	PrinterStatus string              `json:"printerStatus"`
 	Columns       int                 `json:"columns"`
 	Text          string              `json:"text"`
 	Printers      []printer.Candidate `json:"printers"`
@@ -57,6 +58,11 @@ type adminState struct {
 }
 
 func (s *Server) adminRoutes(mux *http.ServeMux) {
+	// check answers at once, so the page can tell a right code from a wrong
+	// one before the state, which takes seconds to gather, comes back.
+	mux.HandleFunc("/admin/check", s.guard(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
 	mux.HandleFunc("/admin/state", s.guard(s.adminState))
 	mux.HandleFunc("/admin/settings", s.post(s.adminSettings))
 	mux.HandleFunc("/admin/service", s.guard(s.adminService))
@@ -86,6 +92,7 @@ func (s *Server) adminState(w http.ResponseWriter, r *http.Request) {
 		EventCode:     s.pick(r).Code,
 		Events:        all(s.st.eventSet()),
 		Printer:       spec,
+		PrinterStatus: s.printerProblem(time.Now()),
 		Columns:       receipt.Width(),
 		Text:          textMode(),
 		Printers:      printer.Discover(),
