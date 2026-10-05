@@ -182,11 +182,14 @@ func TestTheScoreTellsAccountsApart(t *testing.T) {
 	if b >= 40 {
 		t.Errorf("a balanced account should score low, got %d", b)
 	}
-	if g < 75 || m < 75 {
-		t.Errorf("both extremes should score high: ghost %d, machine %d", g, m)
+	if g >= 10 {
+		t.Errorf("an account that barely codes is not burnt, got %d", g)
 	}
-	if !(b < gr && gr < m) {
-		t.Errorf("more grind should score higher: balanced %d, grinder %d, machine %d", b, gr, m)
+	if m < 85 {
+		t.Errorf("a machine should score near the top, got %d", m)
+	}
+	if !(g < b && b < gr && gr < m) {
+		t.Errorf("more grind should score higher: ghost %d, balanced %d, grinder %d, machine %d", g, b, gr, m)
 	}
 	if m-gr < 10 {
 		t.Errorf("a machine should clearly outscore a grinder: %d vs %d", m, gr)

@@ -109,17 +109,16 @@ func ShapeOf(f github.Facts) Shape {
 	}
 }
 
-// Score is 0 for an empty account. Scored as neglect it came out near 100,
-// ranking someone who did nothing above most of the room.
+// Score is how burnt an account is: high for someone who codes nearly every
+// day, weekends and nights included, at volume. Neglect used to count too, and
+// it ranked a near-empty account above the people who never stop.
 func Score(f github.Facts) int {
 	if Empty(f) {
 		return 0
 	}
-	active := days(f, everyDay)
-	grind := (active + days(f, isWeekend) + share(f.Commits, atNight) + 3*volume(contributed(f))) / 6
-	neglect := (2*(100-active) + percent(quietest(f), len(f.Year.Days)) +
-		emptyOr(f.Repos, undescribed) + emptyOr(f.Repos, missingReadme) + share(f.Commits, oneWord)) / 6
-	return min(100, max(grind, neglect))
+	burn := 35*days(f, everyDay) + 25*days(f, isWeekend) +
+		10*share(f.Commits, atNight) + 30*volume(contributed(f))
+	return min(100, (burn+50)/100)
 }
 
 func volume(total int) int {
@@ -127,23 +126,6 @@ func volume(total int) int {
 		return 0
 	}
 	return min(100, int(math.Round((math.Log10(float64(total))-2)*100/3)))
-}
-
-func emptyOr(repos []github.Repo, measure func([]github.Repo) int) int {
-	if len(repos) == 0 {
-		return 100
-	}
-	return measure(repos)
-}
-
-func missingReadme(repos []github.Repo) int {
-	n := 0
-	for _, r := range repos {
-		if !r.Readme {
-			n++
-		}
-	}
-	return percent(n, len(repos))
 }
 
 func Contributed(f github.Facts) int { return contributed(f) }
