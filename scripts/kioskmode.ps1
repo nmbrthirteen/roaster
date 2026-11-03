@@ -70,10 +70,16 @@ $kioskUserValues = @(
   @('Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location\NonPackaged', 'Value', 'Allow', 'REG_SZ')
 )
 
+# The account Windows makes is named kioskUser plus a number, so it is found by
+# that and by the display name this script gives it.
+function Get-KioskUsers {
+  @(Get-LocalUser | Where-Object { $_.Name -like 'kioskUser*' -or $_.FullName -eq 'Upgaming Roaster' -or ($Account -and $_.Name -eq $Account) })
+}
+
 function Set-KioskUserValues {
   $roots = @()
   $unloaded = @("$env:SystemDrive\Users\Default\NTUSER.DAT")
-  $users = @(Get-LocalUser | Where-Object { $_.Name -like 'kioskUser*' -or $_.FullName -eq 'Upgaming Roaster' -or ($Account -and $_.Name -eq $Account) })
+  $users = Get-KioskUsers
   foreach ($u in $users) {
     if (Test-Path "Registry::HKEY_USERS\$($u.SID.Value)") {
       $roots += "HKU\$($u.SID.Value)"
@@ -100,6 +106,23 @@ function Set-KioskUserValues {
       [gc]::Collect()
       reg unload 'HKU\RoasterKiosk' | Out-Null
     }
+  }
+}
+
+# The kiosk account otherwise cannot write to Program Files. Modify for that
+# one account is what lets the hidden menu update the stand in place: it
+# downloads a new build and swaps it in without an operator ever unlocking the
+# device. Nobody else gets it. This runs after the account exists, because
+# Windows makes the automatic one while applying the configuration. By SID,
+# because group names are translated on a non-English Windows.
+function Grant-KioskInstall {
+  $users = Get-KioskUsers
+  if ($users.Count -eq 0) { throw 'there is no kiosk account to grant. Run this script again once it exists.' }
+  # An earlier version of this script granted the whole Users group.
+  icacls $installDir /remove:g '*S-1-5-32-545' /T /Q | Out-Null
+  foreach ($u in $users) {
+    icacls $installDir /grant "*$($u.SID.Value):(OI)(CI)M" /T /Q | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "icacls could not grant $($u.Name) write access to $installDir." }
   }
 }
 
@@ -364,12 +387,6 @@ if (-not (Test-Path $installed)) {
 $events = Join-Path $Source 'events'
 if (Test-Path $events) { Copy-Item $events $installDir -Recurse -Force }
 
-# The kiosk account otherwise cannot write to Program Files. Granting Modify
-# here is what lets the hidden menu update the stand in place: it downloads a
-# new build and swaps it in without an operator ever unlocking the device.
-# By SID, because the group's name is translated on a non-English Windows.
-icacls $installDir /grant '*S-1-5-32-545:(OI)(CI)M' /T /Q | Out-Null
-if ($LASTEXITCODE -ne 0) { throw "icacls could not grant Users write access to $installDir." }
 Write-Host '    installed'
 
 if ($Account) {
@@ -388,6 +405,7 @@ if (-not (Test-Path $updates)) { New-Item -Path $updates -Force | Out-Null }
 New-ItemProperty -Path $updates -Name 'NoAutoRebootWithLoggedOnUsers' -PropertyType DWord -Value 1 -Force | Out-Null
 foreach ($step in @(
     @{ What = 'keep the screen on at full brightness'; Run = { Set-StandPower } },
+    @{ What = 'let the kiosk account update the stand'; Run = { Grant-KioskInstall } },
     @{ What = 'set the kiosk account up'; Run = { Set-KioskUserValues } },
     @{ What = 'turn location on for Wi-Fi scanning'; Run = { Enable-Location; Enable-UserLocation | Out-Null } })) {
   try {

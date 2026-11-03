@@ -23,6 +23,7 @@ type archive struct {
 	url   string // Strapi's base URL
 	token string // a Strapi API token allowed to create roast entries and mark them printed
 	http  *http.Client
+	bg    *background
 }
 
 type entry struct {
@@ -57,17 +58,18 @@ func (a archive) Roast(ctx context.Context, req roast.Request, emit func(roast.U
 	if err != nil {
 		return r, err
 	}
-	go a.save(entry{
+	e := entry{
 		Code: r.Code, Handle: r.Handle, Pack: r.Pack, Event: req.Event, Terminal: req.Terminal,
 		Score: r.Score, ScoreTag: r.ScoreTag, Archetype: r.Archetype, Verdict: r.Verdict, Metrics: r.Metrics,
 		Actions: r.Actions, Strengths: r.Strengths, Findings: r.Findings, Habits: r.Habits, Story: r.Story,
 		Exhibit: r.Exhibit, Heat: r.Heat, Feed: feed,
-	})
+	}
+	a.bg.run(func() { a.save(e) })
 	return r, nil
 }
 
 func (a archive) save(e entry) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(a.bg.context(), 10*time.Second)
 	defer cancel()
 
 	status, reply, err := a.post(ctx, e)
@@ -132,12 +134,17 @@ func (a archive) markPrinted(code string) {
 			slog.Error("printed", "code", code, "err", fmt.Sprint("gave up: ", errOr(err, "no entry")))
 			return
 		}
-		time.Sleep(printedRetries[try])
+		select {
+		case <-time.After(printedRetries[try]):
+		case <-a.bg.context().Done():
+			slog.Error("printed", "code", code, "err", "stopped by shutdown")
+			return
+		}
 	}
 }
 
 func (a archive) call(method, path string) (int, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(a.bg.context(), 10*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, method, strings.TrimRight(a.url, "/")+path, nil)
 	if err != nil {

@@ -16,11 +16,12 @@ type Printer interface {
 }
 
 // Open builds a printer from a spec: tcp:host:9100, win:queue, lp:queue,
-// usb:/dev/usb/lp0 or file:path.
+// usb:/dev/usb/lp0 or file:path. file: writes the raw job to a file, replacing
+// what was there, so a receipt can be inspected without a printer.
 func Open(spec string) (Printer, error) {
 	kind, target, ok := strings.Cut(spec, ":")
 	if !ok || target == "" {
-		return nil, fmt.Errorf("printer spec %q: want tcp:host:port, lp:queue or file:path", spec)
+		return nil, fmt.Errorf("printer spec %q: want tcp:host:port, win:queue, lp:queue, usb:device or file:path", spec)
 	}
 	switch kind {
 	case "tcp":
@@ -60,7 +61,6 @@ func (p tcpPrinter) Print(job []byte) error {
 	return nil
 }
 
-// lpPrinter passes -o raw, which stops the driver reinterpreting ESC/POS as text.
 type usbPrinter struct{ dev string }
 
 func (p usbPrinter) Name() string { return "usb " + p.dev }
@@ -80,6 +80,7 @@ func (p usbPrinter) Print(job []byte) error {
 	return nil
 }
 
+// lpPrinter passes -o raw, which stops the driver reinterpreting ESC/POS as text.
 type lpPrinter struct{ queue string }
 
 func (p lpPrinter) Name() string { return "queue " + p.queue }

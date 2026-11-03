@@ -92,7 +92,7 @@ func TestDrawingFromManyPrintsAtOnceIsSafe(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			d := &Doc{}
-			d.Add(Text{Value: "Ships at 3am — then explains why… ბაგი", Style: Style{Bold: i%2 == 0, Double: i%3 == 0}})
+			d.Add(Text{Value: "Ships at 3am, then explains why… ბაგი", Style: Style{Bold: i%2 == 0, Double: i%3 == 0}})
 			d.ESCPOS(nil)
 		}()
 	}

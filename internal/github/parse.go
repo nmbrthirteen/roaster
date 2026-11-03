@@ -225,9 +225,9 @@ func capped(s string, max int) string {
 	return s[:cut]
 }
 
-// when parses either shape GitHub sends. DateTime is normalised to UTC;
-// GitTimestamp, which is what commits carry, keeps the offset it was made in,
-// and that offset is the whole of the after-midnight metric.
+// when parses either shape GitHub sends. Both arrive in UTC with the author's
+// offset already dropped, so the hour of a commit is only meaningful once the
+// audit moves it onto the stand's clock.
 func when(s string) time.Time {
 	if s == "" {
 		return time.Time{}

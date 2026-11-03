@@ -34,7 +34,7 @@ func main() {
 	flag.String("addr", ":3000", "listen address")
 	flag.String("events", "events", "directory of event files, overriding the built-in ones")
 	flag.String("terminal", "001", "terminal number printed on every receipt")
-	flag.String("printer", "", "printer: tcp:host:9100, lp:queue or file:path")
+	flag.String("printer", "", "printer: tcp:host:9100, win:queue, lp:queue, usb:/dev/usb/lp0 or file:path")
 	flag.String("event", "", "event code the kiosk opens on")
 	facts := flag.String("facts", "", "read one GitHub account, print what the receipt would say, and exit")
 	setToken := flag.Bool("set-token", false, "store this terminal's token, read from standard input")

@@ -99,3 +99,28 @@ func TestAPrintedReceiptIsMarkedOnceItsEntryExists(t *testing.T) {
 		t.Errorf("want a retry after the missing entry, got %d tries", tries)
 	}
 }
+
+func TestShutdownStopsTheWaitForAnEntry(t *testing.T) {
+	defer func(was []time.Duration) { printedRetries = was }(printedRetries)
+	printedRetries = []time.Duration{time.Hour}
+
+	strapi := httptest.NewServer(http.NotFoundHandler())
+	defer strapi.Close()
+
+	ctx, stop := context.WithCancel(context.Background())
+	bg := &background{ctx: ctx}
+	a := archive{url: strapi.URL, token: "t", bg: bg}
+	bg.run(func() { a.markPrinted("abcde") })
+
+	stop()
+	finished := make(chan struct{})
+	go func() {
+		bg.wg.Wait()
+		close(finished)
+	}()
+	select {
+	case <-finished:
+	case <-time.After(5 * time.Second):
+		t.Fatal("markPrinted kept sleeping after shutdown")
+	}
+}

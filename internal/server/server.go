@@ -9,12 +9,15 @@ package server
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"html/template"
 	"log"
+	"net"
 	"net/http"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -44,7 +47,24 @@ type Server struct {
 
 	designer *template.Template
 	kiosk    *template.Template
+
+	pinMu    sync.Mutex
+	pinFails map[string]*pinRecord // by remote host
+	now      func() time.Time      // replaced by tests
 }
+
+// pinRecord counts wrong codes from one host. The menu's own lockout lives in
+// page script and a client is free to skip it.
+type pinRecord struct {
+	fails int
+	until time.Time
+}
+
+const (
+	pinAttempts = 5
+	pinLockout  = 60 * time.Second
+	pinHosts    = 1024 // bound on tracked hosts, so a scan cannot grow the map without limit
+)
 
 // New builds a server. A printer that will not open is reported and stepped
 // over: a stand with no paper still has to come up, because the hidden menu is
@@ -60,6 +80,8 @@ func New(o Options) (*Server, error) {
 		provider: o.Provider,
 		assets:   o.Assets,
 		started:  time.Now(),
+		now:      time.Now,
+		pinFails: map[string]*pinRecord{},
 		designer: template.Must(template.ParseFS(ui.FS, "preview.html")),
 		kiosk:    template.Must(template.ParseFS(ui.FS, "kiosk.html")),
 	}
@@ -153,12 +175,60 @@ func (s *Server) printed(code string) {
 func (s *Server) guard(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		pin := s.st.config().AdminPIN
-		if pin != "" && r.Header.Get("X-Admin-Pin") != pin {
-			http.Error(w, "Wrong code.", http.StatusForbidden)
-			return
+		if pin != "" {
+			given := r.Header.Get("X-Admin-Pin")
+			host, _, err := net.SplitHostPort(r.RemoteAddr)
+			if err != nil {
+				host = r.RemoteAddr
+			}
+			if s.pinLocked(host) {
+				w.Header().Set("Retry-After", strconv.Itoa(int(pinLockout.Seconds())))
+				http.Error(w, "Too many tries.", http.StatusTooManyRequests)
+				return
+			}
+			if subtle.ConstantTimeCompare([]byte(given), []byte(pin)) != 1 {
+				// A request with no code is a page asking, not a guess.
+				if given != "" {
+					s.pinFailed(host)
+				}
+				http.Error(w, "Wrong code.", http.StatusForbidden)
+				return
+			}
+			s.pinPassed(host)
 		}
 		h(w, r)
 	}
+}
+
+func (s *Server) pinLocked(host string) bool {
+	s.pinMu.Lock()
+	defer s.pinMu.Unlock()
+	rec := s.pinFails[host]
+	return rec != nil && s.now().Before(rec.until)
+}
+
+func (s *Server) pinFailed(host string) {
+	s.pinMu.Lock()
+	defer s.pinMu.Unlock()
+	now := s.now()
+	rec := s.pinFails[host]
+	if rec == nil {
+		if len(s.pinFails) >= pinHosts {
+			clear(s.pinFails)
+		}
+		rec = &pinRecord{}
+		s.pinFails[host] = rec
+	}
+	if rec.fails++; rec.fails >= pinAttempts {
+		rec.fails = 0
+		rec.until = now.Add(pinLockout)
+	}
+}
+
+func (s *Server) pinPassed(host string) {
+	s.pinMu.Lock()
+	defer s.pinMu.Unlock()
+	delete(s.pinFails, host)
 }
 
 func (s *Server) post(h http.HandlerFunc) http.HandlerFunc {
@@ -224,7 +294,7 @@ func testSlip(spec string, ev event.Event) *receipt.Doc {
 		receipt.Section{Label: "This line should be reversed"},
 		receipt.Feed{Lines: 1},
 		receipt.Bar{Label: "Gauge", Value: "60%", Percent: 60},
-		receipt.Text{Value: "José Müller — გამარჯობა …"},
+		receipt.Text{Value: "José Müller, გამარჯობა …"},
 		receipt.Text{Value: "Every letter above as written, no question marks."},
 		receipt.Feed{Lines: 2},
 		receipt.QR{Data: "https://lifeat.upgaming.com", Size: 5},

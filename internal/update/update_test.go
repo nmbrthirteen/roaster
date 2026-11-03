@@ -2,7 +2,9 @@ package update
 
 import (
 	"context"
+	"crypto/ed25519"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"net/http"
@@ -59,23 +61,39 @@ func newServer(t *testing.T, kioskBytes, roasterBytes []byte) *server {
 		return hex.EncodeToString(h[:])
 	}
 	sums := fmt.Sprintf("%s  %s\n%s  %s\n", sum(kioskBytes), kioskName, sum(roasterBytes), roasterName)
+	pub, priv, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	withSigningKey(t, base64.StdEncoding.EncodeToString(pub))
+	sig := ed25519.Sign(priv, []byte(sums))
 
 	mux.HandleFunc("/repos/nmbrthirteen/roaster/releases/latest", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, `{"tag_name":"v9.9.9","assets":[
 			{"name":%q,"browser_download_url":%q,"size":%d},
 			{"name":%q,"browser_download_url":%q,"size":%d},
-			{"name":"SHA256SUMS","browser_download_url":%q,"size":%d}
+			{"name":"SHA256SUMS","browser_download_url":%q,"size":%d},
+			{"name":"SHA256SUMS.sig","browser_download_url":%q,"size":%d}
 		]}`,
 			kioskName, srv.URL+"/assets/"+kioskName, len(kioskBytes),
 			roasterName, srv.URL+"/assets/"+roasterName, len(roasterBytes),
-			srv.URL+"/assets/SHA256SUMS", len(sums))
+			srv.URL+"/assets/SHA256SUMS", len(sums),
+			srv.URL+"/assets/SHA256SUMS.sig", len(sig))
 	})
 	mux.HandleFunc("/assets/"+kioskName, func(w http.ResponseWriter, r *http.Request) { w.Write(kioskBytes) })
 	mux.HandleFunc("/assets/"+roasterName, func(w http.ResponseWriter, r *http.Request) { w.Write(roasterBytes) })
 	mux.HandleFunc("/assets/SHA256SUMS", func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, sums) })
+	mux.HandleFunc("/assets/SHA256SUMS.sig", func(w http.ResponseWriter, r *http.Request) { w.Write(sig) })
 
 	t.Cleanup(srv.Close)
 	return s
+}
+
+func withSigningKey(t *testing.T, key string) {
+	t.Helper()
+	prev := signingPublicKey
+	signingPublicKey = key
+	t.Cleanup(func() { signingPublicKey = prev })
 }
 
 func withFakeAPI(t *testing.T, url string) {
@@ -214,6 +232,84 @@ func TestRollbackRestoresTheOldBytes(t *testing.T) {
 	}
 	if Pending(dir) {
 		t.Errorf("Rollback should clear the pending marker")
+	}
+}
+
+func TestApplyRefusesWithoutAValidSignature(t *testing.T) {
+	withWindows(t)
+	kioskBytes := []byte("kiosk original")
+	roasterBytes := []byte("roaster original")
+	srv := newServer(t, []byte("kiosk newer"), []byte("roaster newer"))
+	withFakeAPI(t, srv.URL)
+
+	dir := t.TempDir()
+	mustWrite(t, filepath.Join(dir, "kiosk.exe"), kioskBytes)
+	mustWrite(t, filepath.Join(dir, "roaster.exe"), roasterBytes)
+
+	rel, err := Check(context.Background())
+	if err != nil {
+		t.Fatalf("Check: %v", err)
+	}
+
+	other, _, _ := ed25519.GenerateKey(nil)
+	for name, key := range map[string]string{
+		"a different key": base64.StdEncoding.EncodeToString(other),
+		"no key":          "",
+		"a malformed key": "not base64",
+	} {
+		withSigningKey(t, key)
+		if _, err := Apply(context.Background(), rel, dir); err == nil {
+			t.Errorf("Apply accepted the release with %s", name)
+		}
+	}
+
+	if got := mustRead(t, filepath.Join(dir, "kiosk.exe")); string(got) != string(kioskBytes) {
+		t.Errorf("kiosk.exe should be untouched, got %q", got)
+	}
+	if got := mustRead(t, filepath.Join(dir, "roaster.exe")); string(got) != string(roasterBytes) {
+		t.Errorf("roaster.exe should be untouched, got %q", got)
+	}
+}
+
+func TestApplyPutsBackWhatItSwappedWhenALaterStepFails(t *testing.T) {
+	withWindows(t)
+	kioskBytes := []byte("kiosk original")
+	roasterBytes := []byte("roaster original")
+	srv := newServer(t, []byte("kiosk newer"), []byte("roaster newer"))
+	withFakeAPI(t, srv.URL)
+
+	dir := t.TempDir()
+	mustWrite(t, filepath.Join(dir, "kiosk.exe"), kioskBytes)
+	mustWrite(t, filepath.Join(dir, "roaster.exe"), roasterBytes)
+	// A non-empty directory in the way cannot be removed, which stops the
+	// roaster swap after the kiosk one has already happened.
+	blocker := filepath.Join(dir, "roaster.exe.old")
+	if err := os.MkdirAll(filepath.Join(blocker, "x"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	rel, err := Check(context.Background())
+	if err != nil {
+		t.Fatalf("Check: %v", err)
+	}
+	if _, err := Apply(context.Background(), rel, dir); err == nil {
+		t.Fatal("Apply should have failed")
+	}
+
+	if got := mustRead(t, filepath.Join(dir, "kiosk.exe")); string(got) != string(kioskBytes) {
+		t.Errorf("kiosk.exe should be back to the original, got %q", got)
+	}
+	if got := mustRead(t, filepath.Join(dir, "roaster.exe")); string(got) != string(roasterBytes) {
+		t.Errorf("roaster.exe should be untouched, got %q", got)
+	}
+	entries, _ := os.ReadDir(dir)
+	for _, e := range entries {
+		if e.Name() != "kiosk.exe" && e.Name() != "roaster.exe" && e.Name() != "roaster.exe.old" {
+			t.Errorf("unexpected file left behind: %s", e.Name())
+		}
+	}
+	if Pending(dir) {
+		t.Errorf("a failed Apply should not leave a pending marker")
 	}
 }
 

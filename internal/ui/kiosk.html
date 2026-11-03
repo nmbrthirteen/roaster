@@ -1315,7 +1315,8 @@
       <select id="aModelProvider" aria-label="Roast model">
         <option value="openai-terra"${s.modelProvider === 'openai-terra' ? ' selected' : ''}>OpenAI current model</option>
         <option value="openai-luna"${s.modelProvider === 'openai-luna' ? ' selected' : ''}>OpenAI GPT-6 Luna, cheap test</option>
-        <option value="grok"${s.modelProvider === 'grok' ? ' selected' : ''}>xAI Grok 4.7, roast quality test</option>
+        <option value="grok"${s.modelProvider === 'grok' ? ' selected' : ''}>xAI Grok 4.6, roast quality test</option>
+        <option value="anthropic"${s.modelProvider === 'anthropic' ? ' selected' : ''}>Anthropic Claude Opus 5</option>
       </select>
       <div class="acts"><button id="aCheck" class="full">Test the connection</button></div>
 

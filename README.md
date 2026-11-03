@@ -5,7 +5,8 @@ them a roast on thermal paper. Built for the Upgaming stand: a visitor types
 their handle, the audit runs while they watch, and an 80mm receipt comes out
 with a QR code to the digital version and the open roles.
 
-Three Go binaries, none with a runtime to install. The front end is plain HTML,
+Three Go binaries, each a single executable. `kiosk` also needs the Microsoft
+Edge WebView2 Runtime, which ships with Windows 11. The front end is plain HTML,
 CSS and JavaScript with no build step.
 
 | | Runs on | What it is |
@@ -20,8 +21,8 @@ A receipt is a document of blocks, flattened to fixed-width lines. The printer's
 own font only knows code page 437, so by default the text never goes to it as
 text. Every line is drawn here with fonts built into the binary and sent as a
 raster, so an accented name, an em dash or a Georgian commit message prints as
-written. Go
-Mono sets the look; DejaVu Sans Mono, Noto Sans Georgian and Noto Sans fill in
+written. Go Mono
+sets the look; DejaVu Sans Mono, Noto Sans Georgian and Noto Sans fill in
 what it lacks. The contribution calendar and the worst commit are drawn as
 graphics. Logos use the same raster command, and the QR code the printer's own.
 
@@ -59,7 +60,7 @@ there could drive the printer. Widen it only for a deliberately hosted setup.
 
 ## Printing
 
-Pick a printer in the designer. Five transports:
+Pick a printer in the designer. Six transports:
 
 | Spec | Use |
 |---|---|
@@ -68,14 +69,16 @@ Pick a printer in the designer. Five transports:
 | `usb:/dev/usb/lp0` | A USB printer on Linux, via the usblp character device. |
 | `win:Receipt` | A Windows spooler queue, raw datatype. |
 | `lp:Receipt` | A CUPS queue on macOS or Linux. |
+| `file:receipt.bin` | Writes the raw ESC/POS job to a file, replacing it each time. For inspecting a job without a printer. |
 
 `browser` is the one that makes a hosted deployment work: a page in Chrome or
 Edge, served over HTTPS or from localhost, driving the printer itself.
 
-The Windows app is not that. It draws the page in WebView2, which has no
-`navigator.serial`, so it prints through the server beside it: `win:` for a
-spooler queue, `tcp:` for a networked printer. The Web Serial option disappears
-from the menu when the page is running somewhere that cannot do it.
+The Windows app is not that. It draws the page in WebView2, and Web Serial
+there depends on the runtime version: newer runtimes offer `navigator.serial`
+and older ones do not. The page checks for it and shows the Web Serial option
+only when it is there. Do not rely on it. The app prints through the server
+beside it: `win:` for a spooler queue, `tcp:` for a networked printer.
 
 Press **Print test slip** before trusting a new printer. It costs 90mm of paper
 and proves the three things a printer can silently fail at: raster printing,
@@ -125,9 +128,10 @@ afterwards.
 
 Settings, events, logs and the terminal token live in `%ProgramFiles%\Roaster`,
 beside the binaries. A standard account cannot normally write to Program
-Files, so the install script grants the kiosk account Modify rights on that
-folder; that is also what lets the hidden menu update the stand in place. The
-log to read is `kiosk.log` in the same folder.
+Files, so the install script grants Modify on that folder to the kiosk account
+alone, by its SID, once the account exists. No other user or group gets it. That
+grant is also what lets the hidden menu update the stand in place. The log to
+read is `kiosk.log` in the same folder.
 
 Do not combine it with `scripts\lockdown.bat`. Both sign an account in by
 itself and both decide what it runs. Run `scripts\unlock.bat` before switching
@@ -150,6 +154,14 @@ Install. A server-only change restarts the app in seconds; a change to
 
 If the new `roaster.exe` fails to start three times in a row, the launcher
 puts the previous build back by itself, no operator required.
+
+The release workflow signs `SHA256SUMS` with an ed25519 key held in the
+`UPDATE_SIGNING_KEY` secret and publishes `SHA256SUMS.sig` beside it. The stand
+checks that signature before it downloads or swaps anything. Put the key's
+public half in `signingPublicKey` in `internal/update/update.go`; while that
+value is empty, every in-app update is refused. `scripts\kioskmode.bat` with a
+download is not covered: Windows PowerShell 5.1 has no ed25519, so that path
+checks the SHA-256 hashes from the release over TLS but not the signature.
 
 Local builds report version `dev` and always see a release as newer, since a
 build made straight from source has no version of its own to compare.
@@ -176,8 +188,9 @@ Type the code into the username field and press the arrow. It opens the menu
 instead of running an audit. Tapping the mark five times within three seconds
 brings up a keypad, which is the way in from a screen with no input on it.
 
-Five wrong codes and the menu stops opening for a minute. A username that is
-not a run of four to eight digits never costs a round trip.
+Five wrong codes and the menu stops opening for a minute. The stand's server
+enforces that too, per remote address, and answers 429 until the minute is up.
+A username that is not a run of four to eight digits never costs a round trip.
 
 The code is `adminPin` in `roaster.json`. It ships as **1379**, which is in a
 public repository and therefore worth nothing. Change it before an event: the
@@ -279,18 +292,20 @@ Windows is otherwise untouched.
 
 ## Reading GitHub
 
-`internal/github` reads one account in one request. A stand has a queue in front
-of it, and the difference between one round trip and five is the difference
-between a visitor watching the screen and a visitor watching the floor. REST
+`internal/github` reads one account in four queries sent at once. A stand has a
+queue in front of it, and the difference between one round trip and five is the
+difference between a visitor watching the screen and a visitor watching the
+floor. REST
 would need a call for the profile, one for the repositories, one per repository
-for commits and one for the contribution calendar. The GraphQL query answers all
-of it at once, and the handle travels as a variable rather than as text spliced
+for commits and one for the contribution calendar. GraphQL answers the same in
+four queries, and the handle travels as a variable rather than as text spliced
 into the query.
 
-Two details in there are load-bearing. Commit timestamps keep the offset they
-were made in rather than being normalised to UTC, which is what makes "three in
-four of your commits happen after midnight" a fact about the person instead of a
-fact about a timezone. And commits by other people are dropped, because somebody
+Two details in there are load-bearing. GitHub hands commit timestamps over in
+UTC with the author's offset dropped, so hours are read on the stand's clock.
+"Three in four of your commits happen after midnight" therefore means after
+midnight at the stand, so it is a fact about the author's timezone as much as
+about the author. And commits by other people are dropped, because somebody
 else's commit message is theirs to answer for, unless GitHub attributed nothing
 in that repository at all, in which case the owner keeps the lot.
 
@@ -301,7 +316,7 @@ GitHub would also look in, and it has one. For an account with little else
 public, the missing READMEs are often the truest line on the receipt, so the
 rule errs toward never accusing anyone on a guess.
 
-`internal/metric` turns that into the five rows the receipt is laid out for.
+`internal/metric` turns that into the six rows the receipt is laid out for.
 Every one of them is arithmetic over fetched facts. Nothing is estimated and
 nothing is asked of a model, because a receipt someone photographs and shows to
 the person next to them has to survive being checked.
@@ -340,15 +355,26 @@ go run ./cmd/roastd
 
 1. **Reads the account** in four GraphQL requests sent at once, so a busy
    account stays under GitHub's ten seconds a request.
-2. **Measures it.** The five gauges, the score and the action items are arithmetic, and
-   they reach the screen the moment GitHub answers.
+2. **Measures it.** The six gauges, the score and the action items are
+   arithmetic, and they reach the screen the moment GitHub answers.
 3. **Asks for the words.** A model writes every line that is not a number:
    the verdict, the archetype under the score, the strengths, the action items
    and the lines under each finding. It works at low effort because a queue is
-   waiting, and it answers in a fixed JSON shape. It uses OpenAI's
-   `gpt-5.6-terra` when `OPENAI_API_KEY` is set, or Claude Opus 5 when only an
-   Anthropic key is. Every OpenAI request goes with `store` off, so a visitor's
-   account is not kept on OpenAI's side past the reply.
+   waiting, and it answers in a fixed JSON shape. Every writer whose key is set
+   is available, and the stand's hidden menu picks one by name:
+
+   | Menu name | Key | Model |
+   |---|---|---|
+   | `openai-terra` | `OPENAI_API_KEY` | `gpt-5.6-terra`, or `OPENAI_MODEL` |
+   | `openai-luna` | `OPENAI_API_KEY` | `gpt-6-luna`, the cheap option |
+   | `openai-mini` | `OPENAI_API_KEY` | An old saved name for `openai-luna` |
+   | `grok` | `XAI_API_KEY` | `grok-4.6`, or `XAI_MODEL` |
+   | `anthropic` | `ANTHROPIC_API_KEY` | Claude Opus 5 |
+
+   A stand that has chosen nothing gets the first key found, in the order
+   OpenAI, xAI, Anthropic. A stand that names a writer whose key is not set is
+   told the model is not configured. Every OpenAI request goes with `store`
+   off, so a visitor's account is not kept on OpenAI's side past the reply.
 4. **Prints regardless.** A page that is slow, refused, unreadable or never
    asked for is written from the numbers instead, and a single bad line keeps
    its stock one. Those lines are true because they only say what was
@@ -368,11 +394,32 @@ go run ./cmd/roastd
   than left hanging, and every audit is capped at fifty-five seconds.
 - **Each stand is limited.** A burst of six, then one every three seconds, which
   no queue of humans reaches and a stolen token does.
-- **It keeps nothing it cannot lose.** Scale it by running more copies behind a
-  load balancer. A deploy lets running roasts finish before it stops.
+- **It holds no state it cannot lose.** The account cache is in memory. Scale it
+  by running more copies behind a load balancer. A deploy lets running roasts
+  and the archive writes they started finish before it stops, for up to 75
+  seconds.
 - **Every audit logs its cost.** GitHub reports each query's cost and the
   remaining hourly budget in the same response, so the log shows how close the
   token is to its limit rather than leaving it to be estimated.
+
+### The archive
+
+With `STRAPI_URL` and `STRAPI_TOKEN` both set, `roastd` saves every finished roast
+to a Strapi instance as an entry in its `roast-entries` collection. That entry
+serves the share page the receipt's QR code points at. If either variable is
+unset, nothing is saved, the log says so at start, and share links do not open.
+
+Each entry holds the handle, the roast (score, verdict, label, gauges, action
+items, strengths, findings, habits, story, worst commit and contribution
+calendar), the event code, the terminal number, the pack, and the feed of
+commit messages shown while the audit ran. The service sends it after the
+visitor has the roast, so a slow or failing Strapi costs the share page and
+never the receipt. When a stand reports the receipt printed, the entry is
+marked printed.
+
+`roastd` never deletes an entry and sets no expiry. Retention is whatever your
+Strapi does, so delete entries there when an event ends, and tell visitors that
+their handle and roast are stored.
 
 ### What keeps it safe
 
@@ -415,8 +462,9 @@ where it reads from, as the same Windows user:
 
 ```
 roaster.exe -set-token -state %LOCALAPPDATA%\Roaster
-``` It is gitignored and never appears in a
-settings file.
+```
+
+It is gitignored and never appears in a settings file.
 
 That token should be worth nothing to steal: scope it to the roast endpoint
 alone, rate limit it, expire it with the event, and issue one per terminal so a

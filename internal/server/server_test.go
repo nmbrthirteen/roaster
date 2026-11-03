@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/upgaming/roaster/internal/config"
 	"github.com/upgaming/roaster/internal/roast"
@@ -185,5 +186,48 @@ func TestChangingSettingsIsAPost(t *testing.T) {
 
 	if w.Code != http.StatusMethodNotAllowed {
 		t.Errorf("a GET should be turned away, got %d", w.Code)
+	}
+}
+
+func TestWrongCodesLockTheGuardOut(t *testing.T) {
+	s := testStation(t)
+	h := s.Handler()
+	clock := time.Now()
+	s.now = func() time.Time { return clock }
+
+	try := func(code string) int {
+		req := httptest.NewRequest(http.MethodGet, "/admin/check", nil)
+		req.Header.Set("X-Admin-Pin", code)
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		return w.Code
+	}
+
+	for i := 0; i < pinAttempts; i++ {
+		if got := try("0000"); got != http.StatusForbidden {
+			t.Fatalf("wrong code %d answered %d", i+1, got)
+		}
+	}
+	if got := try("1379"); got != http.StatusTooManyRequests {
+		t.Errorf("the right code during a lockout answered %d, want 429", got)
+	}
+
+	clock = clock.Add(pinLockout + time.Second)
+	if got := try("1379"); got != http.StatusNoContent {
+		t.Errorf("the right code after the lockout answered %d, want 204", got)
+	}
+}
+
+func TestAServiceAddressNeedsHTTPSOffTheMachine(t *testing.T) {
+	s := testStation(t).st
+	for _, v := range []string{"https://roast.example.com/roast", "http://localhost:8080/roast", "http://127.0.0.1:8080/roast"} {
+		if err := s.setRemoteURL(v); err != nil {
+			t.Errorf("%s refused: %v", v, err)
+		}
+	}
+	for _, v := range []string{"http://roast.example.com/roast", "ftp://localhost/roast", "roast.example.com"} {
+		if err := s.setRemoteURL(v); err == nil {
+			t.Errorf("%s accepted", v)
+		}
 	}
 }
