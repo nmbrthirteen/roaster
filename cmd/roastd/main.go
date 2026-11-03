@@ -3,9 +3,11 @@
 // get the audit back as a stream of server-sent events, which the kiosk's
 // "remote" provider already speaks.
 //
-// It holds nothing that cannot be lost: the cache is a convenience, and a
-// restart costs a few repeat lookups. So it scales by running more copies of
-// it behind a load balancer, and it deploys anywhere that sets PORT.
+// Its own state is a cache that can be lost: a restart costs a few repeat
+// lookups. So it scales by running more copies of it behind a load balancer,
+// and it deploys anywhere that sets PORT. When STRAPI_URL and STRAPI_TOKEN are
+// set it also saves every roast to Strapi, which is the one thing it sends
+// anywhere else.
 //
 // Configuration is the environment alone. See .env.example.
 package main
@@ -33,10 +35,17 @@ import (
 // someone generated.
 const minTokenLength = 24
 
+const (
+	queueWait      = 10 * time.Second // how long a request waits for a slot
+	auditBudget    = 55 * time.Second // how long one audit may take
+	shutdownMargin = 10 * time.Second // on top of both, for the writes a roast leaves behind
+)
+
 type settings struct {
 	addr      string
 	github    string
-	writer    string // "openai", "anthropic", or empty for the numbers alone
+	writer    string // the default writer: "openai", "grok", "anthropic", or empty for the numbers alone
+	anthropic string // ANTHROPIC_API_KEY
 	openAI    string // OPENAI_API_KEY
 	model     string // OPENAI_MODEL
 	xAI       string // XAI_API_KEY
@@ -65,6 +74,11 @@ func main() {
 		// thousand briefs is a few megabytes.
 		Memory: audit.NewMemory(10*time.Minute, 1000),
 	}
+	bg := &background{}
+	var stopBackground context.CancelFunc
+	bg.ctx, stopBackground = context.WithCancel(context.Background())
+	defer stopBackground()
+
 	writers := map[string]verdict.Writer{}
 	if cfg.openAI != "" {
 		writers["openai-terra"] = verdict.OpenAI{Key: cfg.openAI, Model: cfg.model}
@@ -75,7 +89,7 @@ func main() {
 	if cfg.xAI != "" {
 		writers["grok"] = verdict.OpenAI{Key: cfg.xAI, Model: cfg.grokModel, URL: "https://api.x.ai/v1/responses", Provider: "xAI"}
 	}
-	if cfg.writer == "anthropic" {
+	if cfg.anthropic != "" {
 		writers["anthropic"] = verdict.NewClaude()
 	}
 	if len(writers) == 0 {
@@ -85,7 +99,7 @@ func main() {
 	var router roast.Provider = roast.Router{roast.GitHub: modelRouter{audit: provider, writers: writers, fallback: defaultModel(cfg)}}
 	var printed func(string)
 	if cfg.strapiURL != "" && cfg.strapiToken != "" {
-		saved := archive{next: router, url: cfg.strapiURL, token: cfg.strapiToken}
+		saved := archive{next: router, url: cfg.strapiURL, token: cfg.strapiToken, bg: bg}
 		router, printed = saved, saved.markPrinted
 	} else {
 		slog.Warn("STRAPI_URL or STRAPI_TOKEN is not set; roasts will not be saved and share links will not open")
@@ -93,12 +107,12 @@ func main() {
 
 	svc := newService(router, cfg.tokens, limits{
 		slots:  cfg.parallel,
-		queue:  10 * time.Second,
-		budget: 55 * time.Second,
+		queue:  queueWait,
+		budget: auditBudget,
 		every:  3 * time.Second,
 		burst:  6,
 	})
-	svc.printed = printed
+	svc.printed, svc.bg = printed, bg
 
 	srv := &http.Server{
 		Addr:    cfg.addr,
@@ -124,12 +138,25 @@ func main() {
 	<-stop.Done()
 
 	// A deploy should not cut anyone off mid-roast. Stop taking new ones and
-	// let the running ones finish, up to the length of one audit.
+	// let the running ones finish, up to a wait for a slot plus one audit.
+	// Archive writes started by those roasts get the same deadline.
 	slog.Info("shutting down; letting running roasts finish")
-	ctx, done := context.WithTimeout(context.Background(), 45*time.Second)
+	ctx, done := context.WithTimeout(context.Background(), queueWait+auditBudget+shutdownMargin)
 	defer done()
 	if err := srv.Shutdown(ctx); err != nil {
 		slog.Error("shutdown", "err", err)
+	}
+	finished := make(chan struct{})
+	go func() {
+		bg.wg.Wait()
+		close(finished)
+	}()
+	select {
+	case <-finished:
+	case <-ctx.Done():
+		slog.Error("shutdown", "err", "archive writes still running; cancelling them")
+		stopBackground()
+		<-finished
 	}
 }
 
@@ -142,6 +169,7 @@ func fromEnv(env func(string) string) (settings, error) {
 		openAI:    env("OPENAI_API_KEY"),
 		model:     env("OPENAI_MODEL"),
 		xAI:       env("XAI_API_KEY"),
+		anthropic: env("ANTHROPIC_API_KEY"),
 		grokModel: env("XAI_MODEL"),
 		optOut:    map[string]bool{},
 		parallel:  16,
@@ -152,14 +180,15 @@ func fromEnv(env func(string) string) (settings, error) {
 	if cfg.grokModel == "" {
 		cfg.grokModel = "grok-4.6"
 	}
-	// OpenAI when its key is there, Claude when only that one is, and the
-	// numbers alone when neither is. One writer, chosen once, logged at start.
+	// The default writer is OpenAI when its key is there, then Grok, then
+	// Claude, and the numbers alone when none is. Every writer with a key is
+	// registered, and the stand's menu picks among them by name.
 	switch {
 	case cfg.openAI != "":
 		cfg.writer = "openai"
 	case cfg.xAI != "":
 		cfg.writer = "grok"
-	case env("ANTHROPIC_API_KEY") != "":
+	case cfg.anthropic != "":
 		cfg.writer = "anthropic"
 	}
 	if port := env("PORT"); port != "" {

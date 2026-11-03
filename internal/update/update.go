@@ -6,7 +6,9 @@ package update
 
 import (
 	"context"
+	"crypto/ed25519"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -28,6 +30,13 @@ import (
 // writes anything private to it.
 const repo = "nmbrthirteen/roaster"
 
+// signingPublicKey is the base64 of the 32-byte ed25519 public key that
+// verifies SHA256SUMS.sig. The author must fill it in with the public half of
+// the key stored as the UPDATE_SIGNING_KEY secret (see release.yml). While it
+// is empty every update is refused, because an unsigned checksum file proves
+// nothing about who published the binaries it lists.
+var signingPublicKey = ""
+
 // apiBase is a var so a test can point it at an httptest server instead of
 // the real GitHub API.
 var apiBase = "https://api.github.com"
@@ -48,6 +57,9 @@ const maxAssetSize = 200 * 1024 * 1024
 // maxSumsSize is generous for a text file of a handful of hash lines.
 const maxSumsSize = 1024 * 1024
 
+// maxSigSize is an ed25519 signature with room to spare.
+const maxSigSize = 1024
+
 // mu keeps two updates from stepping on the same files at once. The hidden
 // menu is the only caller, but a second tap while the first request is still
 // in flight must not start a second download.
@@ -60,6 +72,7 @@ type Release struct {
 	KioskURL   string
 	RoasterURL string
 	SumsURL    string
+	SigURL     string // the detached signature over the SHA256SUMS file
 }
 
 // Result is what Apply did.
@@ -96,7 +109,8 @@ func Check(ctx context.Context) (Release, error) {
 	kiosk, ok1 := byName["kiosk-windows-"+arch+".exe"]
 	roaster, ok2 := byName["roaster-windows-"+arch+".exe"]
 	sums, ok3 := byName["SHA256SUMS"]
-	if !ok1 || !ok2 || !ok3 {
+	sig, ok4 := byName["SHA256SUMS.sig"]
+	if !ok1 || !ok2 || !ok3 || !ok4 {
 		return Release{}, fmt.Errorf("release %s has no build for windows/%s", rel.TagName, arch)
 	}
 
@@ -106,6 +120,7 @@ func Check(ctx context.Context) (Release, error) {
 		KioskURL:   kiosk.BrowserDownloadURL,
 		RoasterURL: roaster.BrowserDownloadURL,
 		SumsURL:    sums.BrowserDownloadURL,
+		SigURL:     sig.BrowserDownloadURL,
 	}, nil
 }
 
@@ -207,6 +222,13 @@ func Apply(ctx context.Context, rel Release, dir string) (Result, error) {
 	if err != nil {
 		return Result{}, fmt.Errorf("checksums: %w", err)
 	}
+	sigBytes, err := fetchBytes(ctx, rel.SigURL, maxSigSize)
+	if err != nil {
+		return Result{}, fmt.Errorf("signature: %w", err)
+	}
+	if err := verifySums(sumBytes, sigBytes); err != nil {
+		return Result{}, err
+	}
 	sums := parseSums(sumBytes)
 
 	arch := runtime.GOARCH
@@ -233,6 +255,21 @@ func Apply(ctx context.Context, rel Release, dir string) (Result, error) {
 		hashes[b.installed] = got
 	}
 
+	// A failure part way through must not leave one new binary beside one old
+	// one, so every swap made so far is undone before the error is returned.
+	var swapped []string
+	fail := func(err error) (Result, error) {
+		for i := len(swapped) - 1; i >= 0; i-- {
+			installedPath := filepath.Join(dir, swapped[i])
+			os.Remove(installedPath)
+			os.Rename(installedPath+".old", installedPath)
+		}
+		for _, b := range binaries {
+			os.Remove(filepath.Join(dir, b.installed+".new"))
+		}
+		return Result{}, err
+	}
+
 	needsReboot := false
 	for _, b := range binaries {
 		newPath := filepath.Join(dir, b.installed+".new")
@@ -245,23 +282,25 @@ func Apply(ctx context.Context, rel Release, dir string) (Result, error) {
 
 		oldPath := installedPath + ".old"
 		if err := os.Remove(oldPath); err != nil && !os.IsNotExist(err) {
-			return Result{}, errors.New("An earlier update is still running. Reboot the device, then update again.")
+			return fail(errors.New("An earlier update is still running. Reboot the device, then update again."))
 		}
 		// Renaming a running exe works on Windows; the file stays open under its
 		// old name until whatever is running it exits.
 		if err := os.Rename(installedPath, oldPath); err != nil {
-			return Result{}, fmt.Errorf("could not step %s aside: %w", b.installed, err)
+			return fail(fmt.Errorf("could not step %s aside: %w", b.installed, err))
 		}
 		if err := os.Rename(newPath, installedPath); err != nil {
-			return Result{}, fmt.Errorf("could not install %s: %w", b.installed, err)
+			os.Rename(oldPath, installedPath)
+			return fail(fmt.Errorf("could not install %s: %w", b.installed, err))
 		}
+		swapped = append(swapped, b.installed)
 		if b.installed == "kiosk.exe" {
 			needsReboot = true
 		}
 	}
 
 	if err := os.WriteFile(filepath.Join(dir, markerFile), []byte(version.Version), 0o644); err != nil {
-		return Result{}, fmt.Errorf("could not record the update: %w", err)
+		return fail(fmt.Errorf("could not record the update: %w", err))
 	}
 
 	return Result{Version: rel.Tag, NeedsReboot: needsReboot}, nil
@@ -302,6 +341,19 @@ func Pending(dir string) bool {
 // launcher trusts it and will not roll it back.
 func Settle(dir string) {
 	os.Remove(filepath.Join(dir, markerFile))
+}
+
+// verifySums fails closed: no key, a malformed key or a bad signature all
+// refuse the update.
+func verifySums(sums, sig []byte) error {
+	key, err := base64.StdEncoding.DecodeString(strings.TrimSpace(signingPublicKey))
+	if signingPublicKey == "" || err != nil || len(key) != ed25519.PublicKeySize {
+		return errors.New("This build has no valid update signing key, so it cannot check an update. Install a release by hand.")
+	}
+	if !ed25519.Verify(key, sums, sig) {
+		return errors.New("SHA256SUMS is not signed by the release key; nothing was installed")
+	}
+	return nil
 }
 
 func sameHash(path, want string) bool {

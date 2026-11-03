@@ -179,9 +179,14 @@ func qr(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing d", http.StatusBadRequest)
 		return
 	}
-	mod, _ := strconv.Atoi(r.URL.Query().Get("m"))
-	if mod < 1 {
-		mod = 6
+	mod := 6
+	if m := r.URL.Query().Get("m"); m != "" {
+		n, err := strconv.Atoi(m)
+		if err != nil {
+			http.Error(w, "m must be a whole number", http.StatusBadRequest)
+			return
+		}
+		mod = min(max(n, 1), 12)
 	}
 	png, err := qrcode.Encode(data, qrcode.Medium, mod*37)
 	if err != nil {

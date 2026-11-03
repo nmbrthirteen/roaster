@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"net"
 	"net/url"
 	"regexp"
 	"sync"
@@ -98,9 +99,19 @@ func (s *station) settingsReadable() bool {
 	return err == nil
 }
 
+// loopback is the one place plain http is safe: the traffic never leaves the
+// machine.
+func loopback(host string) bool {
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
 func (s *station) setRemoteURL(v string) error {
 	u, err := url.Parse(v)
-	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+	if err != nil || u.Host == "" || !(u.Scheme == "https" || u.Scheme == "http" && loopback(u.Hostname())) {
 		return fmt.Errorf("The service address must start with https://")
 	}
 	s.mu.Lock()
@@ -164,7 +175,7 @@ func (s *station) setProvider(v string) error {
 }
 
 func (s *station) setModelProvider(v string) error {
-	if v != "openai-terra" && v != "openai-luna" && v != "openai-mini" && v != "grok" {
+	if v != "openai-terra" && v != "openai-luna" && v != "openai-mini" && v != "grok" && v != "anthropic" {
 		return fmt.Errorf("unknown roast model %q", v)
 	}
 	s.mu.Lock()

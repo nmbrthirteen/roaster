@@ -27,6 +27,12 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...
+
       - name: Build Windows binaries
         env:
           CGO_ENABLED: 0
@@ -46,6 +52,21 @@ jobs:
         run: |
           cd dist
           sha256sum *.exe > SHA256SUMS
+
+      # Stands refuse an update whose SHA256SUMS is not signed by this key.
+      # UPDATE_SIGNING_KEY is an ed25519 private key in PEM form, made with
+      # "openssl genpkey -algorithm ed25519". Its public half goes in
+      # signingPublicKey in internal/update/update.go, as base64 of the raw 32
+      # bytes: openssl pkey -in key.pem -pubout -outform DER | tail -c 32 | base64
+      - name: Sign the checksums
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: |
+          test -n "$UPDATE_SIGNING_KEY" || { echo "UPDATE_SIGNING_KEY is not set"; exit 1; }
+          key=$(mktemp)
+          trap 'rm -f "$key"' EXIT
+          printf '%s\n' "$UPDATE_SIGNING_KEY" > "$key"
+          openssl pkeyutl -sign -rawin -inkey "$key" -in dist/SHA256SUMS -out dist/SHA256SUMS.sig
 
       - name: Publish the release
         env:

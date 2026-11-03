@@ -1,4 +1,4 @@
-// Package metric turns what GitHub says into the five numbers printed on the
+// Package metric turns what GitHub says into the six gauges printed on the
 // receipt.
 //
 // Every one of them is arithmetic over fetched facts. Nothing here is invented,

@@ -6,8 +6,9 @@
 // the only thing anyone has to launch.
 //
 // A printer is reached through the server's own transports. Newer WebView2
-// runtimes also offer Web Serial, which the page uses only after someone
-// presses Connect printer in the hidden menu.
+// runtimes also offer Web Serial and older ones do not, so the page feature
+// detects it and uses it only after someone presses Connect printer in the
+// hidden menu.
 package main
 
 import (

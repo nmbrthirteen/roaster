@@ -67,7 +67,7 @@ func NewMemory(ttl time.Duration, max int) *Memory {
 }
 
 // measure returns the account read and briefed: from memory while it is fresh,
-// otherwise from read, run once however many stands ask at the same moment. A
+// otherwise from read, run once however many stands ask at the same moment.
 func (m *Memory) measure(key string, read func() (measured, error)) (measured, error) {
 	m.mu.Lock()
 	if k, ok := m.accounts[key]; ok && m.now().Before(k.expires) {

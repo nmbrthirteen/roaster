@@ -18,7 +18,7 @@ fi
 
 if [ -d .git ] && git diff --quiet 2>/dev/null; then
   echo "  Pulling latest..."
-  git pull --quiet || true
+  git pull --quiet || echo "  Pull failed, the reason is above. Building what is here."
 fi
 
 [ -f roaster.json ] || cp roaster.example.json roaster.json
@@ -26,7 +26,7 @@ fi
 echo "  Building..."
 go build -o roaster ./cmd/roaster
 
-PORT=$(sed -n 's/.*"addr": *":\([0-9]*\)".*/\1/p' roaster.json)
+PORT=$(sed -n 's/.*"addr": *"[^"]*:\([0-9]*\)".*/\1/p' roaster.json)
 PORT=${PORT:-3000}
 echo "  Opening http://localhost:$PORT/kiosk"
 ( sleep 2; open "http://localhost:$PORT/kiosk" 2>/dev/null || xdg-open "http://localhost:$PORT/kiosk" 2>/dev/null ) &

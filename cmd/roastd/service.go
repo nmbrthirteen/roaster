@@ -31,10 +31,38 @@ type limits struct {
 	burst  int           // roasts a stand may run back to back
 }
 
+// background tracks the writes that outlive a request, so a deploy can wait for
+// them. A nil *background runs them untracked, which is what tests want.
+type background struct {
+	ctx context.Context // cancelled when shutdown stops waiting
+	wg  sync.WaitGroup
+}
+
+func (b *background) run(fn func()) {
+	if b == nil {
+		go fn()
+		return
+	}
+	b.wg.Add(1)
+	go func() {
+		defer b.wg.Done()
+		fn()
+	}()
+}
+
+// context is what a background write should stop on.
+func (b *background) context() context.Context {
+	if b == nil {
+		return context.Background()
+	}
+	return b.ctx
+}
+
 type service struct {
 	provider roast.Provider
 	lim      limits
 	printed  func(code string) // nil when there is nowhere to record it
+	bg       *background
 
 	terminals map[[32]byte]*rate.Limiter
 	slots     chan struct{}
@@ -81,7 +109,8 @@ func (s *service) markPrinted(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if s.printed != nil {
-		go s.printed(req.Code)
+		code := req.Code
+		s.bg.run(func() { s.printed(code) })
 	}
 	w.WriteHeader(http.StatusAccepted)
 }

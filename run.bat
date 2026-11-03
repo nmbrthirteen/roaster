@@ -16,7 +16,13 @@ if errorlevel 1 goto :needgo
 
 if exist ".git" (
   echo   Pulling latest...
-  git diff --quiet 2>nul && git pull --quiet || echo   Local changes present, skipping pull.
+  git diff --quiet 2>nul
+  if errorlevel 1 (
+    echo   Local changes present, skipping pull.
+  ) else (
+    git pull --quiet
+    if errorlevel 1 echo   Pull failed, the reason is above. Building what is here.
+  )
 )
 
 if not exist "roaster.json" copy /y "roaster.example.json" "roaster.json" >nul

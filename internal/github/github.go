@@ -1,10 +1,11 @@
 // Package github reads the public record of one account.
 //
-// Everything here is one request. A stand has a queue in front of it, and the
-// difference between one round trip and five is the difference between a visitor
-// watching the screen and a visitor watching the floor. REST would need a call
-// for the profile, one for the repositories, one per repository for commits, and
-// one for the contribution calendar. GraphQL answers all of it at once.
+// Everything here is four GraphQL queries sent at once. A stand has a queue in
+// front of it, and the difference between one round trip and five is the
+// difference between a visitor watching the screen and a visitor watching the
+// floor. REST would need a call for the profile, one for the repositories, one
+// per repository for commits, and one for the contribution calendar. GraphQL
+// answers the same in four calls, whatever the number of repositories.
 package github
 
 import (

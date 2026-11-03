@@ -52,7 +52,7 @@ func TestTheJobPrintsWhatThePictureShows(t *testing.T) {
 		Section{Label: "Contribution calendar"},
 		Heatmap{Weeks: heat, Ending: time.Date(2026, 10, 2, 0, 0, 0, 0, time.UTC)},
 		Bar{Label: "Active days", Value: "60%", Percent: 60},
-		Para{Value: "“Ships at 3am — then explains why… for a week.” ბაგი შესწორდა"},
+		Para{Value: "“Ships at 3am, then explains why… for a week.” ბაგი შესწორდა"},
 		Commit{Ref: "eb443ec", Where: "todo-app", When: "Tue 29 Sep 2026, 16:30", Message: "გამოსწორება: ბაგი შესწორდა"},
 		Feed{Lines: 12},
 		Text{Value: "x"},

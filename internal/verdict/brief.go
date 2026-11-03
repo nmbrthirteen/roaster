@@ -1,10 +1,12 @@
-// Package verdict writes the one line on the receipt that is not arithmetic.
+// Package verdict writes the lines on the receipt that are not arithmetic.
 //
 // Everything else a visitor sees is computed from their account. The verdict
-// is the joke, and it is the only thing a model is asked for. That keeps the
-// model's job small, which keeps it fast and cheap, and it means a model that is
-// slow, down or unwilling costs a single line: Fallback writes one from the
-// numbers, and the receipt still prints.
+// is the joke and the line that matters most. A model is also asked for the
+// label under the score and for sharper versions of the stock strengths,
+// actions, findings and habits. That keeps the model's job to words, which
+// keeps it fast and cheap, and a model that is slow, down or unwilling costs
+// those lines: Fallback writes them from the numbers, and the receipt still
+// prints.
 package verdict
 
 import (
@@ -75,8 +77,8 @@ type Brief struct {
 	Angle string
 
 	// Avoid is lines already printed: to this account on an earlier visit,
-	// and to whoever was in the queue before. They are the stand's own
-	// output, so they are trusted, and they sit outside the account block.
+	// and to whoever was in the queue before. They began as model output, so
+	// they are scrubbed and fenced like the account text.
 	Avoid []string
 }
 
@@ -109,6 +111,9 @@ func From(f github.Facts, metrics []roast.Metric, now time.Time) Brief {
 		Unused:     metric.Unused(claimed, f.Repos),
 	}
 
+	// The model is never given the handle, and the profile repository is named
+	// after it.
+	hide := handleRedactor(f.Handle)
 	for _, r := range f.Repos {
 		b.StarsEarned += r.Stars
 		if !r.Archived && !r.Pushed.IsZero() && now.Sub(r.Pushed) > 365*24*time.Hour {
@@ -117,9 +122,9 @@ func From(f github.Facts, metrics []roast.Metric, now time.Time) Brief {
 		if !r.Readme {
 			b.NoReadme++
 		}
-		if len(b.Repos) < maxRepos {
-			line := scrub(r.Name, maxRepoText)
-			if d := scrub(r.Description, maxRepoText); d != "" {
+		if len(b.Repos) < maxRepos && !strings.EqualFold(r.Name, f.Handle) {
+			line := hide(scrub(r.Name, maxRepoText))
+			if d := hide(scrub(r.Description, maxRepoText)); d != "" {
 				line += ": " + d
 			}
 			b.Repos = append(b.Repos, line)
@@ -134,6 +139,14 @@ func From(f github.Facts, metrics []roast.Metric, now time.Time) Brief {
 		}
 	}
 	return b
+}
+
+func handleRedactor(handle string) func(string) string {
+	if handle == "" {
+		return func(s string) string { return s }
+	}
+	re := regexp.MustCompile(`(?i)` + regexp.QuoteMeta(handle))
+	return func(s string) string { return re.ReplaceAllString(s, "…") }
 }
 
 // Render is the brief as the model reads it. Everything the account wrote sits
@@ -219,19 +232,18 @@ func (b Brief) Render() string {
 	stock("Actions", b.Actions)
 	stock("Findings", facts(b.Findings))
 	stock("Habits", facts(b.Habits))
+	if len(b.Avoid) > 0 {
+		line("")
+		line("Already printed at this stand. Write something that shares none of their jokes:")
+		for _, a := range b.Avoid {
+			line("- %s", scrub(a, maxStockText))
+		}
+	}
 	if b.Angle != "" {
 		line("")
 		line("Angle for the verdict: %s", scrub(b.Angle, maxStockText))
 	}
 	line("</account>")
-
-	if len(b.Avoid) > 0 {
-		line("")
-		line("Already printed at this stand. Write something that shares none of their jokes:")
-		for _, a := range b.Avoid {
-			line("- %s", a)
-		}
-	}
 	return s.String()
 }
 
