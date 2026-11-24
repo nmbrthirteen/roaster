@@ -99,7 +99,7 @@ func errorText(raw []byte) string {
 	return ""
 }
 
-func (o OpenAI) Write(ctx context.Context, b Brief) (Page, error) {
+func (o OpenAI) Write(ctx context.Context, p Prompt) (Page, error) {
 	provider := o.providerName()
 	if o.Key == "" {
 		return Page{}, fmt.Errorf("no %s key", provider)
@@ -111,8 +111,8 @@ func (o OpenAI) Write(ctx context.Context, b Brief) (Page, error) {
 
 	req := openAIRequest{
 		Model:        model,
-		Instructions: system,
-		Input:        b.Render() + ask,
+		Instructions: p.System,
+		Input:        p.User,
 		MaxOutput:    8192,
 	}
 	req.Reasoning = &struct {

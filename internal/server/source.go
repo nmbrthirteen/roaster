@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/upgaming/roaster/internal/linkedin"
 	"github.com/upgaming/roaster/internal/roast"
 	"github.com/upgaming/roaster/internal/secret"
 )
@@ -25,7 +26,10 @@ func (s *Server) source() (roast.Provider, error) {
 	cfg := s.st.config()
 	switch cfg.Provider {
 	case "", "demo":
-		return roast.Demo{}, nil
+		return roast.Router{
+			roast.GitHub:   roast.Demo{},
+			roast.LinkedIn: linkedin.Audit{Source: linkedin.Demo{}},
+		}, nil
 	case "remote":
 		if cfg.RemoteURL == "" {
 			return nil, fmt.Errorf("No roast service address yet. Enter it under Roast service.")

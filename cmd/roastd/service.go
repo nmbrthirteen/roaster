@@ -87,6 +87,7 @@ func (s *service) handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", s.health)
 	mux.HandleFunc("POST /roast", s.roast)
+	mux.HandleFunc("POST /search", s.search)
 	mux.HandleFunc("POST /printed", s.markPrinted)
 	return mux
 }
@@ -164,6 +165,67 @@ func (s *service) roast(w http.ResponseWriter, r *http.Request) {
 	slog.Info("roast",
 		"terminal", terminal,
 		"handle", req.Handle,
+		"ok", err == nil,
+		"err", errText(err),
+		"ms", time.Since(started).Milliseconds(),
+	)
+}
+
+// search finds the people a name matches, for a pack whose visitors pick
+// themselves instead of typing a handle. It shares the stand's roast limit,
+// because every search is a paid call to a vendor.
+func (s *service) search(w http.ResponseWriter, r *http.Request) {
+	started := time.Now()
+
+	terminal, limiter, ok := s.authenticate(r)
+	if !ok {
+		w.Header().Set("WWW-Authenticate", `Bearer realm="roast"`)
+		http.Error(w, "unknown terminal", http.StatusUnauthorized)
+		return
+	}
+	if res := limiter.Reserve(); res.Delay() > 0 {
+		res.Cancel()
+		w.Header().Set("Retry-After", strconv.Itoa(int(res.Delay().Seconds())+1))
+		http.Error(w, "slow down", http.StatusTooManyRequests)
+		return
+	}
+
+	var req roast.Search
+	r.Body = http.MaxBytesReader(w, r.Body, 4<<10)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Query) == "" {
+		http.Error(w, "send a JSON body with a query", http.StatusBadRequest)
+		return
+	}
+
+	var (
+		found []roast.Candidate
+		err   error
+	)
+	if searcher, ok := s.provider.(roast.Searcher); ok {
+		ctx, cancel := context.WithTimeout(r.Context(), s.lim.budget)
+		found, err = searcher.Search(ctx, req)
+		cancel()
+	} else {
+		err = errors.New("this roast service cannot search by name")
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	reply := struct {
+		Candidates []roast.Candidate `json:"candidates"`
+		Error      string            `json:"error,omitempty"`
+	}{Candidates: found}
+	if reply.Candidates == nil {
+		reply.Candidates = []roast.Candidate{}
+	}
+	if err != nil {
+		reply.Error = err.Error()
+	}
+	json.NewEncoder(w).Encode(reply)
+
+	slog.Info("search",
+		"terminal", terminal,
+		"pack", req.Pack,
+		"found", len(found),
 		"ok", err == nil,
 		"err", errText(err),
 		"ms", time.Since(started).Milliseconds(),

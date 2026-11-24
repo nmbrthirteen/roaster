@@ -12,7 +12,7 @@ import (
 )
 
 type Writer interface {
-	Write(ctx context.Context, b Brief) (Page, error)
+	Write(ctx context.Context, p Prompt) (Page, error)
 }
 
 var (
@@ -42,13 +42,13 @@ func NewClaude(opts ...option.RequestOption) Claude {
 	return Claude{client: anthropic.NewClient(opts...), model: ClaudeModel}
 }
 
-func (c Claude) Write(ctx context.Context, b Brief) (Page, error) {
+func (c Claude) Write(ctx context.Context, p Prompt) (Page, error) {
 	started := time.Now()
 
 	resp, err := c.client.Messages.New(ctx, anthropic.MessageNewParams{
 		Model:     c.model,
 		MaxTokens: 8192,
-		System:    []anthropic.TextBlockParam{{Text: system}},
+		System:    []anthropic.TextBlockParam{{Text: p.System}},
 		Thinking: anthropic.ThinkingConfigParamUnion{
 			OfAdaptive: &anthropic.ThinkingConfigAdaptiveParam{},
 		},
@@ -57,7 +57,7 @@ func (c Claude) Write(ctx context.Context, b Brief) (Page, error) {
 			Format: anthropic.JSONOutputFormatParam{Schema: schema},
 		},
 		Messages: []anthropic.MessageParam{
-			anthropic.NewUserMessage(anthropic.NewTextBlock(b.Render() + ask)),
+			anthropic.NewUserMessage(anthropic.NewTextBlock(p.User)),
 		},
 	})
 	if err != nil {

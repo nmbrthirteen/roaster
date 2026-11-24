@@ -36,7 +36,7 @@ func (r Roast) Doc(ev event.Event, terminal string) *receipt.Doc {
 		brk,
 
 		heavy,
-		receipt.KV{Label: "Candidate", Value: "@" + r.Handle},
+		receipt.KV{Label: "Candidate", Value: PackFor(r.Pack).At + r.Handle},
 		receipt.KV{Label: "Audited", Value: r.At.Format("2 Jan 2006, 15:04")},
 		heavy,
 	)
@@ -157,7 +157,7 @@ func (r Roast) heat(d *receipt.Doc, pack Pack) {
 
 // exhibit prints where and when, so anyone holding the receipt can check it.
 func (r Roast) exhibit(d *receipt.Doc, pack Pack) {
-	d.Add(receipt.Feed{Lines: 2}, receipt.Section{Label: "Your worst commit"})
+	d.Add(receipt.Feed{Lines: 2}, receipt.Section{Label: pack.Worst})
 	w := r.Exhibit
 	if w == nil {
 		d.Add(
@@ -171,10 +171,14 @@ func (r Roast) exhibit(d *receipt.Doc, pack Pack) {
 	if msg == "" {
 		msg = "(an empty message)"
 	}
+	when := ""
+	if !w.At.IsZero() {
+		when = w.At.Format(pack.When)
+	}
 	d.Add(
 		receipt.Text{Value: pack.Exhibit},
 		receipt.Feed{Lines: 1},
-		receipt.Commit{Ref: w.Ref, Where: w.Where, When: w.At.Format("Mon 2 Jan 2006, 15:04"), Message: msg},
+		receipt.Commit{Ref: w.Ref, Where: w.Where, When: when, Message: msg},
 	)
 }
 

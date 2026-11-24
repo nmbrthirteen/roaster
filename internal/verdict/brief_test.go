@@ -135,13 +135,13 @@ func TestScrubCleansAndCaps(t *testing.T) {
 		{"<b>", "‹b›"},
 		{"", ""},
 	} {
-		if got := scrub(c.in, 100); got != c.want {
+		if got := Scrub(c.in, 100); got != c.want {
 			t.Errorf("scrub(%q) = %q, want %q", c.in, got, c.want)
 		}
 	}
 
 	long := strings.Repeat("ab ", 100)
-	if got := scrub(long, 10); len([]rune(got)) != 10 || !strings.HasSuffix(got, "…") {
+	if got := Scrub(long, 10); len([]rune(got)) != 10 || !strings.HasSuffix(got, "…") {
 		t.Errorf("a long line should be cut to ten runes ending in an ellipsis, got %q", got)
 	}
 }

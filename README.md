@@ -199,8 +199,8 @@ menu can reboot the machine.
 It shows the terminal, event, printer, wireless state, roasts printed, uptime
 and the last error, and lets you choose a printer and connect it, send a test
 slip, reprint the last receipt, scan and join a wireless network, switch or
-create an event, set the terminal number, restart the app, exit the kiosk,
-reboot, or shut down.
+create an event, set the terminal number, choose the social the stand roasts,
+restart the app, exit the kiosk, reboot, or shut down.
 
 Anything that would end the event asks twice and forgets after five seconds, so
 a stray touch cannot reboot the stand.
@@ -331,6 +331,37 @@ go run ./cmd/roaster -facts torvalds
 It prints the gauges, the score and how long GitHub took. The token is read from
 the environment and nowhere else: a flag would put it in shell history and in
 the process list of a machine other people use.
+
+## Reading LinkedIn
+
+A stand set to LinkedIn in the hidden menu asks for a first and last name
+instead of a handle. The visitor picks themselves from the public profiles that
+name matches, and the audit plays as a profile review: the person up top, one
+panel at a time under them, and the verdict as a post. Each panel stays up long
+enough to read, so the reading takes about 43 seconds however fast the roast
+comes back.
+
+LinkedIn has no official API that finds a member by name or reads another
+member's profile. Sign In with LinkedIn returns a name and a photo, and its data
+portability API serves only members in the EEA and Switzerland. So profiles
+come from a data vendor behind `linkedin.Source`, and two vendors in a
+`linkedin.Failover` give each one eight seconds before the other is asked.
+
+`internal/linkedin` measures what the profile claims: titles with rank in them,
+jobs left inside 18 months, roles with no description, skills no job mentions
+and buzzwords in the headline. The model writes in the voice of a burnt out
+recruiter. It sees the headline, the About, the roles and the skills, and never
+the name, the photo or the location.
+
+`LINKEDIN_SOURCE=demo` on the roast service serves three made-up profiles, so
+the whole flow runs before a vendor is signed up. A stand on the `demo` source
+plays them too. `LINKEDIN_OPT_OUT` lists profile references that are never
+read and never shown in a search.
+
+A new social is a pack in `internal/roast/pack.go` and a provider behind the
+router. The pack carries everything the stand shows for it: how a visitor names
+their account, the copy, the progress steps and whether the reading plays as a
+terminal or as a feed.
 
 ## The roast service
 

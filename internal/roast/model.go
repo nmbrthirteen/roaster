@@ -34,6 +34,10 @@ type Item struct {
 type Section struct {
 	Cmd   string   `json:"cmd"`
 	Lines []string `json:"lines"`
+
+	// Marks are the phrases in Lines a visual reading singles out: the
+	// buzzwords in an About, the skills no job backs up.
+	Marks []string `json:"marks,omitempty"`
 }
 
 type Roast struct {
