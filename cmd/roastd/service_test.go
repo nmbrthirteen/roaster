@@ -268,3 +268,24 @@ func TestASearchReachesThePackThatCanSearch(t *testing.T) {
 		t.Errorf("a search with no terminal token should be refused, got %s", res.Status)
 	}
 }
+
+type searchingProvider struct{ *provider }
+
+func (searchingProvider) Search(context.Context, roast.Search) ([]roast.Candidate, error) {
+	return []roast.Candidate{{Ref: "someone", Name: "Some One"}}, nil
+}
+
+func TestASearchWaitsForASlotLikeARoast(t *testing.T) {
+	p := searchingProvider{&provider{release: make(chan struct{}), started: make(chan struct{})}}
+	lim := roomy()
+	lim.slots, lim.queue = 1, 50*time.Millisecond
+	url := serve(t, p, lim)
+
+	go roast.Remote{URL: url + "/roast", Token: token}.Roast(context.Background(), roast.Request{Handle: "octocat"}, func(roast.Update) {})
+	<-p.started
+	defer close(p.release)
+
+	if _, err := (roast.Remote{URL: url + "/roast", Token: token}).Search(context.Background(), roast.Search{Query: "Some One"}); err == nil {
+		t.Errorf("with every slot taken, a search should hear busy rather than call the vendor")
+	}
+}

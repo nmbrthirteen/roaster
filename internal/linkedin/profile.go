@@ -10,6 +10,7 @@ package linkedin
 import (
 	"context"
 	"errors"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -83,7 +84,9 @@ func Valid(r string) bool {
 }
 
 // Ref pulls the reference out of whatever a visitor or a vendor gives: a full
-// profile URL, one without a scheme, or the reference alone.
+// profile URL, one without a scheme, or the reference alone. A browser copies
+// an accented reference percent-encoded and a vendor returns it decoded, so it
+// is always decoded here, and an opt-out copied from either form matches both.
 func Ref(s string) string {
 	s = strings.TrimSpace(s)
 	if _, rest, ok := strings.Cut(s, "linkedin.com/in/"); ok {
@@ -91,5 +94,9 @@ func Ref(s string) string {
 	}
 	s, _, _ = strings.Cut(s, "?")
 	s, _, _ = strings.Cut(s, "#")
-	return strings.Trim(s, "/")
+	s = strings.Trim(s, "/")
+	if decoded, err := url.PathUnescape(s); err == nil {
+		s = decoded
+	}
+	return s
 }

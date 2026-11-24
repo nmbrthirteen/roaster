@@ -285,3 +285,37 @@ func TestAnglesStandOnTellingFactsOnly(t *testing.T) {
 		}
 	}
 }
+
+func TestOneBareRoleStillEarnsItsAction(t *testing.T) {
+	p := Profile{Positions: []Position{
+		{Title: "Engineer", Company: "A", Start: month(2020, time.January), End: month(2022, time.January), Description: "Built the thing."},
+		{Title: "Engineer", Company: "B", Start: month(2022, time.February), End: month(2024, time.January), Description: "Ran the thing."},
+		{Title: "Engineer", Company: "C", Start: month(2024, time.February)},
+	}}
+	if got := strings.Join(Actions(p, now), " "); !strings.Contains(got, "each of the 1 role with no description") {
+		t.Errorf("one undescribed role out of three should still get its action, got %q", got)
+	}
+}
+
+func TestTheShortestStayIsNeverAJobStillHeld(t *testing.T) {
+	p := Profile{Positions: []Position{
+		{Title: "Engineer", Company: "NewCo", Start: month(2026, time.August)},
+		{Title: "Engineer", Company: "Steady", Start: month(2022, time.January), End: month(2024, time.January)},
+		{Title: "Engineer", Company: "Brief", Start: month(2021, time.January), End: month(2021, time.October)},
+	}}
+	for _, f := range Findings(p, now) {
+		if f.Title == "Shortest stay" && strings.Contains(f.Value, "NewCo") {
+			t.Errorf("a job held now has not ended, so it is no short stay: %+v", f)
+		}
+	}
+}
+
+func TestAnAccentedReferenceMatchesInEitherForm(t *testing.T) {
+	if got := Ref("https://www.linkedin.com/in/j%C3%B6rg-m/"); got != "jörg-m" || !Valid(got) {
+		t.Errorf("a percent-encoded link should decode to a valid reference, got %q", got)
+	}
+	a := Audit{Source: Demo{}, Blocked: map[string]bool{strings.ToLower(Ref("j%C3%B6rg-m")): true}}
+	if _, err := a.Roast(context.Background(), roast.Request{Handle: "jörg-m"}, func(roast.Update) {}); !errors.Is(err, ErrOptedOut) {
+		t.Errorf("an opt-out copied from a browser should block the decoded reference, got %v", err)
+	}
+}

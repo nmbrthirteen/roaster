@@ -31,7 +31,7 @@ func Findings(p Profile, now time.Time) []roast.Finding {
 			Line:  "The one place that kept you. Or the one you never told you were leaving.",
 		})
 	}
-	if shortest, ok := extreme(p, now, func(a, b int) bool { return a < b }); ok && finished(p) > 1 && stay(shortest, now) < shortStay {
+	if shortest, ok := shortestLeft(p, now); ok && finished(p) > 1 && stay(shortest, now) < shortStay {
 		out = append(out, roast.Finding{
 			Title: "Shortest stay",
 			Value: duration(stay(shortest, now)) + " at " + shown(shortest.Company, 28),
@@ -107,7 +107,7 @@ func Actions(p Profile, now time.Time) []string {
 			out = append(out, s)
 		}
 	}
-	if n := len(p.Positions) * undescribed(p) / 100; n > 0 {
+	if n := bare(p); n > 0 {
 		add(true, fmt.Sprintf("Write one line under each of the %s with no description.", count(n, "role")))
 	}
 	if words := Buzzwords(p.Headline); len(words) > 0 {
@@ -228,6 +228,22 @@ func extreme(p Profile, now time.Time, better func(a, b int) bool) (Position, bo
 			continue
 		}
 		if !ok || better(stay(pos, now), stay(found, now)) {
+			found, ok = pos, true
+		}
+	}
+	return found, ok
+}
+
+// shortestLeft is the shortest role the person has left. A role held now has
+// not ended, so it cannot be a short stay yet.
+func shortestLeft(p Profile, now time.Time) (Position, bool) {
+	var found Position
+	ok := false
+	for _, pos := range p.Positions {
+		if pos.Start.IsZero() || pos.Current() {
+			continue
+		}
+		if !ok || stay(pos, now) < stay(found, now) {
 			found, ok = pos, true
 		}
 	}

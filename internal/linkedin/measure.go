@@ -143,13 +143,18 @@ func hopped(p Profile, now time.Time) int {
 }
 
 func undescribed(p Profile) int {
+	return percent(bare(p), len(p.Positions))
+}
+
+// bare is how many roles have no description.
+func bare(p Profile) int {
 	n := 0
 	for _, pos := range p.Positions {
 		if strings.TrimSpace(pos.Description) == "" {
 			n++
 		}
 	}
-	return percent(n, len(p.Positions))
+	return n
 }
 
 func unbacked(p Profile) int {

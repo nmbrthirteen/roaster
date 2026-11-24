@@ -136,6 +136,8 @@ func (r Remote) Search(ctx context.Context, s Search) ([]Candidate, error) {
 		return nil, fmt.Errorf("this terminal's token was rejected; it may have been revoked")
 	case res.StatusCode == http.StatusTooManyRequests:
 		return nil, fmt.Errorf("this stand is going faster than the roast service allows; try again in a few seconds")
+	case res.StatusCode == http.StatusServiceUnavailable:
+		return nil, fmt.Errorf("the roast service is busy; try again in a moment")
 	case res.StatusCode != http.StatusOK:
 		return nil, fmt.Errorf("roast service returned %s", res.Status)
 	}

@@ -29,6 +29,7 @@
     --subtle: #71717a;
     --primary: #0fff50;
     --secondary: #6662ff;
+    --danger: #ff6b6b;
 
     --display: Integral, system-ui, sans-serif;
     --sans: Roboto, system-ui, sans-serif;
@@ -313,7 +314,7 @@
     font-size: clamp(17px, 1.9vw, 21px); color: var(--muted);
   }
   .news::before { content: ""; flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--primary); animation: pulse 1.4s ease-in-out infinite; }
-  .news.bad::before { background: #ff6b6b; animation: none; }
+  .news.bad::before { background: var(--danger); animation: none; }
   .news span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; animation: appear .3s ease-out both; }
   .news b { color: var(--white); font-weight: 500; }
   #audit[data-view="feed"] .tmux { background: var(--surface); color: var(--muted); border-top: 1px solid var(--border); font-family: var(--sans); }
@@ -458,8 +459,8 @@
   .facts { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; font-family: var(--mono); font-size: 17px; }
   .facts dt { color: var(--subtle); }
   .facts dd { margin: 0; color: var(--white); text-align: right; }
-  .facts dd.warn { color: #ff6b6b; }
-  .panel p.warn { color: #ff6b6b; margin-top: 12px; }
+  .facts dd.warn { color: var(--danger); }
+  .panel p.warn { color: var(--danger); margin-top: 12px; }
 
   #aNewForm { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
   #aNewForm[hidden] { display: none; }
@@ -479,7 +480,7 @@
   }
   .acts button:hover:not(:disabled) { border-color: var(--primary); }
   .acts .danger { color: #ff8585; }
-  .acts .danger.armed { background: #ff6b6b; color: var(--black); border-color: #ff6b6b; }
+  .acts .danger.armed { background: var(--danger); color: var(--black); border-color: var(--danger); }
   .admin .full { width: 100%; grid-column: 1 / -1; }
   .admin .go2 { background: var(--primary); color: var(--black); border-color: var(--primary); }
 
@@ -533,7 +534,7 @@
     transition: transform .18s ease-out, opacity .18s ease-out, visibility .18s;
   }
   .said[data-open] { transform: translate(-50%, 0); opacity: 1; visibility: visible; }
-  .said.bad { background: #ff6b6b; }
+  .said.bad { background: var(--danger); }
   @media (prefers-reduced-motion: reduce) { .said { transition: none; } }
 
   @media (prefers-reduced-motion: reduce) {
@@ -813,6 +814,9 @@
     if (!kb.el.contains(e.target) && e.target !== kb.target) kb.close();
   });
   let current = 'entry', idleTimer = null, roast = null;
+  // Past this, an audit that still has not finished has stalled for good.
+  let auditStarted = 0;
+  const auditMost = 2 * 60 * 1000;
 
   function show(name) {
     if (name !== 'entry') kb.close();
@@ -835,7 +839,7 @@
     const wait = current === 'result' ? resultWait : 45000;
     deadline = Date.now() + wait;
     // A reading still playing is someone watching, not someone gone.
-    idleTimer = setTimeout(() => current === 'audit' && (feed.timer || feed.stalling) ? resetIdleTimer() : reset(), wait);
+    idleTimer = setTimeout(() => current === 'audit' && (feed.timer || feed.stalling) && Date.now() - auditStarted < auditMost ? resetIdleTimer() : reset(), wait);
   }
 
   setInterval(() => {
@@ -847,6 +851,7 @@
     if (stream) { stream.close(); stream = null; }
     feed.stop();
     $('handle').value = '';
+    delete $('handle').dataset.linked;
     $('go').disabled = $('kbGo').disabled = true;
     search.cancel();
     kb.close();
@@ -872,6 +877,10 @@
     let v = e.target.value;
     const link = linkRule && v.match(linkRule);
     if (link) v = link[1];
+    // Remembered, because the field keeps only the reference out of the link.
+    // Any edit after the paste makes it typed text again.
+    if (link) e.target.dataset.linked = '1';
+    else delete e.target.dataset.linked;
     v = searching && !link ? v.replace(/^\s+/, '').replace(/\s{2,}/g, ' ') : v.replace(/\s+/g, '');
     v = v.replace(/^@/, '');
     e.target.value = v;
@@ -891,8 +900,9 @@
       $('go').disabled = true;
       return;
     }
-    // A name goes to the search; a pasted link already names one profile.
-    if (searching && !(linkRule && linkRule.test(typed)) && /\s/.test(typed)) return search.run(typed);
+    // On a search pack only a pasted link names one profile. Anything typed,
+    // one word included, goes to the search, so nobody is roasted unpicked.
+    if (searching && $('handle').dataset.linked !== '1') return search.run(typed);
     start(typed);
   });
 
@@ -1048,7 +1058,7 @@
         if (step === 'profile') {
           this.el.querySelector('.who-name').textContent = rows[0] || '';
           this.el.querySelector('.who-line').textContent = rows[1] || '';
-          this.el.querySelector('.who-place').textContent = rows.slice(2).join(', ');
+          this.el.querySelector('.who-place').textContent = rows.slice(2).filter(Boolean).join(', ');
           this.news('The roaster', 'is reading your profile.');
           return;
         }
@@ -1148,6 +1158,7 @@
 
   // handle is what the audit is asked for; label is how the screen names them.
   function start(handle, label = shown(handle)) {
+    auditStarted = Date.now();
     $('term').innerHTML = '';
     feed.stop();
     feed.who = handle;
@@ -2093,6 +2104,13 @@
       if (preview === 'result') return finish();
       show('audit');
       session(shown(r.handle));
+      if (posts) {
+        posts.begin(shown(r.handle));
+        posts.gauges();
+        r.metrics.forEach(m => feed.push(() => posts.metric(m), 0));
+        feed.push(() => posts.verdict(r.verdict), 0);
+        return;
+      }
       line('cmd', './roast ' + r.handle);
       r.metrics.forEach(measured);
       typeVerdict(r.verdict);

@@ -183,6 +183,11 @@ func (s *service) search(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unknown terminal", http.StatusUnauthorized)
 		return
 	}
+	searcher, ok := s.provider.(roast.Searcher)
+	if !ok {
+		http.Error(w, "this roast service cannot search by name", http.StatusNotFound)
+		return
+	}
 	if res := limiter.Reserve(); res.Delay() > 0 {
 		res.Cancel()
 		w.Header().Set("Retry-After", strconv.Itoa(int(res.Delay().Seconds())+1))
@@ -197,16 +202,20 @@ func (s *service) search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var (
-		found []roast.Candidate
-		err   error
-	)
-	if searcher, ok := s.provider.(roast.Searcher); ok {
+	// A search takes a slot like a roast, so a crowd searching at once cannot
+	// send more paid vendor calls than the service runs audits.
+	var found []roast.Candidate
+	err := s.slot(func() error {
 		ctx, cancel := context.WithTimeout(r.Context(), s.lim.budget)
+		defer cancel()
+		var err error
 		found, err = searcher.Search(ctx, req)
-		cancel()
-	} else {
-		err = errors.New("this roast service cannot search by name")
+		return err
+	})
+	if errors.Is(err, errBusy) {
+		w.Header().Set("Retry-After", "5")
+		http.Error(w, "busy", http.StatusServiceUnavailable)
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -240,16 +249,28 @@ func (s *service) run(ctx context.Context, req roast.Request, emit func(roast.Up
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.lim.budget)
 	defer cancel()
 
+	var (
+		r   roast.Roast
+		err error
+	)
+	if busy := s.slot(func() error { r, err = s.provider.Roast(ctx, req, emit); return nil }); busy != nil {
+		return roast.Roast{}, busy
+	}
+	return r, err
+}
+
+// slot runs do once one of the service's slots is free, or answers errBusy
+// when none frees up within the queue wait.
+func (s *service) slot(do func() error) error {
 	wait := time.NewTimer(s.lim.queue)
 	defer wait.Stop()
 	select {
 	case s.slots <- struct{}{}:
 		defer func() { <-s.slots }()
 	case <-wait.C:
-		return roast.Roast{}, errBusy
+		return errBusy
 	}
-
-	return s.provider.Roast(ctx, req, emit)
+	return do()
 }
 
 // authenticate compares digests in constant time, so how long the check takes
