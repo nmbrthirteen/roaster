@@ -67,6 +67,13 @@ type Audit struct {
 	Now func() time.Time
 }
 
+// WithWriter is this audit with the verdict written by w, for a stand that
+// picks its own model.
+func (a Audit) WithWriter(w verdict.Writer) roast.Provider {
+	a.Writer = w
+	return a
+}
+
 func (a Audit) Roast(ctx context.Context, req roast.Request, emit func(roast.Update)) (roast.Roast, error) {
 	handle := strings.TrimPrefix(strings.TrimSpace(req.Handle), "@")
 	if !github.Valid(handle) {
@@ -110,13 +117,13 @@ func (a Audit) Roast(ctx context.Context, req roast.Request, emit func(roast.Upd
 	emit(roast.Update{Phase: roast.PhaseVerdict, Label: "Writing the verdict"})
 	b := got.brief
 	if a.Memory != nil {
-		b.Avoid = a.Memory.avoid(key(handle))
+		b.Avoid = a.Memory.Avoid(key(handle))
 	}
 	b.Angle = verdict.PickAngle(b, rand.IntN)
 	page := a.write(ctx, b)
 	line := page.Verdict
 	if a.Memory != nil {
-		a.Memory.said(key(handle), line)
+		a.Memory.Said(key(handle), line)
 	}
 
 	score, tag := got.brief.Score, roast.Severity(got.brief.Score)
@@ -190,7 +197,7 @@ func (a Audit) measure(ctx context.Context, handle string, offset int) (measured
 		return read()
 	}
 	// Hours depend on the clock they are read on, so each offset is its own entry.
-	return a.Memory.measure(fmt.Sprintf("%s@%d", key(handle), offset), read)
+	return Measure(a.Memory, fmt.Sprintf("%s@%d", key(handle), offset), read)
 }
 
 func (a Audit) write(ctx context.Context, b verdict.Brief) verdict.Page {
@@ -205,7 +212,7 @@ func (a Audit) write(ctx context.Context, b verdict.Brief) verdict.Page {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	p, err := a.Writer.Write(ctx, b)
+	p, err := a.Writer.Write(ctx, b.Prompt())
 	if err != nil {
 		slog.Warn("page fell back to the numbers", "err", err)
 		return verdict.Written(b)

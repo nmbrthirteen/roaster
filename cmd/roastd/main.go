@@ -27,6 +27,7 @@ import (
 
 	"github.com/upgaming/roaster/internal/audit"
 	"github.com/upgaming/roaster/internal/github"
+	"github.com/upgaming/roaster/internal/linkedin"
 	"github.com/upgaming/roaster/internal/roast"
 	"github.com/upgaming/roaster/internal/verdict"
 )
@@ -53,6 +54,9 @@ type settings struct {
 	tokens    []string
 	optOut    map[string]bool
 	parallel  int
+
+	linkedIn       string          // LINKEDIN_SOURCE; empty leaves LinkedIn off
+	linkedInOptOut map[string]bool // LINKEDIN_OPT_OUT, lowercased references
 
 	strapiURL   string // STRAPI_URL; with STRAPI_TOKEN, every roast is saved there
 	strapiToken string // STRAPI_TOKEN, allowed to create roast entries and mark them printed
@@ -96,7 +100,17 @@ func main() {
 		slog.Warn("no model key is set; verdicts will be written from the numbers alone")
 	}
 
-	var router roast.Provider = roast.Router{roast.GitHub: modelRouter{audit: provider, writers: writers, fallback: defaultModel(cfg)}}
+	packs := roast.Router{roast.GitHub: modelRouter{audit: provider, writers: writers, fallback: defaultModel(cfg)}}
+	if source := linkedInSource(cfg.linkedIn); source != nil {
+		packs[roast.LinkedIn] = modelRouter{
+			// Its own memory, so a GitHub rate limit never pauses LinkedIn.
+			audit:    linkedin.Audit{Source: source, Blocked: cfg.linkedInOptOut, Memory: audit.NewMemory(10*time.Minute, 1000)},
+			writers:  writers,
+			fallback: defaultModel(cfg),
+		}
+		slog.Info("linkedin", "source", cfg.linkedIn)
+	}
+	var router roast.Provider = packs
 	var printed func(string)
 	if cfg.strapiURL != "" && cfg.strapiToken != "" {
 		saved := archive{next: router, url: cfg.strapiURL, token: cfg.strapiToken, bg: bg}
@@ -219,6 +233,18 @@ func fromEnv(env func(string) string) (settings, error) {
 		}
 	}
 
+	switch cfg.linkedIn = env("LINKEDIN_SOURCE"); cfg.linkedIn {
+	case "", "demo":
+	default:
+		return cfg, fmt.Errorf("LINKEDIN_SOURCE %q is not one this build knows; leave it empty or set it to demo", cfg.linkedIn)
+	}
+	cfg.linkedInOptOut = map[string]bool{}
+	for _, r := range strings.Split(env("LINKEDIN_OPT_OUT"), ",") {
+		if r = strings.ToLower(linkedin.Ref(r)); r != "" {
+			cfg.linkedInOptOut[r] = true
+		}
+	}
+
 	if v := env("ROAST_PARALLEL"); v != "" {
 		n, err := strconv.Atoi(v)
 		if err != nil || n < 1 {
@@ -240,4 +266,13 @@ func defaultModel(cfg settings) string {
 	default:
 		return ""
 	}
+}
+
+// linkedInSource is the LinkedIn source the setting names, or nil for none.
+// Vendors are added here, each as one more case, behind a Failover.
+func linkedInSource(name string) linkedin.Source {
+	if name == "demo" {
+		return linkedin.Demo{}
+	}
+	return nil
 }

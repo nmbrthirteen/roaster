@@ -123,8 +123,8 @@ func From(f github.Facts, metrics []roast.Metric, now time.Time) Brief {
 			b.NoReadme++
 		}
 		if len(b.Repos) < maxRepos && !strings.EqualFold(r.Name, f.Handle) {
-			line := hide(scrub(r.Name, maxRepoText))
-			if d := hide(scrub(r.Description, maxRepoText)); d != "" {
+			line := hide(Scrub(r.Name, maxRepoText))
+			if d := hide(Scrub(r.Description, maxRepoText)); d != "" {
 				line += ": " + d
 			}
 			b.Repos = append(b.Repos, line)
@@ -134,7 +134,7 @@ func From(f github.Facts, metrics []roast.Metric, now time.Time) Brief {
 		if len(b.Commits) == maxCommits {
 			break
 		}
-		if msg := scrub(c.Message, maxCommitText); msg != "" {
+		if msg := Scrub(c.Message, maxCommitText); msg != "" {
 			b.Commits = append(b.Commits, msg)
 		}
 	}
@@ -225,23 +225,23 @@ func (b Brief) Render() string {
 		line("")
 		line("%s:", title)
 		for i, it := range items {
-			line("%d. %s", i+1, scrub(it, maxStockText))
+			line("%d. %s", i+1, Scrub(it, maxStockText))
 		}
 	}
 	stock("Strengths", b.Strengths)
 	stock("Actions", b.Actions)
-	stock("Findings", facts(b.Findings))
-	stock("Habits", facts(b.Habits))
+	stock("Findings", FactLines(b.Findings))
+	stock("Habits", FactLines(b.Habits))
 	if len(b.Avoid) > 0 {
 		line("")
 		line("Already printed at this stand. Write something that shares none of their jokes:")
 		for _, a := range b.Avoid {
-			line("- %s", scrub(a, maxStockText))
+			line("- %s", Scrub(a, maxStockText))
 		}
 	}
 	if b.Angle != "" {
 		line("")
-		line("Angle for the verdict: %s", scrub(b.Angle, maxStockText))
+		line("Angle for the verdict: %s", Scrub(b.Angle, maxStockText))
 	}
 	line("</account>")
 	return s.String()
@@ -324,7 +324,9 @@ func PickAngle(b Brief, n func(int) int) string {
 
 const emptyAngle = "how empty this account is."
 
-func facts(fs []roast.Finding) []string {
+// FactLines is each finding as the model reads it: the fact in brackets, then
+// the stock line to beat.
+func FactLines(fs []roast.Finding) []string {
 	out := make([]string, len(fs))
 	for i, f := range fs {
 		out[i] = "[" + f.Title + ", " + f.Value + "] " + f.Line
@@ -332,11 +334,11 @@ func facts(fs []roast.Finding) []string {
 	return out
 }
 
-// scrub makes a piece of account text safe to put in front of a model: control
+// Scrub makes a piece of account text safe to put in front of a model: control
 // characters out, whitespace collapsed, capped at a rune boundary, and angle
 // brackets swapped for lookalikes, so a commit message cannot close the
 // <account> block and start talking as if it were us.
-func scrub(s string, max int) string {
+func Scrub(s string, max int) string {
 	var b strings.Builder
 	space := false
 	for _, r := range s {

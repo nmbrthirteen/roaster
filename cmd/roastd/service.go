@@ -87,6 +87,7 @@ func (s *service) handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", s.health)
 	mux.HandleFunc("POST /roast", s.roast)
+	mux.HandleFunc("POST /search", s.search)
 	mux.HandleFunc("POST /printed", s.markPrinted)
 	return mux
 }
@@ -170,6 +171,76 @@ func (s *service) roast(w http.ResponseWriter, r *http.Request) {
 	)
 }
 
+// search finds the people a name matches, for a pack whose visitors pick
+// themselves instead of typing a handle. It shares the stand's roast limit,
+// because every search is a paid call to a vendor.
+func (s *service) search(w http.ResponseWriter, r *http.Request) {
+	started := time.Now()
+
+	terminal, limiter, ok := s.authenticate(r)
+	if !ok {
+		w.Header().Set("WWW-Authenticate", `Bearer realm="roast"`)
+		http.Error(w, "unknown terminal", http.StatusUnauthorized)
+		return
+	}
+	searcher, ok := s.provider.(roast.Searcher)
+	if !ok {
+		http.Error(w, "this roast service cannot search by name", http.StatusNotFound)
+		return
+	}
+	if res := limiter.Reserve(); res.Delay() > 0 {
+		res.Cancel()
+		w.Header().Set("Retry-After", strconv.Itoa(int(res.Delay().Seconds())+1))
+		http.Error(w, "slow down", http.StatusTooManyRequests)
+		return
+	}
+
+	var req roast.Search
+	r.Body = http.MaxBytesReader(w, r.Body, 4<<10)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Query) == "" {
+		http.Error(w, "send a JSON body with a query", http.StatusBadRequest)
+		return
+	}
+
+	// A search takes a slot like a roast, so a crowd searching at once cannot
+	// send more paid vendor calls than the service runs audits.
+	var found []roast.Candidate
+	err := s.slot(func() error {
+		ctx, cancel := context.WithTimeout(r.Context(), s.lim.budget)
+		defer cancel()
+		var err error
+		found, err = searcher.Search(ctx, req)
+		return err
+	})
+	if errors.Is(err, errBusy) {
+		w.Header().Set("Retry-After", "5")
+		http.Error(w, "busy", http.StatusServiceUnavailable)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	reply := struct {
+		Candidates []roast.Candidate `json:"candidates"`
+		Error      string            `json:"error,omitempty"`
+	}{Candidates: found}
+	if reply.Candidates == nil {
+		reply.Candidates = []roast.Candidate{}
+	}
+	if err != nil {
+		reply.Error = err.Error()
+	}
+	json.NewEncoder(w).Encode(reply)
+
+	slog.Info("search",
+		"terminal", terminal,
+		"pack", req.Pack,
+		"found", len(found),
+		"ok", err == nil,
+		"err", errText(err),
+		"ms", time.Since(started).Milliseconds(),
+	)
+}
+
 // run is the part that costs: a slot, then the audit. It deliberately does not
 // stop when the visitor leaves. A cancelled roast is usually retried a second
 // later, and finishing it means the account is already read when they do. The
@@ -178,16 +249,28 @@ func (s *service) run(ctx context.Context, req roast.Request, emit func(roast.Up
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.lim.budget)
 	defer cancel()
 
+	var (
+		r   roast.Roast
+		err error
+	)
+	if busy := s.slot(func() error { r, err = s.provider.Roast(ctx, req, emit); return nil }); busy != nil {
+		return roast.Roast{}, busy
+	}
+	return r, err
+}
+
+// slot runs do once one of the service's slots is free, or answers errBusy
+// when none frees up within the queue wait.
+func (s *service) slot(do func() error) error {
 	wait := time.NewTimer(s.lim.queue)
 	defer wait.Stop()
 	select {
 	case s.slots <- struct{}{}:
 		defer func() { <-s.slots }()
 	case <-wait.C:
-		return roast.Roast{}, errBusy
+		return errBusy
 	}
-
-	return s.provider.Roast(ctx, req, emit)
+	return do()
 }
 
 // authenticate compares digests in constant time, so how long the check takes

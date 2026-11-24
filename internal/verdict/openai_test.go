@@ -55,7 +55,7 @@ func said(text string) [2]string {
 func TestAModelWithoutReasoningEffortIsAskedAgainWithoutIt(t *testing.T) {
 	refused := [2]string{"400", `{"code":"invalid-argument","error":"Model grok-4.20-0309-non-reasoning does not support parameter reasoningEffort."}`}
 	o, asked, calls := fakeOpenAI(t, refused, said(page("60% of commits at 3am. It shows.")))
-	got, err := o.Write(context.Background(), brief())
+	got, err := o.Write(context.Background(), brief().Prompt())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +72,7 @@ func TestAModelWithoutReasoningEffortIsAskedAgainWithoutIt(t *testing.T) {
 
 func TestAnXAIErrorSaysWhatWentWrong(t *testing.T) {
 	o, _, _ := fakeOpenAI(t, [2]string{"401", `{"code":"unauthenticated","error":"bad key"}`})
-	_, err := o.Write(context.Background(), brief())
+	_, err := o.Write(context.Background(), brief().Prompt())
 	if err == nil || !strings.Contains(err.Error(), "bad key") {
 		t.Errorf("the xAI error text should reach the log, got %v", err)
 	}
@@ -80,7 +80,7 @@ func TestAnXAIErrorSaysWhatWentWrong(t *testing.T) {
 
 func TestTheOpenAIRequestIsWhatWeMeanToSend(t *testing.T) {
 	o, asked, _ := fakeOpenAI(t, said(page("60% of commits at 3am. It shows.")))
-	if _, err := o.Write(context.Background(), brief()); err != nil {
+	if _, err := o.Write(context.Background(), brief().Prompt()); err != nil {
 		t.Fatal(err)
 	}
 	req := *asked
@@ -113,7 +113,7 @@ func TestTheOpenAIRequestIsWhatWeMeanToSend(t *testing.T) {
 
 func TestAnOpenAIPageComesBackAsWritten(t *testing.T) {
 	o, _, _ := fakeOpenAI(t, said(page("60% of commits at 3am, and it shows.")))
-	got, err := o.Write(context.Background(), brief())
+	got, err := o.Write(context.Background(), brief().Prompt())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +124,7 @@ func TestAnOpenAIPageComesBackAsWritten(t *testing.T) {
 
 func TestAnOpenAIReplyThatIsNotAPageIsUnusable(t *testing.T) {
 	o, _, _ := fakeOpenAI(t, said("60% of commits at 3am. It shows."))
-	if _, err := o.Write(context.Background(), brief()); !errors.Is(err, ErrUnusable) {
+	if _, err := o.Write(context.Background(), brief().Prompt()); !errors.Is(err, ErrUnusable) {
 		t.Errorf("want ErrUnusable, got %v", err)
 	}
 }
@@ -132,7 +132,7 @@ func TestAnOpenAIReplyThatIsNotAPageIsUnusable(t *testing.T) {
 func TestAnOpenAIModelOverrideIsUsed(t *testing.T) {
 	o, asked, _ := fakeOpenAI(t, said(page("Fine.")))
 	o.Model = "gpt-5.6-terra"
-	o.Write(context.Background(), brief())
+	o.Write(context.Background(), brief().Prompt())
 	if (*asked)["model"] != "gpt-5.6-terra" {
 		t.Errorf("got %v", (*asked)["model"])
 	}
@@ -145,7 +145,7 @@ func TestAnOpenAIRefusalIsSaidAsOne(t *testing.T) {
 
 	for name, body := range map[string]string{"a refusal item": refused, "the content filter": filtered} {
 		o, _, _ := fakeOpenAI(t, [2]string{"200", body})
-		if _, err := o.Write(context.Background(), brief()); !errors.Is(err, ErrDeclined) {
+		if _, err := o.Write(context.Background(), brief().Prompt()); !errors.Is(err, ErrDeclined) {
 			t.Errorf("%s: want ErrDeclined, got %v", name, err)
 		}
 	}
@@ -153,7 +153,7 @@ func TestAnOpenAIRefusalIsSaidAsOne(t *testing.T) {
 
 func TestAnOpenAIReplyCutShortWithNothingIsUnusable(t *testing.T) {
 	o, _, _ := fakeOpenAI(t, [2]string{"200", `{"status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},"output":[{"type":"reasoning"}]}`})
-	if _, err := o.Write(context.Background(), brief()); !errors.Is(err, ErrUnusable) {
+	if _, err := o.Write(context.Background(), brief().Prompt()); !errors.Is(err, ErrUnusable) {
 		t.Errorf("want ErrUnusable, got %v", err)
 	}
 }
@@ -161,7 +161,7 @@ func TestAnOpenAIReplyCutShortWithNothingIsUnusable(t *testing.T) {
 // One more try covers a blip. It is not a loop.
 func TestAnOpenAIBlipIsTriedOnceMore(t *testing.T) {
 	o, _, calls := fakeOpenAI(t, [2]string{"500", `{"error":{"type":"server_error","message":"blip"}}`}, said(page("Recovered.")))
-	got, err := o.Write(context.Background(), brief())
+	got, err := o.Write(context.Background(), brief().Prompt())
 	if err != nil || got.Verdict != "Recovered." {
 		t.Errorf("got %q, %v", got, err)
 	}
@@ -172,7 +172,7 @@ func TestAnOpenAIBlipIsTriedOnceMore(t *testing.T) {
 
 func TestAnOpenAIOutageGivesUpAfterTwo(t *testing.T) {
 	o, _, calls := fakeOpenAI(t, [2]string{"429", `{"error":{"type":"rate_limit","message":"slow down"}}`})
-	if _, err := o.Write(context.Background(), brief()); err == nil {
+	if _, err := o.Write(context.Background(), brief().Prompt()); err == nil {
 		t.Errorf("a service that keeps refusing should come back as an error")
 	}
 	if n := calls.Load(); n != 2 {
@@ -184,7 +184,7 @@ func TestAnOpenAIOutageGivesUpAfterTwo(t *testing.T) {
 func TestAnOpenAIClientErrorIsNotRetried(t *testing.T) {
 	for _, status := range []string{"400", "401"} {
 		o, _, calls := fakeOpenAI(t, [2]string{status, `{"error":{"type":"invalid_request_error","message":"nope"}}`})
-		if _, err := o.Write(context.Background(), brief()); err == nil {
+		if _, err := o.Write(context.Background(), brief().Prompt()); err == nil {
 			t.Errorf("%s should be an error", status)
 		}
 		if n := calls.Load(); n != 1 {
@@ -196,7 +196,7 @@ func TestAnOpenAIClientErrorIsNotRetried(t *testing.T) {
 // The key belongs in one header, and nowhere else.
 func TestTheOpenAIKeyNeverLeaksIntoAnError(t *testing.T) {
 	o, _, _ := fakeOpenAI(t, [2]string{"401", `{"error":{"type":"invalid_api_key","message":"Incorrect API key provided"}}`})
-	_, err := o.Write(context.Background(), brief())
+	_, err := o.Write(context.Background(), brief().Prompt())
 	if err == nil || strings.Contains(err.Error(), "test-openai-key") {
 		t.Errorf("the error should not carry the key: %v", err)
 	}

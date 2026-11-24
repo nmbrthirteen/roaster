@@ -58,17 +58,24 @@ func parse(text string) (Page, error) {
 }
 
 func Merge(b Brief, p Page) Page {
-	out := Written(b)
+	return Lay(Written(b), b.Findings, b.Habits, p)
+}
+
+// Lay puts what the model wrote over the stock page, a line at a time, and
+// keeps the stock line wherever the written one is unprintable. findings and
+// habits are the facts the stock lines are about. Every social merges this way.
+func Lay(stock Page, findings, habits []roast.Finding, p Page) Page {
+	out := stock
 	if v, ok := usable(append([]string{p.Verdict}, p.Drafts.Verdicts...)); ok {
 		out.Verdict = v
 	}
 	if a, ok := label(p.Archetype); ok {
 		out.Archetype = a
 	}
-	out.Strengths = overlay(out.Strengths, p.Strengths, maxLine)
-	out.Actions = overlay(out.Actions, p.Actions, maxLine)
-	out.Findings = overlay(out.Findings, unprefixed(b.Findings, p.Findings), maxPunch)
-	out.Habits = overlay(out.Habits, unprefixed(b.Habits, p.Habits), maxPunch)
+	out.Strengths = overlay(stock.Strengths, p.Strengths, maxLine)
+	out.Actions = overlay(stock.Actions, p.Actions, maxLine)
+	out.Findings = overlay(stock.Findings, unprefixed(findings, p.Findings), maxPunch)
+	out.Habits = overlay(stock.Habits, unprefixed(habits, p.Habits), maxPunch)
 	return out
 }
 
@@ -98,8 +105,8 @@ func Written(b Brief) Page {
 		Verdict:   Fallback(b),
 		Strengths: b.Strengths,
 		Actions:   b.Actions,
-		Findings:  linesOf(b.Findings),
-		Habits:    linesOf(b.Habits),
+		Findings:  LinesOf(b.Findings),
+		Habits:    LinesOf(b.Habits),
 	}
 }
 
@@ -144,7 +151,8 @@ func label(s string) (string, bool) {
 	return s, true
 }
 
-func linesOf(fs []roast.Finding) []string {
+// LinesOf is the stock line of each fact.
+func LinesOf(fs []roast.Finding) []string {
 	out := make([]string, len(fs))
 	for i, f := range fs {
 		out[i] = f.Line

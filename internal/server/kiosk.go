@@ -34,6 +34,7 @@ func (s *Server) stand(mux *http.ServeMux) {
 	mux.HandleFunc("/qr", qr)
 	mux.HandleFunc("/kiosk", s.page)
 	mux.HandleFunc("/api/roast", s.audit)
+	mux.HandleFunc("/api/search", s.search)
 	mux.HandleFunc("/receipt.bin", s.receiptBytes)
 	mux.HandleFunc("/receipt/print", s.printReceipt)
 	mux.HandleFunc("/receipt/printed", s.receiptPrinted)
@@ -119,6 +120,48 @@ func (s *Server) audit(w http.ResponseWriter, r *http.Request) {
 	// than the roast server's zone.
 	result.At = time.Now().In(s.st.config().Zone())
 	s.st.keep(result)
+}
+
+// search finds the people a visitor's name matches, for a pack that looks
+// people up by name. The reply is always JSON, an error included, so the page
+// can say what went wrong in the same place the faces would have been.
+func (s *Server) search(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	reply := struct {
+		Candidates []roast.Candidate `json:"candidates"`
+		Error      string            `json:"error,omitempty"`
+	}{Candidates: []roast.Candidate{}}
+	defer func() { json.NewEncoder(w).Encode(reply) }()
+
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
+	if query == "" {
+		reply.Error = "type a first and last name"
+		return
+	}
+	provider, err := s.source()
+	if err != nil {
+		s.st.note("Roast source: " + err.Error())
+		reply.Error = errNotSetUp.Error()
+		return
+	}
+	searcher, ok := provider.(roast.Searcher)
+	if !ok {
+		reply.Error = "this stand cannot search by name"
+		return
+	}
+	found, err := searcher.Search(r.Context(), roast.Search{
+		Query:    query,
+		Pack:     roast.PackFor(s.st.config().Pack).Key,
+		Terminal: s.st.config().Terminal,
+	})
+	if err != nil {
+		s.st.note("Last search: " + err.Error())
+		reply.Error = err.Error()
+		return
+	}
+	if found != nil {
+		reply.Candidates = found
+	}
 }
 
 // receiptBytes hands the raw job to a page printing over Web Serial.

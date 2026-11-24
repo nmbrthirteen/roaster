@@ -36,7 +36,7 @@ type writer struct {
 	delay time.Duration
 }
 
-func (w writer) Write(ctx context.Context, b verdict.Brief) (verdict.Page, error) {
+func (w writer) Write(ctx context.Context, _ verdict.Prompt) (verdict.Page, error) {
 	p := w.page
 	p.Verdict = w.line
 	select {

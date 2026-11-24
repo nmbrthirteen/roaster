@@ -41,7 +41,7 @@ type Memory struct {
 }
 
 type known struct {
-	measured
+	value   any      // what the social's reader made of the account
 	said    []string // lines printed to this account, newest last
 	expires time.Time
 }
@@ -66,18 +66,23 @@ func NewMemory(ttl time.Duration, max int) *Memory {
 	return &Memory{ttl: ttl, max: max, accounts: map[string]*known{}, now: time.Now}
 }
 
-// measure returns the account read and briefed: from memory while it is fresh,
-// otherwise from read, run once however many stands ask at the same moment.
-func (m *Memory) measure(key string, read func() (measured, error)) (measured, error) {
+// Measure returns the account read and briefed: from memory while it is fresh,
+// otherwise from read, run once however many stands ask at the same moment. A
+// key belongs to one social and one kind of value, so a social other than
+// GitHub prefixes its keys with its pack.
+func Measure[T any](m *Memory, key string, read func() (T, error)) (T, error) {
+	var zero T
 	m.mu.Lock()
 	if k, ok := m.accounts[key]; ok && m.now().Before(k.expires) {
-		m.mu.Unlock()
-		return k.measured, nil
+		if v, ok := k.value.(T); ok {
+			m.mu.Unlock()
+			return v, nil
+		}
 	}
 	if m.now().Before(m.paused) {
 		until := m.paused
 		m.mu.Unlock()
-		return measured{}, &github.RateLimited{Until: until}
+		return zero, &github.RateLimited{Until: until}
 	}
 	m.mu.Unlock()
 
@@ -97,12 +102,12 @@ func (m *Memory) measure(key string, read func() (measured, error)) (measured, e
 		return got, nil
 	})
 	if err != nil {
-		return measured{}, err
+		return zero, err
 	}
-	return v.(measured), nil
+	return v.(T), nil
 }
 
-func (m *Memory) keep(key string, got measured) {
+func (m *Memory) keep(key string, got any) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -127,12 +132,12 @@ func (m *Memory) keep(key string, got measured) {
 	if old, ok := m.accounts[key]; ok {
 		said = old.said // an expired read keeps what was already said to them
 	}
-	m.accounts[key] = &known{measured: got, said: said, expires: now.Add(m.ttl)}
+	m.accounts[key] = &known{value: got, said: said, expires: now.Add(m.ttl)}
 }
 
-// avoid is what the next verdict for this account must not repeat: what this
+// Avoid is what the next verdict for this account must not repeat: what this
 // account was told before, then what the queue has read lately.
-func (m *Memory) avoid(key string) []string {
+func (m *Memory) Avoid(key string) []string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -153,8 +158,8 @@ func (m *Memory) avoid(key string) []string {
 	return out
 }
 
-// said records a line that was printed.
-func (m *Memory) said(key, line string) {
+// Said records a line that was printed.
+func (m *Memory) Said(key, line string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

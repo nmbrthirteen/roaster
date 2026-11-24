@@ -56,3 +56,27 @@ func Code() string {
 	}
 	return string(b)
 }
+
+// Candidate is one account a search found: enough for a visitor to tell
+// whether it is them.
+type Candidate struct {
+	Ref      string `json:"ref"` // what the audit is then asked for
+	Name     string `json:"name"`
+	Headline string `json:"headline,omitempty"`
+	Location string `json:"location,omitempty"`
+	Photo    string `json:"photo,omitempty"` // an image URL
+}
+
+// Search is a visitor's name, sent to a pack that looks people up instead of
+// taking a handle. It crosses the network like Request.
+type Search struct {
+	Query    string `json:"query"`
+	Pack     string `json:"pack,omitempty"`
+	Terminal string `json:"terminal,omitempty"`
+}
+
+// Searcher is a provider for a pack whose visitors name themselves rather than
+// type a handle.
+type Searcher interface {
+	Search(ctx context.Context, s Search) ([]Candidate, error)
+}

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/upgaming/roaster/internal/audit"
+	"github.com/upgaming/roaster/internal/linkedin"
 	"github.com/upgaming/roaster/internal/roast"
 )
 
@@ -238,5 +239,53 @@ func TestAStandReportsAPrintedReceipt(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("the print was never recorded")
+	}
+}
+
+func TestASearchReachesThePackThatCanSearch(t *testing.T) {
+	packs := roast.Router{
+		roast.GitHub:   &provider{},
+		roast.LinkedIn: linkedin.Audit{Source: linkedin.Demo{}},
+	}
+	url := serve(t, packs, roomy())
+
+	found, err := roast.Remote{URL: url + "/roast", Token: token}.Search(context.Background(), roast.Search{Query: "Jordan Sample", Pack: roast.LinkedIn})
+	if err != nil || len(found) == 0 || found[0].Name != "Jordan Sample" {
+		t.Fatalf("got %v %v", found, err)
+	}
+
+	_, err = roast.Remote{URL: url + "/roast", Token: token}.Search(context.Background(), roast.Search{Query: "octocat"})
+	if err == nil || !strings.Contains(err.Error(), "found by handle") {
+		t.Errorf("GitHub takes a handle; want a refusal in words, got %v", err)
+	}
+
+	res, err := http.Post(url+"/search", "application/json", strings.NewReader(`{"query":"Jordan Sample"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if res.StatusCode != http.StatusUnauthorized {
+		t.Errorf("a search with no terminal token should be refused, got %s", res.Status)
+	}
+}
+
+type searchingProvider struct{ *provider }
+
+func (searchingProvider) Search(context.Context, roast.Search) ([]roast.Candidate, error) {
+	return []roast.Candidate{{Ref: "someone", Name: "Some One"}}, nil
+}
+
+func TestASearchWaitsForASlotLikeARoast(t *testing.T) {
+	p := searchingProvider{&provider{release: make(chan struct{}), started: make(chan struct{})}}
+	lim := roomy()
+	lim.slots, lim.queue = 1, 50*time.Millisecond
+	url := serve(t, p, lim)
+
+	go roast.Remote{URL: url + "/roast", Token: token}.Roast(context.Background(), roast.Request{Handle: "octocat"}, func(roast.Update) {})
+	<-p.started
+	defer close(p.release)
+
+	if _, err := (roast.Remote{URL: url + "/roast", Token: token}).Search(context.Background(), roast.Search{Query: "Some One"}); err == nil {
+		t.Errorf("with every slot taken, a search should hear busy rather than call the vendor")
 	}
 }

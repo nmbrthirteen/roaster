@@ -94,17 +94,76 @@ func (r Remote) Roast(ctx context.Context, req Request, emit func(Update)) (Roas
 	return final, nil
 }
 
+// Search asks the service for the people a name matches, beside the roast
+// route, for a pack that looks people up by name.
+func (r Remote) Search(ctx context.Context, s Search) ([]Candidate, error) {
+	u, err := r.beside("search")
+	if err != nil {
+		return nil, err
+	}
+	body, err := json.Marshal(s)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+r.Token)
+
+	client := r.Client
+	if client == nil {
+		client = &http.Client{Timeout: 30 * time.Second}
+	}
+	res, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("could not reach the roast service: %w", err)
+	}
+	defer res.Body.Close()
+
+	var reply struct {
+		Candidates []Candidate `json:"candidates"`
+		Error      string      `json:"error"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&reply); err != nil && res.StatusCode == http.StatusOK {
+		return nil, fmt.Errorf("the roast service sent a search it could not read")
+	}
+	switch {
+	case reply.Error != "":
+		return nil, fmt.Errorf("%s", reply.Error)
+	case res.StatusCode == http.StatusUnauthorized, res.StatusCode == http.StatusForbidden:
+		return nil, fmt.Errorf("this terminal's token was rejected; it may have been revoked")
+	case res.StatusCode == http.StatusTooManyRequests:
+		return nil, fmt.Errorf("this stand is going faster than the roast service allows; try again in a few seconds")
+	case res.StatusCode == http.StatusServiceUnavailable:
+		return nil, fmt.Errorf("the roast service is busy; try again in a moment")
+	case res.StatusCode != http.StatusOK:
+		return nil, fmt.Errorf("roast service returned %s", res.Status)
+	}
+	return reply.Candidates, nil
+}
+
+// beside is the service route next to the roast route.
+func (r Remote) beside(route string) (string, error) {
+	u, err := url.Parse(r.URL)
+	if err != nil {
+		return "", err
+	}
+	u.Path, u.RawQuery = path.Join(path.Dir(u.Path), route), ""
+	return u.String(), nil
+}
+
 // Printed tells the service this roast's receipt came out, beside the roast
 // route, so the share page's record says it was printed.
 func (r Remote) Printed(ctx context.Context, code string) error {
-	u, err := url.Parse(r.URL)
+	u, err := r.beside("printed")
 	if err != nil {
 		return err
 	}
-	u.Path, u.RawQuery = path.Join(path.Dir(u.Path), "printed"), ""
 
 	body, _ := json.Marshal(map[string]string{"code": code})
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u, bytes.NewReader(body))
 	if err != nil {
 		return err
 	}

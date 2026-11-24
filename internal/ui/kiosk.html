@@ -29,6 +29,7 @@
     --subtle: #71717a;
     --primary: #0fff50;
     --secondary: #6662ff;
+    --danger: #ff6b6b;
 
     --display: Integral, system-ui, sans-serif;
     --sans: Roboto, system-ui, sans-serif;
@@ -169,10 +170,10 @@
     font-size: clamp(32px, 5vw, 56px); color: var(--white); overflow-wrap: anywhere;
   }
   .audit-title span { color: var(--primary); }
-  /* Seven fixed segments and one line of text: nothing changes size as the
+  /* Fixed segments, one per step of the pack, and one line of text: nothing changes size as the
      audit moves on, so nothing on screen jumps. */
   .progress {
-    display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px;
+    display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px;
     margin-top: clamp(18px, 2.4vh, 28px);
   }
   .progress span { height: 8px; background: var(--border); transition: background-color .2s ease-out; }
@@ -218,6 +219,106 @@
   .term .log .l2 { color: var(--muted); }
   .term .log .hash, .term .log .meta { color: var(--subtle); }
   .term .log .late { color: var(--primary); }
+
+  /* The visual reading, for a pack whose visitors live on a professional
+     network rather than in a shell: the person up top, one panel at a time
+     under them, and a single line of news. */
+  #audit[data-view="feed"] .term { display: none; }
+  #audit:not([data-view="feed"]) .stream { display: none; }
+  .stream {
+    flex: 1; min-height: 0; overflow: hidden;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: clamp(24px, 3.4vh, 44px);
+    width: min(100% - 2 * clamp(20px, 3.5vw, 48px), 820px); margin: 0 auto; padding: clamp(20px, 3vh, 40px) 0;
+    font-family: var(--sans); color: var(--white);
+  }
+  .hero { display: flex; flex-direction: column; align-items: center; gap: 18px; text-align: center; }
+  .avatar { position: relative; width: clamp(150px, 18vh, 200px); aspect-ratio: 1; display: grid; place-items: center; }
+  .avatar svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+  .avatar circle { fill: none; stroke-width: 4; }
+  .avatar .ring-track { stroke: var(--border); }
+  .avatar .ring { stroke: var(--primary); stroke-linecap: round; stroke-dasharray: 289; stroke-dashoffset: 289; transition: stroke-dashoffset .6s cubic-bezier(.25, 1, .5, 1); }
+  .avatar .initials {
+    width: 82%; aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center;
+    background: var(--elevated); color: var(--white); font-family: var(--sora); font-weight: 600; font-size: clamp(44px, 5.4vh, 60px);
+    outline: 1px solid rgba(255, 255, 255, .1); outline-offset: -1px;
+  }
+  .hero .who-name { margin: 0; font-family: var(--sora); font-weight: 600; font-size: clamp(30px, 3.8vw, 44px); line-height: 1.15; }
+  .hero .who-line {
+    margin: 0; max-width: 36ch; font-size: clamp(18px, 2vw, 22px); line-height: 1.4; color: var(--muted); text-wrap: balance;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .hero .who-place { margin: 0; font-size: clamp(16px, 1.7vw, 19px); color: var(--subtle); }
+
+  .spot {
+    width: 100%; min-height: clamp(300px, 30vh, 400px); padding: clamp(26px, 3.4vh, 40px) clamp(24px, 3.4vw, 40px);
+    display: flex; flex-direction: column;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 20px;
+  }
+  .spot > .pane { flex: 1; display: flex; flex-direction: column; gap: 18px; animation: post-in .28s cubic-bezier(.25, 1, .5, 1) both; }
+  @keyframes post-in { from { opacity: 0; transform: translateY(10px); } }
+  .pane-title { margin: 0; font-family: var(--sora); font-weight: 600; font-size: clamp(18px, 2vw, 22px); color: var(--muted); }
+  .pane .remark { margin: auto 0 0; font-family: var(--mono); font-size: clamp(18px, 2vw, 22px); color: var(--primary); }
+
+  .skeleton { display: grid; gap: 14px; }
+  .skeleton i { display: block; height: 18px; border-radius: 999px; background: var(--elevated); animation: pulse 1.4s ease-in-out infinite; }
+  .skeleton i:nth-child(1) { width: 38%; height: 22px; }
+  .skeleton i:nth-child(2) { width: 92%; animation-delay: .12s; }
+  .skeleton i:nth-child(3) { width: 78%; animation-delay: .24s; }
+  .skeleton i:nth-child(4) { width: 64%; animation-delay: .36s; }
+  @keyframes pulse { 50% { opacity: .45; } }
+
+  .quote { margin: 0; font-family: var(--sora); font-size: clamp(22px, 2.6vw, 30px); line-height: 1.5; color: var(--white); text-wrap: pretty; }
+  .quote mark { background: rgba(15, 255, 80, .14); color: var(--primary); border-radius: 6px; padding: 0 .2em; }
+  .big { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+  .big b { font-family: var(--mono); font-weight: 700; font-size: clamp(88px, 11vh, 140px); line-height: 1; color: var(--primary); font-variant-numeric: tabular-nums; }
+  .big span { font-family: var(--sora); font-size: clamp(22px, 2.6vw, 30px); color: var(--white); }
+  .chips { display: flex; flex-wrap: wrap; gap: 10px; }
+  .chip { padding: 8px 18px; border-radius: 999px; border: 1px solid var(--border); background: var(--elevated); color: var(--white); font-size: clamp(16px, 1.8vw, 20px); animation: appear .3s ease-out both; }
+  .chip.unproven { background: transparent; border-style: dashed; color: var(--subtle); }
+
+  .timeline { position: relative; flex: 1; min-height: 220px; margin: 8px 12px 0; }
+  .timeline::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 2px; background: var(--border); }
+  .timeline .stop { position: absolute; top: 50%; width: 0; animation: appear .3s ease-out both; }
+  .timeline .stop::before { content: ""; position: absolute; left: -9px; top: -9px; width: 18px; height: 18px; border-radius: 50%; background: var(--primary); box-shadow: 0 0 0 5px var(--surface); }
+  .timeline .stop span {
+    position: absolute; left: 0; transform: translateX(-50%); width: max-content; max-width: 180px; text-align: center;
+    font-size: clamp(15px, 1.6vw, 18px); line-height: 1.3; color: var(--muted);
+  }
+  .timeline .stop b { display: block; color: var(--white); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .timeline .stop.now::before { background: var(--surface); border: 2px solid var(--subtle); }
+  .timeline .stop.up span { bottom: 22px; }
+  .timeline .stop.down span { top: 22px; }
+  .timeline .stop:first-child span { transform: none; text-align: left; }
+  .timeline .stop:last-child span { transform: translateX(-100%); text-align: right; }
+
+  .stats { display: grid; gap: 16px; }
+  .stat { display: grid; grid-template-columns: 1fr auto; gap: 8px 16px; align-items: baseline; animation: appear .3s ease-out both; }
+  .stat span { font-size: clamp(17px, 1.9vw, 21px); color: var(--muted); }
+  .stat b { font-family: var(--mono); font-weight: 700; font-size: clamp(20px, 2.2vw, 26px); color: var(--white); font-variant-numeric: tabular-nums; }
+  .stat b i { font-style: normal; font-weight: 400; color: var(--primary); margin-left: 10px; }
+  .stat .track { grid-column: 1 / -1; height: 10px; border-radius: 999px; background: var(--border); overflow: hidden; }
+  .stat .track i { display: block; height: 100%; border-radius: inherit; background: var(--primary); transform-origin: left; transform: scaleX(0); transition: transform .6s cubic-bezier(.25, 1, .5, 1); }
+
+  .byline { display: flex; align-items: center; gap: 16px; }
+  .byline .mark-face { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; background: var(--elevated); }
+  .byline .mark-face svg { width: 30px; height: 34px; fill: var(--primary); }
+  .byline p { margin: 0; }
+  .byline .by { font-family: var(--sora); font-weight: 600; font-size: clamp(20px, 2.2vw, 24px); }
+  .byline .role { font-size: clamp(15px, 1.6vw, 18px); color: var(--subtle); }
+  .said-text { margin: 0; font-family: var(--sora); font-size: clamp(24px, 3vw, 34px); line-height: 1.4; color: var(--white); min-height: 2.8em; }
+  .post-actions { display: flex; gap: clamp(20px, 3vw, 40px); margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border); font-size: clamp(15px, 1.6vw, 18px); color: var(--subtle); }
+
+  .news {
+    display: flex; align-items: center; gap: 14px; max-width: 100%; min-height: 56px; padding: 12px 24px;
+    border-radius: 999px; background: var(--elevated); border: 1px solid var(--border);
+    font-size: clamp(17px, 1.9vw, 21px); color: var(--muted);
+  }
+  .news::before { content: ""; flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--primary); animation: pulse 1.4s ease-in-out infinite; }
+  .news.bad::before { background: var(--danger); animation: none; }
+  .news span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; animation: appear .3s ease-out both; }
+  .news b { color: var(--white); font-weight: 500; }
+  #audit[data-view="feed"] .tmux { background: var(--surface); color: var(--muted); border-top: 1px solid var(--border); font-family: var(--sans); }
+  #audit[data-view="feed"] .tmux button { background: transparent; color: var(--white); font-family: var(--sans); }
 
   /* A tmux status line, which is what makes a developer read this as real. */
   .tmux {
@@ -293,6 +394,41 @@
     .take { grid-template-columns: 1fr; justify-items: center; text-align: center; }
     .take-actions { justify-content: center; }
   }
+  /* The people a name matched. A face and a headline are how anyone finds
+     themselves in a list of strangers with their name. */
+  .pick-title { margin: 0; font-family: var(--sora); font-weight: 600; font-size: clamp(30px, 4.6vw, 52px); line-height: 1.15; text-wrap: balance; }
+  .pick-sub { margin: 14px 0 0; font-family: var(--sora); font-size: clamp(18px, 2.2vw, 24px); color: var(--muted); }
+  .people {
+    display: grid; gap: 14px; width: min(100%, 780px);
+    margin: clamp(28px, 4.6vh, 52px) auto 0; text-align: left;
+  }
+  .person {
+    display: grid; grid-template-columns: auto 1fr; gap: 18px; align-items: center;
+    min-height: 132px; padding: 22px 26px; border-radius: 20px;
+    background: var(--surface); color: var(--white); border: 1px solid var(--border);
+    font-family: var(--sans); font-style: normal; font-weight: 400; text-align: left;
+    transition: transform .12s ease-out, border-color .2s var(--ease), background-color .2s var(--ease);
+    touch-action: manipulation;
+  }
+  .person:hover:not(:disabled) { border-color: var(--primary); }
+  .person:active:not(:disabled) { transform: scale(.98); opacity: 1; }
+  .person .face {
+    width: 84px; height: 84px; border-radius: 50%; overflow: hidden; display: grid; place-items: center;
+    background: var(--elevated); color: var(--muted); font-family: var(--sora); font-weight: 600; font-size: 30px;
+    outline: 1px solid rgba(255, 255, 255, .1); outline-offset: -1px;
+  }
+  .person .face img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .person .who { min-width: 0; }
+  .person .name { margin: 0; font-family: var(--sora); font-weight: 600; font-size: clamp(20px, 2.2vw, 24px); overflow-wrap: anywhere; }
+  .person .headline {
+    margin: 6px 0 0; font-size: clamp(15px, 1.6vw, 18px); line-height: 1.35; color: var(--muted);
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-wrap: pretty;
+  }
+  .person .place { margin: 6px 0 0; font-size: clamp(14px, 1.4vw, 16px); color: var(--subtle); }
+  .pick-state { margin: clamp(28px, 4.6vh, 52px) 0 0; font-family: var(--mono); font-size: clamp(18px, 2.2vw, 24px); color: var(--muted); min-height: 1.4em; }
+  .pick-actions { display: flex; justify-content: center; margin-top: clamp(24px, 3.6vh, 40px); }
+  @media (prefers-reduced-motion: reduce) { .person { transition: none; } }
+
   .countdown { font-family: var(--mono); font-size: clamp(18px, 2.4vw, 26px); color: var(--muted); margin: 24px 0 0; font-variant-numeric: tabular-nums; }
   .note { font-family: var(--mono); font-size: clamp(17px, 2vw, 22px); color: var(--subtle); margin: 20px 0 0; min-height: 1.3em; }
 
@@ -323,8 +459,8 @@
   .facts { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; font-family: var(--mono); font-size: 17px; }
   .facts dt { color: var(--subtle); }
   .facts dd { margin: 0; color: var(--white); text-align: right; }
-  .facts dd.warn { color: #ff6b6b; }
-  .panel p.warn { color: #ff6b6b; margin-top: 12px; }
+  .facts dd.warn { color: var(--danger); }
+  .panel p.warn { color: var(--danger); margin-top: 12px; }
 
   #aNewForm { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
   #aNewForm[hidden] { display: none; }
@@ -344,7 +480,7 @@
   }
   .acts button:hover:not(:disabled) { border-color: var(--primary); }
   .acts .danger { color: #ff8585; }
-  .acts .danger.armed { background: #ff6b6b; color: var(--black); border-color: #ff6b6b; }
+  .acts .danger.armed { background: var(--danger); color: var(--black); border-color: var(--danger); }
   .admin .full { width: 100%; grid-column: 1 / -1; }
   .admin .go2 { background: var(--primary); color: var(--black); border-color: var(--primary); }
 
@@ -398,7 +534,7 @@
     transition: transform .18s ease-out, opacity .18s ease-out, visibility .18s;
   }
   .said[data-open] { transform: translate(-50%, 0); opacity: 1; visibility: visible; }
-  .said.bad { background: #ff6b6b; }
+  .said.bad { background: var(--danger); }
   @media (prefers-reduced-motion: reduce) { .said { transition: none; } }
 
   @media (prefers-reduced-motion: reduce) {
@@ -418,28 +554,37 @@
 <section class="screen" id="entry" data-active>
   <svg class="mark"><use href="#logo"/></svg>
   <h1>{{.Headline}}</h1>
-  <p class="lede">Enter your GitHub username</p>
+  <p class="lede">{{.Pack.Lede}}</p>
   <form id="form">
     <input id="handle" autocomplete="off" autocapitalize="off"
            spellcheck="false" enterkeyhint="go" inputmode="none" autofocus>
     <button type="submit" id="go" disabled aria-label="Start">&rarr;</button>
   </form>
-  <p class="entry-note">Get your coding insights and a roast receipt</p>
+  <p class="entry-note">{{.Pack.Note}}</p>
 </section>
 
 <div class="kb" id="kb" role="group" aria-label="Keyboard"><div class="kb-inner" id="kbKeys"></div></div>
 
+<section class="screen" id="pick">
+  <h2 class="pick-title">Which one is you?</h2>
+  <p class="pick-sub" id="pickSub"></p>
+  <div class="people" id="people"></div>
+  <p class="pick-state" id="pickState" role="status" aria-live="polite"></p>
+  <div class="pick-actions">
+    <button class="act ghost" id="notMe" type="button">None of these, search again</button>
+  </div>
+</section>
+
 <section class="screen" id="audit">
   <header class="audit-head">
     <h2 class="audit-title">Roasting <span id="auditHandle"></span></h2>
-    <div class="progress" id="progress" role="progressbar" aria-valuemin="0" aria-valuemax="7" aria-valuenow="0">
-      <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
-    </div>
+    <div class="progress" id="progress" role="progressbar" aria-valuemin="0" aria-valuenow="0"></div>
     <p class="progress-text" id="progressText">Starting</p>
   </header>
   <div class="term" id="term"></div>
+  <div class="stream" id="stream" aria-live="polite"></div>
   <div class="tmux">
-    <span>[roaster] 0:audit*</span>
+    <span id="tmuxLabel">[roaster] 0:audit*</span>
     <span class="right"><span id="tmuxHandle"></span><span id="tmuxClock"></span></span>
     <button id="cancel">Cancel</button>
   </div>
@@ -488,12 +633,15 @@
 <script>
 (() => {
   const $ = id => document.getElementById(id);
-  const screens = ['entry', 'audit', 'result'];
+  const screens = ['entry', 'pick', 'audit', 'result'];
 
   // Set in the hidden menu. Brings the handle rules and the loader's words.
   const { pack, shareBase, timeZone } = JSON.parse($('boot').textContent);
   const clock = (d, opts) => new Intl.DateTimeFormat('en-US', { timeZone, hourCycle: 'h23', ...opts }).format(d);
-  const handleRule = new RegExp('[^' + pack.handleChars + ']', 'g');
+  const handleRule = new RegExp('[^' + pack.handleChars + ']', 'gu');
+  const searching = pack.lookup === 'search';
+  const linkRule = pack.link ? new RegExp(pack.link, 'i') : null;
+  const shown = handle => (pack.at || '') + handle;
 
   // Each sentence of the line under the headline starts its own line, so a
   // break never strands a single word.
@@ -526,7 +674,8 @@
     build(full) {
       this.full = full;
       $('kbKeys').innerHTML = '';
-      const extras = full ? ['.', '/'] : ['.', '_'].filter(c => c.replace(handleRule, '') === c);
+      const allowed = c => c.replace(handleRule, '') === c;
+      const extras = full ? ['.', '/'] : ['.', '_', "'"].filter(c => allowed(c) && !(c === '.' && searching));
       const row = (cls) => { const r = document.createElement('div'); r.className = 'kb-row ' + cls; $('kbKeys').append(r); return r; };
 
       const digits = row('digits');
@@ -541,7 +690,7 @@
       top.append(erase);
 
       const middle = row('');
-      [...'asdfghjkl', ...(full ? [' '] : [])].forEach((ch, i) => {
+      [...'asdfghjkl', ...(full || allowed(' ') ? [' '] : [])].forEach((ch, i) => {
         const b = this.key(ch, ch);
         if (i === 0) b.classList.add('offset-1');
         middle.append(b);
@@ -665,9 +814,13 @@
     if (!kb.el.contains(e.target) && e.target !== kb.target) kb.close();
   });
   let current = 'entry', idleTimer = null, roast = null;
+  // Past this, an audit that still has not finished has stalled for good.
+  let auditStarted = 0;
+  const auditMost = 2 * 60 * 1000;
 
   function show(name) {
     if (name !== 'entry') kb.close();
+    if (name !== 'pick') search.cancel();
     screens.forEach(s => $(s).toggleAttribute('data-active', s === name));
     current = name;
     if (name === 'entry') $('handle').focus();
@@ -685,7 +838,8 @@
     if (current === 'entry' && !$('handle').value) return;
     const wait = current === 'result' ? resultWait : 45000;
     deadline = Date.now() + wait;
-    idleTimer = setTimeout(reset, wait);
+    // A reading still playing is someone watching, not someone gone.
+    idleTimer = setTimeout(() => current === 'audit' && (feed.timer || feed.stalling) && Date.now() - auditStarted < auditMost ? resetIdleTimer() : reset(), wait);
   }
 
   setInterval(() => {
@@ -697,10 +851,13 @@
     if (stream) { stream.close(); stream = null; }
     feed.stop();
     $('handle').value = '';
+    delete $('handle').dataset.linked;
     $('go').disabled = $('kbGo').disabled = true;
+    search.cancel();
     kb.close();
     kb.setShift(false);
     $('term').innerHTML = '';
+    $('stream').innerHTML = '';
     $('note').textContent = '';
     show('entry');
   }
@@ -710,19 +867,24 @@
   document.addEventListener('wheel', e => { if (e.ctrlKey) e.preventDefault(); }, { passive: false });
   ['gesturestart', 'gesturechange'].forEach(e => document.addEventListener(e, ev => ev.preventDefault()));
 
-  // Only what a GitHub username can hold.
   $('again').addEventListener('click', reset);
   $('cancel').addEventListener('click', reset);
 
   // Anything can be typed; a name the platform cannot have is refused by the
-  // lookup, in words. A pasted profile link or an @ keeps only the name.
+  // lookup, in words. A pasted profile link or an @ keeps only the name. A
+  // pack that searches by name keeps the spaces between words.
   $('handle').addEventListener('input', e => {
-    let v = e.target.value.replace(/\s+/g, '');
-    const link = v.match(/github\.com\/([^/?#]+)/i);
+    let v = e.target.value;
+    const link = linkRule && v.match(linkRule);
     if (link) v = link[1];
+    // Remembered, because the field keeps only the reference out of the link.
+    // Any edit after the paste makes it typed text again.
+    if (link) e.target.dataset.linked = '1';
+    else delete e.target.dataset.linked;
+    v = searching && !link ? v.replace(/^\s+/, '').replace(/\s{2,}/g, ' ') : v.replace(/\s+/g, '');
     v = v.replace(/^@/, '');
     e.target.value = v;
-    $('go').disabled = $('kbGo').disabled = v.length === 0;
+    $('go').disabled = $('kbGo').disabled = v.trim().length === 0;
   });
 
   $('form').addEventListener('submit', async e => {
@@ -738,21 +900,273 @@
       $('go').disabled = true;
       return;
     }
+    // On a search pack only a pasted link names one profile. Anything typed,
+    // one word included, goes to the search, so nobody is roasted unpicked.
+    if (searching && $('handle').dataset.linked !== '1') return search.run(typed);
     start(typed);
   });
+
+  // The people a name matched, as faces to tap. Only the newest search may
+  // fill the screen, so a slow answer never replaces a newer one.
+  const search = {
+    seq: 0,
+
+    cancel() { this.seq++; },
+
+    async run(name) {
+      const seq = ++this.seq;
+      show('pick');
+      $('pickSub').textContent = 'Searching for ' + name + '.';
+      $('people').innerHTML = '';
+      $('pickState').textContent = 'Looking up public profiles...';
+      let reply;
+      try {
+        const res = await fetch('/api/search?q=' + encodeURIComponent(name) + location.search.replace('?', '&'));
+        reply = await res.json();
+      } catch {
+        reply = { candidates: [], error: 'could not reach the search' };
+      }
+      if (seq !== this.seq) return;
+      const people = reply.candidates || [];
+      if (reply.error) {
+        $('pickState').textContent = reply.error;
+        return;
+      }
+      if (!people.length) {
+        $('pickState').textContent = 'Nobody public by that name. Check the spelling, or add a middle name.';
+        return;
+      }
+      $('pickSub').textContent = people.length === 1 ? 'One public profile matched ' + name + '.' : people.length + ' public profiles matched ' + name + '.';
+      $('pickState').textContent = '';
+      for (const p of people) $('people').append(this.card(p));
+    },
+
+    card(p) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'person';
+      const initials = p.name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => [...w][0]).join('');
+      b.innerHTML = `<span class="face" aria-hidden="true">${esc(initials)}</span>`
+        + `<span class="who"><p class="name">${esc(p.name)}</p>`
+        + (p.headline ? `<p class="headline">${esc(p.headline)}</p>` : '')
+        + (p.location ? `<p class="place">${esc(p.location)}</p>` : '')
+        + '</span>';
+      // A photo that fails to load leaves the initials.
+      if (p.photo) {
+        const img = new Image();
+        img.alt = '';
+        img.referrerPolicy = 'no-referrer';
+        img.onload = () => { const face = b.querySelector('.face'); face.textContent = ''; face.append(img); };
+        img.src = p.photo;
+      }
+      b.addEventListener('click', () => start(p.ref, p.name));
+      return b;
+    },
+  };
+  $('notMe').addEventListener('click', reset);
+
+  // The visual reading, for a pack whose audit is a feed: the person up top
+  // with a ring that fills step by step, one panel at a time under them, and a
+  // single line of news. It shares the terminal's queue, so it keeps its pace.
+  const posts = pack.audit !== 'feed' ? null : {
+    el: $('stream'),
+    noticed: [],
+
+    // How long a panel stays before the next replaces it: long enough to read
+    // at a stand, from about a quarter of a second a word. The reading plays
+    // at this pace however fast the roast comes back.
+    read(text, least = 3500) {
+      const words = String(text || '').split(/\s+/).filter(Boolean).length;
+      return Math.min(8000, Math.max(least, words * 260));
+    },
+
+    node(tag, cls, html) {
+      const el = document.createElement(tag);
+      if (cls) el.className = cls;
+      if (html != null) el.innerHTML = html;
+      return el;
+    },
+
+    initials: name => name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => [...w][0]).join(''),
+
+    begin(label) {
+      $('tmuxLabel').textContent = 'Profile review in progress';
+      this.noticed = [];
+      this.el.innerHTML = `
+        <div class="hero">
+          <div class="avatar">
+            <svg viewBox="0 0 100 100" aria-hidden="true"><circle class="ring-track" cx="50" cy="50" r="46"/><circle class="ring" cx="50" cy="50" r="46"/></svg>
+            <span class="initials" aria-hidden="true">${esc(this.initials(label))}</span>
+          </div>
+          <p class="who-name">${esc(label)}</p>
+          <p class="who-line"></p>
+          <p class="who-place"></p>
+        </div>
+        <div class="spot"><div class="pane skeleton" aria-hidden="true"><i></i><i></i><i></i><i></i></div></div>
+        <p class="news" role="status"><span></span></p>`;
+      this.news(label, 'is open to roast.');
+    },
+
+    // The ring around the face is the progress bar, drawn where people look.
+    ring(at, of) {
+      const ring = this.el.querySelector('.ring');
+      if (ring) ring.style.strokeDashoffset = String(289 * (1 - Math.max(0, at + 1) / of));
+    },
+
+    news(who, what, bad) {
+      const box = this.el.querySelector('.news');
+      if (!box) return;
+      box.classList.toggle('bad', !!bad);
+      box.innerHTML = `<span><b>${esc(who)}</b> ${esc(what)}</span>`;
+    },
+
+    pane(title, html) {
+      const spot = this.el.querySelector('.spot');
+      spot.innerHTML = '';
+      const pane = this.node('div', 'pane', (title ? `<h3 class="pane-title">${esc(title)}</h3>` : '') + html);
+      spot.append(pane);
+      return pane;
+    },
+
+    remark: lines => {
+      const r = lines.find(l => l.startsWith('# '));
+      return r ? `<p class="remark">${esc(r.slice(2))}</p>` : '';
+    },
+
+    // The marked phrases, highlighted where they appear, case aside.
+    marked(text, marks) {
+      let html = esc(text);
+      for (const m of [...(marks || [])].sort((a, b) => b.length - a.length)) {
+        const pattern = esc(m).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        html = html.replace(new RegExp(`(^|[^\\p{L}])(${pattern})(?=[^\\p{L}]|$)`, 'giu'), '$1<mark>$2</mark>');
+      }
+      return html;
+    },
+
+    section(sec, step) {
+      const lines = sec.lines || [];
+      const rows = lines.filter(l => !l.startsWith('# '));
+      // What the roaster noticed goes to the news line, and the analytics
+      // panel stays up long enough to read every bar.
+      if (step === 'verdict') {
+        this.noticed = rows.slice();
+        feed.push(() => {}, 4500);
+        return;
+      }
+      feed.push(() => {
+        if (step) stage(step);
+        if (step === 'profile') {
+          this.el.querySelector('.who-name').textContent = rows[0] || '';
+          this.el.querySelector('.who-line').textContent = rows[1] || '';
+          this.el.querySelector('.who-place').textContent = rows.slice(2).filter(Boolean).join(', ');
+          this.news('The roaster', 'is reading your profile.');
+          return;
+        }
+        if (step === 'about') {
+          this.pane(sec.cmd, rows.length ? `<p class="quote">${this.marked(rows[0], sec.marks)}</p>` + this.remark(lines) : this.remark(lines));
+          this.news('The roaster', 'is counting the buzzwords.');
+          return;
+        }
+        if (step === 'experience') {
+          const n = rows.length;
+          this.pane(sec.cmd, n ? `<div class="big"><b>${n}</b><span>${n === 1 ? 'role' : 'roles'} listed</span></div>` + this.remark(lines) : this.remark(lines));
+          this.news('The roaster', 'is going through the jobs.');
+          return;
+        }
+        if (step === 'skills') {
+          const weak = new Set((sec.marks || []).map(m => m.toLowerCase()));
+          const chips = rows.map(r => `<span class="chip${weak.has(r.toLowerCase()) ? ' unproven' : ''}">${esc(r)}</span>`).join('');
+          this.pane(sec.cmd, (chips ? `<div class="chips">${chips}</div>` : '') + this.remark(lines));
+          this.news('The roaster', 'is checking which skills a job backs up.');
+          return;
+        }
+        this.pane(sec.cmd, rows.map(r => `<p class="quote">${esc(r)}</p>`).join('') + this.remark(lines));
+      }, step === 'profile' ? 2500 : step === 'experience' ? 4000 : this.read(lines.join(' ')));
+    },
+
+    // The career as dots on a line, oldest on the left, placed by start date.
+    items(items) {
+      if (!items || !items.length) {
+        for (const [who, what] of pack.quiet) feed.push(() => this.news(who, what), 1400);
+        return;
+      }
+      const dated = items.filter(c => c.at && !c.at.startsWith('0001')).slice(0, 7).reverse();
+      if (!dated.length) return;
+      feed.push(() => {
+        const times = dated.map(c => Date.parse(c.at));
+        const from = Math.min(...times), to = Math.max(Date.now(), ...times);
+        const stops = dated.map((c, i) => {
+          const left = to === from ? 50 : 4 + 92 * (times[i] - from) / (to - from);
+          return `<div class="stop ${i % 2 ? 'down' : 'up'}" style="left:${left.toFixed(1)}%;animation-delay:${i * 120}ms">`
+            + `<span><b>${esc(c.where)}</b>${esc(c.at.slice(0, 4))}</span></div>`;
+        }).join('') + `<div class="stop now up" style="left:96%;animation-delay:${dated.length * 120}ms"><span><b>Now</b></span></div>`;
+        this.pane(pack.feed, `<div class="timeline">${stops}</div>`);
+        this.news('The roaster', 'is replaying your career.');
+      }, 5000);
+    },
+
+    gauges() {
+      feed.push(() => {
+        stage('gauges');
+        this.stats = this.pane('Profile analytics', '<div class="stats"></div>').querySelector('.stats');
+        this.news('The roaster', 'is running the analytics.');
+      }, 300);
+    },
+
+    metric(m) {
+      const row = this.node('div', 'stat', `<span>${esc(m.label)}</span><b>${esc(m.value)}${m.tag ? `<i>${esc(m.tag)}</i>` : ''}</b>`);
+      if (m.percent != null) {
+        const track = this.node('span', 'track', '<i></i>');
+        row.append(track);
+        requestAnimationFrame(() => requestAnimationFrame(() => { track.firstChild.style.transform = `scaleX(${m.percent / 100})`; }));
+      }
+      this.stats.append(row);
+    },
+
+    // While the verdict is written, the news alternates between what the
+    // roaster noticed and the pack's waiting lines.
+    waiting(who, what) {
+      const fact = this.noticed.shift();
+      if (fact) this.news('Noticed', fact.replace(/^([^:]+):/, (_, t) => t.toLowerCase() + ':'));
+      else this.news(who, what);
+    },
+
+    verdict(text) {
+      const pane = this.pane('', '<div class="byline"><span class="mark-face" aria-hidden="true"><svg><use href="#logo"/></svg></span>'
+        + '<div><p class="by">The Roaster</p><p class="role">Senior recruiter, just now</p></div></div>'
+        + '<p class="said-text"></p>'
+        + '<div class="post-actions" aria-hidden="true"><span>Like</span><span>Comment</span><span>Repost</span><span>Send</span></div>');
+      this.news('The Roaster', 'posted about you.');
+      const el = pane.querySelector('.said-text');
+      let i = 0;
+      const tick = () => {
+        el.textContent = text.slice(0, ++i);
+        if (i < text.length) setTimeout(tick, 14);
+      };
+      tick();
+    },
+
+    failed(message) {
+      this.news('The roaster', message, true);
+    },
+  };
+  $('audit').dataset.view = posts ? 'feed' : 'terminal';
 
   // Each update paints as it lands, so the wait shows real progress.
   let stream = null;
   let verdictIn = false;
 
-  function start(handle) {
+  // handle is what the audit is asked for; label is how the screen names them.
+  function start(handle, label = shown(handle)) {
+    auditStarted = Date.now();
     $('term').innerHTML = '';
     feed.stop();
     feed.who = handle;
     verdictIn = false;
     show('audit');
-    session(handle);
-    line('cmd', './roast ' + handle);
+    session(label);
+    if (posts) posts.begin(label);
+    else line('cmd', './roast ' + handle);
 
     const src = new EventSource('/api/roast?handle=' + encodeURIComponent(handle)
       + location.search.replace('?', '&'));
@@ -760,16 +1174,17 @@
 
     src.onmessage = e => {
       const u = JSON.parse(e.data);
-      if (u.phase === 'fetch') { stage('profile'); line('dim', 'querying api.github.com/graphql...'); }
+      if (u.phase === 'fetch') { stage(pack.steps[0].key); if (posts) posts.news('The roaster', pack.fetching); else line('dim', pack.fetching); }
       if (u.phase === 'section') feed.section(u.section);
       if (u.phase === 'feed') feed.log(u.feed);
       if (u.phase === 'metric') {
         if (!feed.measuring) {
           feed.measuring = true;
           const cmd = `./roast gauges ${feed.who}`;
-          feed.push(() => { stage('gauges'); line('cmd', cmd); }, typingTime(cmd));
+          if (posts) posts.gauges();
+          else feed.push(() => { stage('gauges'); line('cmd', cmd); }, typingTime(cmd));
         }
-        feed.push(() => measured(u.metric), 300);
+        feed.push(() => posts ? posts.metric(u.metric) : measured(u.metric), posts ? 600 : 300);
       }
       // The reading always plays to the end, however fast the verdict comes
       // back: it is half the fun. The verdict is typed last, and the result
@@ -778,7 +1193,10 @@
       if (u.phase === 'verdict' && u.verdict) {
         verdictIn = true;
         feed.unstall();
-        feed.push(() => { stage('verdict'); typeVerdict(u.verdict); }, typingTime('cat verdict.txt') + 14 * u.verdict.length + 1500);
+        // In the feed, the post stays up long enough to read twice before
+        // the result screen takes over.
+        const hold = posts ? 14 * u.verdict.length + posts.read(u.verdict, 4000) * 2 : typingTime('cat verdict.txt') + 14 * u.verdict.length + 1500;
+        feed.push(() => { stage('verdict'); posts ? posts.verdict(u.verdict) : typeVerdict(u.verdict); }, hold);
       }
       if (u.phase === 'done') { roast = u.roast; src.close(); feed.push(() => stream === src && finish(), 0); }
       if (u.phase === 'error') fail(src, u.error);
@@ -788,26 +1206,25 @@
   }
 
   // Fills the progress bar to the step the terminal has reached, and names it.
-  const stepOrder = ['profile', 'readme', 'repos', 'year', 'commits', 'gauges', 'verdict'];
-  const stepText = {
-    profile: 'Reading the profile', readme: 'Reading the README', repos: 'Going through the repos',
-    year: 'Counting contributions', commits: 'Reading commits', gauges: 'Measuring the damage',
-    verdict: 'Writing the verdict',
-  };
+  const stepOrder = pack.steps.map(s => s.key);
+  const stepText = Object.fromEntries(pack.steps.map(s => [s.key, s.text]));
+  for (let i = 0; i < stepOrder.length; i++) $('progress').append(document.createElement('span'));
+  $('progress').setAttribute('aria-valuemax', String(stepOrder.length));
   function stage(name) {
     const at = stepOrder.indexOf(name);
     [...$('progress').children].forEach((seg, i) => {
       seg.dataset.state = at < 0 ? '' : i < at ? 'done' : i === at ? 'active' : '';
     });
     $('progress').setAttribute('aria-valuenow', String(Math.max(at, 0)));
+    if (posts) posts.ring(at, stepOrder.length);
     $('progressText').textContent = at < 0 ? 'Starting' : `${stepText[name]}, step ${at + 1} of ${stepOrder.length}`;
   }
 
-  function session(handle) {
+  function session(label) {
     const now = new Date();
-    line('dim', 'Last login: ' + clock(now, { weekday: 'short', month: 'short', day: 'numeric' }).replace(',', '') + ' '
+    if (!posts) line('dim', 'Last login: ' + clock(now, { weekday: 'short', month: 'short', day: 'numeric' }).replace(',', '') + ' '
       + clock(now, { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' on ttys001');
-    $('tmuxHandle').textContent = $('auditHandle').textContent = '@' + handle;
+    $('tmuxHandle').textContent = $('auditHandle').textContent = label;
     stage(null);
     $('tmuxClock').textContent = clock(now, { hour: '2-digit', minute: '2-digit' });
   }
@@ -905,6 +1322,11 @@
       if (this.stalling || !(pack.waiting || []).length) return;
       const say = () => {
         const [cmd, out] = pack.waiting[this.stalled++ % pack.waiting.length];
+        if (posts) {
+          posts.waiting(cmd, out);
+          this.stalling = setTimeout(say, 2400);
+          return;
+        }
         line('cmd', cmd);
         this.stalling = setTimeout(() => {
           line('dim', out);
@@ -918,14 +1340,16 @@
 
     // A command is typed, so it waits for its own typing before the output.
     section(sec) {
-      const step = ['profile', 'readme', 'repos', 'year', 'verdict'][this.sections++];
+      const step = pack.sections[this.sections++];
+      if (posts) return posts.section(sec, step);
       this.push(() => { if (step) stage(step); line('cmd', sec.cmd); }, typingTime(sec.cmd));
       for (const text of sec.lines || []) this.push(() => line('out', text), this.line);
     },
 
     // An account with nothing public gets the pack's quiet bit instead of a log.
     log(items) {
-      this.push(() => stage('commits'), 0);
+      this.push(() => stage('items'), 0);
+      if (posts) return posts.items(items);
       if (!items || !items.length) {
         for (const [kind, text] of pack.quiet) {
           this.push(() => line(kind, text.replace('{handle}', this.who)), kind === 'cmd' ? typingTime(text) : 600);
@@ -933,7 +1357,16 @@
         return;
       }
       this.push(() => line('cmd', pack.feed), typingTime(pack.feed));
-      for (const c of items.slice(0, this.commits)) this.push(() => this.draw(c), this.commit);
+      const draw = pack.feedKind === 'list' ? c => this.item(c) : c => this.draw(c);
+      for (const c of items.slice(0, this.commits)) this.push(() => draw(c), this.commit);
+    },
+
+    // One line an item, for a feed that is a list rather than a history.
+    item(c) {
+      const el = line('log', '');
+      const year = c.at && !c.at.startsWith('0001') ? c.at.slice(0, 4) : '';
+      el.innerHTML = '<span class="l0">*</span> ' + esc(c.text.length > 44 ? c.text.slice(0, 43) + '.' : c.text)
+        + `  <span class="meta">${esc(c.where)}${year ? ', ' + year : ''}</span>`;
     },
 
     // Three lanes at most, one per repository, so the feed reads as branches.
@@ -973,14 +1406,18 @@
   function fail(src, message) {
     src.close();
     feed.stop();
-    line('out', message);
-    line('dim', 'back to the start in a few seconds...');
+    if (posts) {
+      posts.failed(message + ' Back to the start in a few seconds.');
+    } else {
+      line('out', message);
+      line('dim', 'back to the start in a few seconds...');
+    }
     setTimeout(() => stream === src && reset(), 6000);
   }
 
   function finish() {
     const url = shareBase.replace(/\/$/, '') + '/' + roast.code;
-    $('resultHandle').textContent = '@' + roast.handle;
+    $('resultHandle').textContent = shown(roast.handle);
     const score = Number.parseInt(String(roast.score).split('/')[0].trim(), 10) || 0;
     $('score').textContent = String(score);
     $('scoreScale').style.setProperty('--score', `${Math.max(0, Math.min(100, score))}%`);
@@ -1666,7 +2103,14 @@
       roast = r;
       if (preview === 'result') return finish();
       show('audit');
-      session(r.handle);
+      session(shown(r.handle));
+      if (posts) {
+        posts.begin(shown(r.handle));
+        posts.gauges();
+        r.metrics.forEach(m => feed.push(() => posts.metric(m), 0));
+        feed.push(() => posts.verdict(r.verdict), 0);
+        return;
+      }
       line('cmd', './roast ' + r.handle);
       r.metrics.forEach(measured);
       typeVerdict(r.verdict);

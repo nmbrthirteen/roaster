@@ -57,22 +57,22 @@ var lines = map[string][]string{
 // always leaves with a receipt.
 func Fallback(b Brief) string {
 	if b.Empty {
-		return fresh(b.Avoid, "", empty(b)...)
+		return Fresh(b.Avoid, "", empty(b)...)
 	}
 
 	if options := shaped(b); len(options) > 0 {
-		return fresh(b.Avoid, "", options...)
+		return Fresh(b.Avoid, "", options...)
 	}
 
 	if options := claimed(b); len(options) > 0 {
-		return fresh(b.Avoid, "", options...)
+		return Fresh(b.Avoid, "", options...)
 	}
 
 	if best, value := worst(b); best != "" {
-		return fresh(b.Avoid, value, lines[best]...)
+		return Fresh(b.Avoid, value, lines[best]...)
 	}
 
-	return fresh(b.Avoid, "",
+	return Fresh(b.Avoid, "",
 		"Nothing public. Hard to ship bugs with no code.",
 		"Nothing public to roast. The safest way to never ship a bug is to never ship.",
 		"Zero public activity. The perfect codebase is the one nobody can see.",
@@ -202,9 +202,9 @@ func Archetype(b Brief) string {
 	return "Suspiciously Normal Engineer"
 }
 
-// fresh fills the first line not already printed. When every one has been,
+// Fresh fills the first line not already printed. When every one has been,
 // it starts again from the top: repeating is better than printing nothing.
-func fresh(avoid []string, value string, options ...string) string {
+func Fresh(avoid []string, value string, options ...string) string {
 	fill := func(o string) string {
 		if strings.Contains(o, "%s") {
 			return fmt.Sprintf(o, value)

@@ -59,7 +59,7 @@ func brief() Brief {
 
 func TestTheRequestIsWhatWeMeanToSend(t *testing.T) {
 	c, asked := fakeAPI(t, http.StatusOK, message("end_turn", page("60% of commits at 3am. It shows.")))
-	if _, err := c.Write(context.Background(), brief()); err != nil {
+	if _, err := c.Write(context.Background(), brief().Prompt()); err != nil {
 		t.Fatal(err)
 	}
 	req := *asked
@@ -90,7 +90,7 @@ func TestTheRequestIsWhatWeMeanToSend(t *testing.T) {
 
 func TestAPageComesBackAsWritten(t *testing.T) {
 	c, _ := fakeAPI(t, http.StatusOK, message("end_turn", page("60% of commits at 3am, and it shows.")))
-	got, err := c.Write(context.Background(), brief())
+	got, err := c.Write(context.Background(), brief().Prompt())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,21 +101,21 @@ func TestAPageComesBackAsWritten(t *testing.T) {
 
 func TestARefusalIsSaidAsOne(t *testing.T) {
 	c, _ := fakeAPI(t, http.StatusOK, message("refusal", ""))
-	if _, err := c.Write(context.Background(), brief()); !errors.Is(err, ErrDeclined) {
+	if _, err := c.Write(context.Background(), brief().Prompt()); !errors.Is(err, ErrDeclined) {
 		t.Errorf("want ErrDeclined, got %v", err)
 	}
 }
 
 func TestAReplyThatIsNotAPageIsUnusable(t *testing.T) {
 	c, _ := fakeAPI(t, http.StatusOK, message("end_turn", "60% of commits at 3am. It shows."))
-	if _, err := c.Write(context.Background(), brief()); !errors.Is(err, ErrUnusable) {
+	if _, err := c.Write(context.Background(), brief().Prompt()); !errors.Is(err, ErrUnusable) {
 		t.Errorf("want ErrUnusable, got %v", err)
 	}
 }
 
 func TestAnOutageIsAnError(t *testing.T) {
 	c, _ := fakeAPI(t, http.StatusInternalServerError, `{"type":"error","error":{"type":"api_error","message":"down"}}`)
-	if _, err := c.Write(context.Background(), brief()); err == nil {
+	if _, err := c.Write(context.Background(), brief().Prompt()); err == nil {
 		t.Errorf("a 500 should come back as an error for the caller to fall back on")
 	}
 }

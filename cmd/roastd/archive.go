@@ -68,6 +68,15 @@ func (a archive) Roast(ctx context.Context, req roast.Request, emit func(roast.U
 	return r, nil
 }
 
+// Search passes straight through: a search is not a roast, so nothing is saved.
+func (a archive) Search(ctx context.Context, s roast.Search) ([]roast.Candidate, error) {
+	searcher, ok := a.next.(roast.Searcher)
+	if !ok {
+		return nil, fmt.Errorf("this roast service cannot search by name")
+	}
+	return searcher.Search(ctx, s)
+}
+
 func (a archive) save(e entry) {
 	ctx, cancel := context.WithTimeout(a.bg.context(), 10*time.Second)
 	defer cancel()

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/upgaming/roaster/internal/config"
+	"github.com/upgaming/roaster/internal/linkedin"
 	"github.com/upgaming/roaster/internal/roast"
 )
 
@@ -229,5 +230,41 @@ func TestAServiceAddressNeedsHTTPSOffTheMachine(t *testing.T) {
 		if err := s.setRemoteURL(v); err == nil {
 			t.Errorf("%s accepted", v)
 		}
+	}
+}
+
+func TestTheStandSearchesWhenItsPackLooksPeopleUp(t *testing.T) {
+	s := testStation(t)
+	s.provider = roast.Router{roast.LinkedIn: linkedin.Audit{Source: linkedin.Demo{}}}
+	if err := s.st.setPack(roast.LinkedIn); err != nil {
+		t.Fatal(err)
+	}
+
+	var reply struct {
+		Candidates []roast.Candidate `json:"candidates"`
+		Error      string            `json:"error"`
+	}
+	res := get(t, s.Handler(), "/api/search?q=Jordan+Sample")
+	if err := json.Unmarshal(res.Body.Bytes(), &reply); err != nil {
+		t.Fatal(err)
+	}
+	if reply.Error != "" || len(reply.Candidates) == 0 || reply.Candidates[0].Name != "Jordan Sample" {
+		t.Errorf("got %+v", reply)
+	}
+
+	page := get(t, s.Handler(), "/kiosk").Body.String()
+	if !strings.Contains(page, "Enter your first and last name") || strings.Contains(page, "Enter your GitHub username") {
+		t.Errorf("the entry screen should ask for a name when the stand roasts LinkedIn")
+	}
+}
+
+func TestASearchOnAHandlePackIsRefusedInWords(t *testing.T) {
+	var reply struct {
+		Error string `json:"error"`
+	}
+	res := get(t, testServer(t), "/api/search?q=Jordan+Sample")
+	json.Unmarshal(res.Body.Bytes(), &reply)
+	if reply.Error == "" {
+		t.Errorf("a GitHub stand cannot search by name, and should say so")
 	}
 }

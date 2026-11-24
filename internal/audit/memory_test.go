@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -22,12 +23,27 @@ type numbered struct {
 	avoids [][]string
 }
 
-func (w *numbered) Write(ctx context.Context, b verdict.Brief) (verdict.Page, error) {
+func (w *numbered) Write(ctx context.Context, p verdict.Prompt) (verdict.Page, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.n++
-	w.avoids = append(w.avoids, b.Avoid)
+	w.avoids = append(w.avoids, avoided(p.User))
 	return verdict.Page{Verdict: fmt.Sprintf("Line number %d.", w.n)}, nil
+}
+
+// avoided reads back the lines the prompt told the model not to repeat.
+func avoided(user string) []string {
+	_, rest, ok := strings.Cut(user, "Already printed at this stand.")
+	if !ok {
+		return nil
+	}
+	var out []string
+	for _, l := range strings.Split(rest, "\n") {
+		if a, ok := strings.CutPrefix(l, "- "); ok {
+			out = append(out, a)
+		}
+	}
+	return out
 }
 
 func (w *numbered) lastAvoid() []string {
